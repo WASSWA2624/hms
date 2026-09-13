@@ -8463,6 +8463,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tenantFacilityFacilityDetailsNoLogo => 'No logo uploaded';
 
   @override
+  String get tenantFacilityFacilityDetailsLogoLoadFailed =>
+      'Logo could not be loaded';
+
+  @override
   String get tenantFacilityDetailsAddLogoAction => 'Add logo';
 
   @override

@@ -15601,6 +15601,12 @@ abstract class AppLocalizations {
   /// **'No logo uploaded'**
   String get tenantFacilityFacilityDetailsNoLogo;
 
+  /// Shown in facility details when an uploaded logo fails to load.
+  ///
+  /// In en, this message translates to:
+  /// **'Logo could not be loaded'**
+  String get tenantFacilityFacilityDetailsLogoLoadFailed;
+
   /// Action to upload a facility logo from facility details.
   ///
   /// In en, this message translates to:

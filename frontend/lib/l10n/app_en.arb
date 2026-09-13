@@ -10808,6 +10808,10 @@
   "@tenantFacilityFacilityDetailsNoLogo": {
     "description": "Empty logo state in facility details summary."
   },
+  "tenantFacilityFacilityDetailsLogoLoadFailed": "Logo could not be loaded",
+  "@tenantFacilityFacilityDetailsLogoLoadFailed": {
+    "description": "Shown in facility details when an uploaded logo fails to load."
+  },
   "tenantFacilityDetailsAddLogoAction": "Add logo",
   "@tenantFacilityDetailsAddLogoAction": {
     "description": "Action to upload a facility logo from facility details."

@@ -3865,6 +3865,7 @@ class _FacilityLogoAvatar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final AppLocalizations l10n = context.l10n;
     final ThemeData theme = Theme.of(context);
     final ColorScheme colorScheme = theme.colorScheme;
     final String? url = resolveAppMediaUrl(
@@ -3873,43 +3874,51 @@ class _FacilityLogoAvatar extends ConsumerWidget {
     );
     final bool hasLogo = url != null && url.isNotEmpty;
 
-    return Semantics(
-      label: hasLogo ? null : context.l10n.tenantFacilityFacilityDetailsNoLogo,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
-          border: theme.borders.all(),
+    // A logo that fails to load must not read as one that was never uploaded:
+    // the two states are otherwise identical on screen, which hides real
+    // delivery failures (a 404 on the media host, or a missing CORS header).
+    Widget placeholder({required bool failed}) {
+      final String label = failed
+          ? l10n.tenantFacilityFacilityDetailsLogoLoadFailed
+          : l10n.tenantFacilityFacilityDetailsNoLogo;
+      return Tooltip(
+        message: label,
+        child: Icon(
+          failed ? Icons.broken_image_outlined : Icons.domain_outlined,
+          color: failed ? colorScheme.error : colorScheme.onSurfaceVariant,
+          semanticLabel: label,
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: SizedBox(
-            width: 88,
-            height: 88,
-            child: hasLogo
-                ? Padding(
-                    padding: const EdgeInsets.all(6),
-                    child: Image.network(
-                      url,
-                      key: ValueKey<String>(url),
-                      fit: BoxFit.contain,
-                      filterQuality: FilterQuality.high,
-                      errorBuilder:
-                          (
-                            BuildContext context,
-                            Object error,
-                            StackTrace? stackTrace,
-                          ) => Icon(
-                            Icons.domain_outlined,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                  )
-                : Icon(
-                    Icons.domain_outlined,
-                    color: colorScheme.onSurfaceVariant,
+      );
+    }
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+        border: theme.borders.all(),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          width: 88,
+          height: 88,
+          child: hasLogo
+              ? Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: Image.network(
+                    url,
+                    key: ValueKey<String>(url),
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.high,
+                    errorBuilder:
+                        (
+                          BuildContext context,
+                          Object error,
+                          StackTrace? stackTrace,
+                        ) => placeholder(failed: true),
                   ),
-          ),
+                )
+              : placeholder(failed: false),
         ),
       ),
     );
