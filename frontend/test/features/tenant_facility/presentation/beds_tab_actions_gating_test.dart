@@ -259,7 +259,9 @@ void main() {
       expect(controllerSource.contains('lastSavedBed'), isTrue);
       expect(bedDetailsSource.contains('showTenantFacilityBedFormDialog'), isTrue);
       expect(bedDetailsSource.contains('deleteBed(_bed.id)'), isTrue);
-      expect(bedDetailsSource.contains('_BedFactTile'), isTrue);
+      expect(bedDetailsSource.contains('AppCollapsibleSection'), isTrue);
+      expect(bedDetailsSource.contains('AppInfoSheetGrid'), isTrue);
+      expect(bedDetailsSource.contains('_BedFactTile'), isFalse);
       expect(bedDetailsSource.contains('tenantFacilityBedIdLabel'), isTrue);
       expect(bedDetailsSource.contains('tenantFacilityCreatedAtLabel'), isTrue);
       expect(bedDetailsSource.contains('tenantFacilityUpdatedAtLabel'), isTrue);

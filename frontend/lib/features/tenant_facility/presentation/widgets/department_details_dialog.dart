@@ -257,8 +257,7 @@ class _DepartmentDetailsDialogState
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = context.l10n;
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colorScheme = theme.colorScheme;
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     final String statusLabel = _statusLabel(l10n);
     final String? displayId = tenantFacilityHumanFriendlyDisplayId(
       _department.displayId,
@@ -270,43 +269,45 @@ class _DepartmentDetailsDialogState
         : _emptyValue;
     final String typeLabel = _departmentTypeLabel(l10n, _department.type);
 
-    final List<_DepartmentDetailFact> facts = <_DepartmentDetailFact>[
-      _DepartmentDetailFact(
+    const Set<String> emptyPlaceholders = <String>{_emptyValue};
+
+    final List<AppInfoSheetItem> overviewItems = <AppInfoSheetItem>[
+      AppInfoSheetItem(
         label: l10n.tenantFacilityDepartmentNameLabel,
         value: _department.name,
-        icon: Icons.badge_outlined,
       ),
-      _DepartmentDetailFact(
+      AppInfoSheetItem(
         label: l10n.tenantFacilityDepartmentShortNameLabel,
         value: shortName,
-        icon: Icons.short_text_outlined,
       ),
-      _DepartmentDetailFact(
+      AppInfoSheetItem(
         label: l10n.tenantFacilityDepartmentTypeLabel,
         value: typeLabel,
-        icon: _typeIcon(_department.type),
       ),
-      _DepartmentDetailFact(
+      AppInfoSheetItem(
         label: l10n.tenantFacilityTenantStatusLabel,
         value: statusLabel,
-        icon: Icons.toggle_on_outlined,
       ),
       if (displayId != null)
-        _DepartmentDetailFact(
+        AppInfoSheetItem(
           label: l10n.tenantFacilityDepartmentIdLabel,
           value: displayId,
-          icon: Icons.tag_outlined,
+          copyable: true,
+          copyTooltip: l10n.copyIdentifierAction,
+          copiedMessage: l10n.identifierCopiedMessage,
+          copyPlaceholderValues: emptyPlaceholders,
         ),
-      _DepartmentDetailFact(
+    ];
+
+    final List<AppInfoSheetItem> structureItems = <AppInfoSheetItem>[
+      AppInfoSheetItem(
         label: l10n.profileTenantLabel,
         value: _resolveTenantName(),
-        icon: Icons.apartment_outlined,
       ),
       if (facilityName != null)
-        _DepartmentDetailFact(
+        AppInfoSheetItem(
           label: l10n.profileFacilityLabel,
           value: facilityName,
-          icon: Icons.local_hospital_outlined,
         ),
     ];
 
@@ -318,112 +319,41 @@ class _DepartmentDetailsDialogState
       maxWidth: 720,
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: colorScheme.primaryContainer.withValues(alpha: 0.28),
-              borderRadius: BorderRadius.circular(theme.radius.md),
-              border: theme.borders.all(color: colorScheme.primary.withValues(alpha: 0.18)),
-            ),
-            child: Padding(
-              padding: EdgeInsets.all(theme.spacing.md),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: colorScheme.surface,
-                      borderRadius: BorderRadius.circular(theme.radius.sm),
-                      border: theme.borders.all(),
-                    ),
-                    child: Padding(
-                      padding: EdgeInsets.all(theme.spacing.sm),
-                      child: Icon(
-                        _typeIcon(_department.type),
-                        color: colorScheme.primary,
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: theme.spacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          _department.name,
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: AppFontWeight.emphasis,
-                            height: 1.15,
-                          ),
-                        ),
-                        SizedBox(height: theme.spacing.xs),
-                        Wrap(
-                          spacing: theme.spacing.sm,
-                          runSpacing: theme.spacing.xs,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: <Widget>[
-                            _DepartmentStatusBadge(
-                              label: statusLabel,
-                              tone: _statusTone(),
-                            ),
-                            Text(
-                              typeLabel,
-                              style: theme.textTheme.labelLarge?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                                fontWeight: AppFontWeight.emphasis,
-                              ),
-                            ),
-                            if (displayId != null)
-                              Text(
-                                displayId,
-                                style: theme.textTheme.labelLarge?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                  fontWeight: AppFontWeight.emphasis,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+        mainAxisSize: MainAxisSize.min,
+        children: appCollapsibleSectionSpacing(context, <Widget>[
+          AppCollapsibleSection(
+            titleIcon: _typeIcon(_department.type),
+            eyebrow: displayId,
+            title: _department.name,
+            subtitle: typeLabel,
+            collapsible: false,
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: _DepartmentStatusBadge(
+                label: statusLabel,
+                tone: _statusTone(),
               ),
             ),
           ),
-          SizedBox(height: theme.spacing.md),
           if (_busy)
-            Padding(
-              padding: EdgeInsets.only(bottom: theme.spacing.md),
-              child: const Center(
-                child: AppLoadingIndicator.compact(expand: false),
-              ),
+            const Center(child: AppLoadingIndicator.compact(expand: false)),
+          AppCollapsibleSection(
+            title: l10n.hrStaffOverviewSectionTitle,
+            titleIcon: Icons.info_outline,
+            child: AppInfoSheetGrid(
+              emptyValue: _emptyValue,
+              items: overviewItems,
             ),
-          LayoutBuilder(
-            builder: (BuildContext context, BoxConstraints constraints) {
-              final double width = constraints.maxWidth;
-              final int columns = width >= 640
-                  ? 3
-                  : width >= 420
-                  ? 2
-                  : 1;
-              final double gap = theme.spacing.sm;
-              final double tileWidth =
-                  (width - (gap * (columns - 1))) / columns;
-
-              return Wrap(
-                spacing: gap,
-                runSpacing: gap,
-                children: <Widget>[
-                  for (final _DepartmentDetailFact fact in facts)
-                    SizedBox(
-                      width: tileWidth,
-                      child: _DepartmentFactTile(fact: fact),
-                    ),
-                ],
-              );
-            },
           ),
-        ],
+          AppCollapsibleSection(
+            title: l10n.tenantFacilityFacilityDetailsStructureHeading,
+            titleIcon: Icons.account_tree_outlined,
+            child: AppInfoSheetGrid(
+              emptyValue: _emptyValue,
+              items: structureItems,
+            ),
+          ),
+        ]),
       ),
       actions: <Widget>[
         if (_canEditStructure && !_department.isDeleted)
@@ -449,73 +379,6 @@ class _DepartmentDetailsDialogState
           onPressed: () => Navigator.of(context).pop(_mutated ? true : null),
         ),
       ],
-    );
-  }
-}
-
-final class _DepartmentDetailFact {
-  const _DepartmentDetailFact({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
-
-  final String label;
-  final String value;
-  final IconData icon;
-}
-
-class _DepartmentFactTile extends StatelessWidget {
-  const _DepartmentFactTile({required this.fact});
-
-  final _DepartmentDetailFact fact;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colorScheme = theme.colorScheme;
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(theme.radius.sm),
-        border: theme.borders.all(),
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(theme.spacing.sm),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Icon(
-              fact.icon,
-              size: 18,
-              color: colorScheme.primary,
-            ),
-            SizedBox(width: theme.spacing.sm),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    fact.label,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                      fontWeight: AppFontWeight.emphasis,
-                    ),
-                  ),
-                  SizedBox(height: theme.spacing.xs / 2),
-                  Text(
-                    fact.value,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: AppFontWeight.emphasis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

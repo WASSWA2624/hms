@@ -276,8 +276,7 @@ class _UnitDetailsDialogState extends ConsumerState<_UnitDetailsDialog> {
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = context.l10n;
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colorScheme = theme.colorScheme;
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     final String statusLabel = _statusLabel(l10n);
     final String? facilityName = _resolveFacilityName();
     final String departmentName = _resolveDepartmentName();
@@ -293,50 +292,54 @@ class _UnitDetailsDialogState extends ConsumerState<_UnitDetailsDialog> {
         ? null
         : AppFormatters.dateTime(_unit.updatedAt!, locale);
 
-    final List<_UnitDetailFact> facts = <_UnitDetailFact>[
-      _UnitDetailFact(
+    const Set<String> emptyPlaceholders = <String>{_emptyValue};
+
+    final List<AppInfoSheetItem> overviewItems = <AppInfoSheetItem>[
+      AppInfoSheetItem(
         label: l10n.tenantFacilityUnitNameLabel,
         value: _unit.name,
-        icon: Icons.badge_outlined,
       ),
-      _UnitDetailFact(
-        label: l10n.tenantFacilityUnitDepartmentLabel,
-        value: departmentName,
-        icon: Icons.domain_outlined,
-      ),
-      _UnitDetailFact(
+      AppInfoSheetItem(
         label: l10n.tenantFacilityTenantStatusLabel,
         value: statusLabel,
-        icon: Icons.toggle_on_outlined,
       ),
       if (displayId != null)
-        _UnitDetailFact(
+        AppInfoSheetItem(
           label: l10n.tenantFacilityUnitIdLabel,
           value: displayId,
-          icon: Icons.tag_outlined,
+          copyable: true,
+          copyTooltip: l10n.copyIdentifierAction,
+          copiedMessage: l10n.identifierCopiedMessage,
+          copyPlaceholderValues: emptyPlaceholders,
         ),
-      _UnitDetailFact(
+    ];
+
+    final List<AppInfoSheetItem> structureItems = <AppInfoSheetItem>[
+      AppInfoSheetItem(
+        label: l10n.tenantFacilityUnitDepartmentLabel,
+        value: departmentName,
+      ),
+      AppInfoSheetItem(
         label: l10n.profileTenantLabel,
         value: _resolveTenantName(),
-        icon: Icons.apartment_outlined,
       ),
       if (facilityName != null)
-        _UnitDetailFact(
+        AppInfoSheetItem(
           label: l10n.profileFacilityLabel,
           value: facilityName,
-          icon: Icons.local_hospital_outlined,
         ),
+    ];
+
+    final List<AppInfoSheetItem> activityItems = <AppInfoSheetItem>[
       if (createdAt != null)
-        _UnitDetailFact(
+        AppInfoSheetItem(
           label: l10n.tenantFacilityCreatedAtLabel,
           value: createdAt,
-          icon: Icons.schedule_outlined,
         ),
       if (updatedAt != null)
-        _UnitDetailFact(
+        AppInfoSheetItem(
           label: l10n.tenantFacilityUpdatedAtLabel,
           value: updatedAt,
-          icon: Icons.update_outlined,
         ),
     ];
 
@@ -348,113 +351,50 @@ class _UnitDetailsDialogState extends ConsumerState<_UnitDetailsDialog> {
       maxWidth: 720,
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: colorScheme.primaryContainer.withValues(alpha: 0.28),
-              borderRadius: BorderRadius.circular(theme.radius.md),
-              border: theme.borders.all(color: colorScheme.primary.withValues(alpha: 0.18)),
-            ),
-            child: Padding(
-              padding: EdgeInsets.all(theme.spacing.md),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: colorScheme.surface,
-                      borderRadius: BorderRadius.circular(theme.radius.sm),
-                      border: theme.borders.all(),
-                    ),
-                    child: Padding(
-                      padding: EdgeInsets.all(theme.spacing.sm),
-                      child: Icon(
-                        Icons.account_tree_outlined,
-                        color: colorScheme.primary,
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: theme.spacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          _unit.name,
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: AppFontWeight.emphasis,
-                            height: 1.15,
-                          ),
-                        ),
-                        SizedBox(height: theme.spacing.xs),
-                        Wrap(
-                          spacing: theme.spacing.sm,
-                          runSpacing: theme.spacing.xs,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: <Widget>[
-                            _UnitStatusBadge(
-                              label: statusLabel,
-                              tone: _statusTone(),
-                            ),
-                            if (departmentName != _emptyValue)
-                              Text(
-                                departmentName,
-                                style: theme.textTheme.labelLarge?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                  fontWeight: AppFontWeight.emphasis,
-                                ),
-                              ),
-                            if (displayId != null)
-                              Text(
-                                displayId,
-                                style: theme.textTheme.labelLarge?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                  fontWeight: AppFontWeight.emphasis,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+        mainAxisSize: MainAxisSize.min,
+        children: appCollapsibleSectionSpacing(context, <Widget>[
+          AppCollapsibleSection(
+            titleIcon: Icons.account_tree_outlined,
+            eyebrow: displayId,
+            title: _unit.name,
+            subtitle: departmentName == _emptyValue ? null : departmentName,
+            collapsible: false,
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: _UnitStatusBadge(
+                label: statusLabel,
+                tone: _statusTone(),
               ),
             ),
           ),
-          SizedBox(height: theme.spacing.md),
           if (_busy)
-            Padding(
-              padding: EdgeInsets.only(bottom: theme.spacing.md),
-              child: const Center(
-                child: AppLoadingIndicator.compact(expand: false),
+            const Center(child: AppLoadingIndicator.compact(expand: false)),
+          AppCollapsibleSection(
+            title: l10n.hrStaffOverviewSectionTitle,
+            titleIcon: Icons.info_outline,
+            child: AppInfoSheetGrid(
+              emptyValue: _emptyValue,
+              items: overviewItems,
+            ),
+          ),
+          AppCollapsibleSection(
+            title: l10n.tenantFacilityFacilityDetailsStructureHeading,
+            titleIcon: Icons.account_tree_outlined,
+            child: AppInfoSheetGrid(
+              emptyValue: _emptyValue,
+              items: structureItems,
+            ),
+          ),
+          if (activityItems.isNotEmpty)
+            AppCollapsibleSection(
+              title: l10n.workspaceToolbarSectionActivity,
+              titleIcon: Icons.schedule_outlined,
+              child: AppInfoSheetGrid(
+                emptyValue: _emptyValue,
+                items: activityItems,
               ),
             ),
-          LayoutBuilder(
-            builder: (BuildContext context, BoxConstraints constraints) {
-              final double width = constraints.maxWidth;
-              final int columns = width >= 640
-                  ? 3
-                  : width >= 420
-                  ? 2
-                  : 1;
-              final double gap = theme.spacing.sm;
-              final double tileWidth =
-                  (width - (gap * (columns - 1))) / columns;
-
-              return Wrap(
-                spacing: gap,
-                runSpacing: gap,
-                children: <Widget>[
-                  for (final _UnitDetailFact fact in facts)
-                    SizedBox(
-                      width: tileWidth,
-                      child: _UnitFactTile(fact: fact),
-                    ),
-                ],
-              );
-            },
-          ),
-        ],
+        ]),
       ),
       actions: <Widget>[
         if (_canEditStructure && !_unit.isDeleted)
@@ -480,73 +420,6 @@ class _UnitDetailsDialogState extends ConsumerState<_UnitDetailsDialog> {
           onPressed: () => Navigator.of(context).pop(_mutated ? true : null),
         ),
       ],
-    );
-  }
-}
-
-final class _UnitDetailFact {
-  const _UnitDetailFact({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
-
-  final String label;
-  final String value;
-  final IconData icon;
-}
-
-class _UnitFactTile extends StatelessWidget {
-  const _UnitFactTile({required this.fact});
-
-  final _UnitDetailFact fact;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colorScheme = theme.colorScheme;
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(theme.radius.sm),
-        border: theme.borders.all(),
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(theme.spacing.sm),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Icon(
-              fact.icon,
-              size: 18,
-              color: colorScheme.primary,
-            ),
-            SizedBox(width: theme.spacing.sm),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    fact.label,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                      fontWeight: AppFontWeight.emphasis,
-                    ),
-                  ),
-                  SizedBox(height: theme.spacing.xs / 2),
-                  Text(
-                    fact.value,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: AppFontWeight.emphasis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

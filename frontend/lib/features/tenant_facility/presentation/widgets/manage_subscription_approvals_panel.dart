@@ -520,6 +520,8 @@ class _ManageSubscriptionApprovalsPanelState
 }
 
 class _SubscriptionApprovalDetailDialog extends StatelessWidget {
+  static const String _emptyValue = '—';
+
   const _SubscriptionApprovalDetailDialog({
     required this.item,
     required this.onApprove,
@@ -536,7 +538,12 @@ class _SubscriptionApprovalDetailDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final AppLocalizations l10n = context.l10n;
     final ThemeData theme = Theme.of(context);
-    final ColorScheme colors = theme.colorScheme;
+
+    final String headline = item.title.isEmpty
+        ? (item.email ?? item.effectiveDisplayId)
+        : item.title;
+    final String? contextLabel =
+        item.facilityName ?? item.subtitle ?? item.tenantName;
 
     return AppDialog(
       title: Text(l10n.tenantFacilitySubscriptionApprovalsDetailTitle),
@@ -544,114 +551,74 @@ class _SubscriptionApprovalDetailDialog extends StatelessWidget {
       scrollable: true,
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: colors.surfaceContainerHighest.withValues(alpha: 0.45),
-              borderRadius: BorderRadius.circular(theme.radius.md),
-              border: theme.borders.all(),
-            ),
-            child: Padding(
-              padding: EdgeInsets.all(theme.spacing.md),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: colors.primaryContainer.withValues(alpha: 0.7),
-                      borderRadius: BorderRadius.circular(theme.radius.sm),
-                    ),
-                    alignment: Alignment.center,
-                    child: Icon(
-                      Icons.apartment_outlined,
-                      color: colors.onPrimaryContainer,
-                    ),
-                  ),
-                  SizedBox(width: theme.spacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          item.title.isEmpty
-                              ? (item.email ?? item.effectiveDisplayId)
-                              : item.title,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: AppFontWeight.emphasis,
-                          ),
-                        ),
-                        SizedBox(height: theme.spacing.xs),
-                        Text(
-                          item.facilityName ??
-                              item.subtitle ??
-                              item.tenantName ??
-                              '—',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: colors.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+        mainAxisSize: MainAxisSize.min,
+        children: appCollapsibleSectionSpacing(context, <Widget>[
+          AppCollapsibleSection(
+            titleIcon: Icons.apartment_outlined,
+            eyebrow: item.effectiveDisplayId,
+            title: headline,
+            subtitle: contextLabel,
+            collapsible: false,
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: AppStatusBadge(label: item.status ?? _emptyValue),
             ),
           ),
-          SizedBox(height: theme.spacing.md),
           AppCollapsibleSection(
             title: l10n.tenantFacilitySubscriptionApprovalsContactsSection,
             titleIcon: Icons.contact_mail_outlined,
             description:
                 l10n.tenantFacilitySubscriptionApprovalsContactsDescription,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                _DetailRow(
+            child: AppInfoSheetGrid(
+              emptyValue: _emptyValue,
+              items: <AppInfoSheetItem>[
+                AppInfoSheetItem(
                   label: l10n.authAdminNameLabel,
                   value: item.title,
                 ),
-                _DetailRow(
+                AppInfoSheetItem(
                   label: l10n.accessAdminEmailLabel,
                   value: item.email,
                 ),
-                _DetailRow(
+                AppInfoSheetItem(
                   label: l10n.accessAdminPhoneLabel,
                   value: item.phone,
                 ),
               ],
             ),
           ),
-          SizedBox(height: theme.spacing.md),
           AppCollapsibleSection(
             title: l10n.tenantFacilitySubscriptionApprovalsFacilitySection,
             titleIcon: Icons.local_hospital_outlined,
             description:
                 l10n.tenantFacilitySubscriptionApprovalsFacilityDescription,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                _DetailRow(
-                  label: l10n.tenantFacilitySubscriptionApprovalsFacilityColumn,
+            child: AppInfoSheetGrid(
+              emptyValue: _emptyValue,
+              items: <AppInfoSheetItem>[
+                AppInfoSheetItem(
+                  label:
+                      l10n.tenantFacilitySubscriptionApprovalsFacilityColumn,
                   value: item.facilityName ?? item.subtitle,
                 ),
-                _DetailRow(
+                AppInfoSheetItem(
                   label: l10n.tenantFacilitySetupTabTenant,
                   value: item.tenantName,
                 ),
-                _DetailRow(
+                AppInfoSheetItem(
                   label: l10n.accessAdminColumnId,
                   value: item.effectiveDisplayId,
+                  copyable: true,
+                  copyTooltip: l10n.copyIdentifierAction,
+                  copiedMessage: l10n.identifierCopiedMessage,
+                  copyPlaceholderValues: const <String>{_emptyValue},
                 ),
-                _DetailRow(
+                AppInfoSheetItem(
                   label: l10n.accessAdminColumnStatus,
                   value: item.status,
                 ),
               ],
             ),
           ),
-          SizedBox(height: theme.spacing.md),
           AppCollapsibleSection(
             title: l10n.tenantFacilitySubscriptionApprovalsPlanSection,
             titleIcon: Icons.workspace_premium_outlined,
@@ -662,7 +629,6 @@ class _SubscriptionApprovalDetailDialog extends StatelessWidget {
               style: theme.textTheme.bodyMedium,
             ),
           ),
-          SizedBox(height: theme.spacing.lg),
           AppCollapsibleSection(
             title: l10n.tenantFacilitySubscriptionApprovalsActionsSection,
             titleIcon: Icons.bolt_outlined,
@@ -716,7 +682,7 @@ class _SubscriptionApprovalDetailDialog extends StatelessWidget {
               },
             ),
           ),
-        ],
+        ]),
       ),
       actions: <Widget>[
         AppButton.tertiary(
@@ -724,42 +690,6 @@ class _SubscriptionApprovalDetailDialog extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ],
-    );
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.label, required this.value});
-
-  final String label;
-  final String? value;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final String display = (value ?? '').trim();
-    return Padding(
-      padding: EdgeInsets.only(bottom: theme.spacing.sm),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: theme.textTheme.labelLarge?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-          Expanded(
-            child: SelectableText(
-              display.isEmpty ? '—' : display,
-              style: theme.textTheme.bodyMedium,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

@@ -5,7 +5,6 @@ import 'package:hosspi_hms/app/theme/app_theme_extensions.dart';
 import 'package:hosspi_hms/l10n/app_localizations.dart';
 import 'package:hosspi_hms/l10n/app_localizations_x.dart';
 import 'package:hosspi_hms/shared/components/components.dart';
-import 'package:hosspi_hms/shared/forms/forms.dart';
 import 'package:hosspi_hms/shared/printing/printing.dart';
 
 /// Column choice for Setup workspace list print (aligned with exportable fields).
@@ -232,54 +231,58 @@ class TenantFacilitySetupPrintOptionsSection extends StatelessWidget {
     return ListenableBuilder(
       listenable: controller,
       builder: (BuildContext context, _) {
-        return AppFormSection(
+        return AppCollapsibleSection(
           title: l10n.commonPrintSectionsLabel,
-          density: AppFormSectionDensity.compact,
-          children: <Widget>[
-            AppReportSectionPicker(
-              compact: true,
-              sections: <AppReportSectionData>[
-                AppReportSectionData(
-                  id: 'summary',
-                  title: l10n.commonPrintSummarySectionLabel,
-                  icon: Icons.summarize_outlined,
-                ),
-                AppReportSectionData(
-                  id: 'rows',
-                  title: l10n.commonPrintRowsSectionLabel,
-                  icon: Icons.list_alt_outlined,
-                ),
-              ],
-              selectedIds: <Object>{
-                if (controller.includeSummary) 'summary',
-                if (controller.includeRows) 'rows',
-              },
-              onSelectionChanged: (Set<Object> selected) {
-                controller.setIncludeSummary(selected.contains('summary'));
-                controller.setIncludeRows(selected.contains('rows'));
-              },
-            ),
-            SizedBox(height: theme.spacing.xs),
-            if (controller.includeRows)
+          titleIcon: Icons.print_outlined,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
               AppReportSectionPicker(
                 compact: true,
                 sections: <AppReportSectionData>[
-                  for (final TenantFacilitySetupPrintColumn column
-                      in controller.columns)
-                    AppReportSectionData(
-                      id: column.id,
-                      title: column.label,
-                      icon: Icons.view_column_outlined,
-                    ),
+                  AppReportSectionData(
+                    id: 'summary',
+                    title: l10n.commonPrintSummarySectionLabel,
+                    icon: Icons.summarize_outlined,
+                  ),
+                  AppReportSectionData(
+                    id: 'rows',
+                    title: l10n.commonPrintRowsSectionLabel,
+                    icon: Icons.list_alt_outlined,
+                  ),
                 ],
-                selectedIds: controller.selectedColumnIds,
+                selectedIds: <Object>{
+                  if (controller.includeSummary) 'summary',
+                  if (controller.includeRows) 'rows',
+                },
                 onSelectionChanged: (Set<Object> selected) {
-                  controller.setSelectedColumns(
-                    selected.map((Object id) => id.toString()).toSet(),
-                  );
+                  controller.setIncludeSummary(selected.contains('summary'));
+                  controller.setIncludeRows(selected.contains('rows'));
                 },
               ),
-          ],
+              SizedBox(height: theme.spacing.xs),
+              if (controller.includeRows)
+                AppReportSectionPicker(
+                  compact: true,
+                  sections: <AppReportSectionData>[
+                    for (final TenantFacilitySetupPrintColumn column
+                        in controller.columns)
+                      AppReportSectionData(
+                        id: column.id,
+                        title: column.label,
+                        icon: Icons.view_column_outlined,
+                      ),
+                  ],
+                  selectedIds: controller.selectedColumnIds,
+                  onSelectionChanged: (Set<Object> selected) {
+                    controller.setSelectedColumns(
+                      selected.map((Object id) => id.toString()).toSet(),
+                    );
+                  },
+                ),
+            ],
+          ),
         );
       },
     );

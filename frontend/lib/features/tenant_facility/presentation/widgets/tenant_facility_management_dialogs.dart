@@ -1062,8 +1062,6 @@ class _ManageTenantsPanelState extends ConsumerState<ManageTenantsPanel> {
         tenant: tenant,
         statusLabel: statusLabel,
         statusTone: statusTone,
-        framed: true,
-        expandToFill: true,
         onEdit: canEditTenant ? _editScopedTenant : null,
         editLabel: l10n.tenantFacilityEditTenantAction,
       ),
@@ -1947,8 +1945,6 @@ class _TenantDetailsSummary extends StatelessWidget {
     this.onHide,
     this.onEdit,
     this.editLabel,
-    this.framed = false,
-    this.expandToFill = false,
   });
 
   final TenantProfile tenant;
@@ -1957,8 +1953,6 @@ class _TenantDetailsSummary extends StatelessWidget {
   final VoidCallback? onHide;
   final Future<void> Function()? onEdit;
   final String? editLabel;
-  final bool framed;
-  final bool expandToFill;
 
   String _initials(String name) {
     final List<String> parts = name
@@ -1981,7 +1975,6 @@ class _TenantDetailsSummary extends StatelessWidget {
     final AppLocalizations l10n = context.l10n;
     final ThemeData theme = Theme.of(context);
     final ColorScheme colorScheme = theme.colorScheme;
-    final String hideLabel = l10n.tenantFacilityTenantDetailsHideSummaryAction;
     final VoidCallback? hideAction = onHide;
     final Future<void> Function()? editAction = onEdit;
     final String? resolvedEditLabel = editLabel;
@@ -1990,121 +1983,24 @@ class _TenantDetailsSummary extends StatelessWidget {
     final String? slug = tenant.slug?.trim();
     final bool showSlug = slug != null && slug.isNotEmpty;
 
-    final Widget editButton =
-        editAction != null &&
-            resolvedEditLabel != null &&
-            resolvedEditLabel.isNotEmpty
-        ? AppButton.secondary(
-            label: resolvedEditLabel,
-            leadingIcon: Icons.edit_outlined,
-            onPressed: () {
-              unawaited(editAction());
-            },
-          )
-        : const SizedBox.shrink();
-
-    final Widget headerContent = Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: colorScheme.primary.withValues(alpha: 0.12),
-            shape: BoxShape.circle,
-            border: theme.borders.all(color: colorScheme.primary.withValues(alpha: 0.22)),
-          ),
-          child: SizedBox.square(
-            dimension: framed ? 56 : 44,
-            child: Center(
-              child: Text(
-                _initials(tenant.name),
-                style:
-                    (framed
-                            ? theme.textTheme.titleLarge
-                            : theme.textTheme.titleMedium)
-                        ?.copyWith(
-                          color: colorScheme.primary,
-                          fontWeight: AppFontWeight.emphasis,
-                        ),
-              ),
-            ),
-          ),
+    final List<Widget> headerActions = <Widget>[
+      if (editAction != null &&
+          resolvedEditLabel != null &&
+          resolvedEditLabel.isNotEmpty)
+        AppButton.secondary(
+          label: resolvedEditLabel,
+          leadingIcon: Icons.edit_outlined,
+          onPressed: () {
+            unawaited(editAction());
+          },
         ),
-        SizedBox(width: theme.spacing.md),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                tenant.name,
-                style:
-                    (framed
-                            ? theme.textTheme.headlineSmall
-                            : theme.textTheme.titleLarge)
-                        ?.copyWith(fontWeight: AppFontWeight.emphasis, height: 1.15),
-              ),
-              SizedBox(height: theme.spacing.xs),
-              Wrap(
-                spacing: theme.spacing.sm,
-                runSpacing: theme.spacing.xs,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: <Widget>[
-                  _TenantStatusBadge(label: statusLabel, tone: statusTone),
-                  if (showSlug)
-                    Text(
-                      slug,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                        fontWeight: AppFontWeight.regular,
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
+      if (hideAction != null)
+        AppButton.tertiary(
+          label: l10n.tenantFacilityTenantDetailsHideSummaryAction,
+          leadingIcon: Icons.visibility_off_outlined,
+          onPressed: hideAction,
         ),
-        if (hideAction != null)
-          IconButton(
-            tooltip: hideLabel,
-            visualDensity: VisualDensity.compact,
-            onPressed: hideAction,
-            icon: const Icon(Icons.visibility_off_outlined),
-          ),
-      ],
-    );
-
-    final Widget header = Padding(
-      padding: EdgeInsets.fromLTRB(
-        theme.spacing.lg,
-        theme.spacing.lg,
-        theme.spacing.md,
-        theme.spacing.md,
-      ),
-      child: LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          final bool stackEdit =
-              editAction != null && constraints.maxWidth < 560;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Expanded(child: headerContent),
-                  if (!stackEdit && editAction != null) ...<Widget>[
-                    SizedBox(width: theme.spacing.sm),
-                    editButton,
-                  ],
-                ],
-              ),
-              if (stackEdit) ...<Widget>[
-                SizedBox(height: theme.spacing.sm),
-                Align(alignment: Alignment.centerLeft, child: editButton),
-              ],
-            ],
-          );
-        },
-      ),
-    );
+    ];
 
     Widget section({
       required String title,
@@ -2118,158 +2014,156 @@ class _TenantDetailsSummary extends StatelessWidget {
         child: AppInfoSheetGrid(
           emptyValue: emptyValue,
           maxColumns: maxColumns,
-          minItemWidth: framed ? 180 : 120,
           items: items,
         ),
       );
     }
 
-    final Widget sections = Padding(
-      padding: EdgeInsets.fromLTRB(
-        theme.spacing.lg,
-        theme.spacing.md,
-        theme.spacing.lg,
-        theme.spacing.lg,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          section(
-            title: l10n.hrStaffOverviewSectionTitle,
-            icon: Icons.info_outline,
-            items: <AppInfoSheetItem>[
-              AppInfoSheetItem(
-                label: l10n.tenantFacilityTenantSlugLabel,
-                value: tenant.slug,
-                copyable: true,
-                copyTooltip: l10n.copyIdentifierAction,
-                copiedMessage: l10n.identifierCopiedMessage,
-                copyPlaceholderValues: emptyPlaceholders,
-              ),
-              AppInfoSheetItem(
-                label: l10n.tenantFacilityTenantDetailsIdLabel,
-                value: tenant.displayId,
-                copyable: true,
-                copyTooltip: l10n.copyIdentifierAction,
-                copiedMessage: l10n.identifierCopiedMessage,
-                copyPlaceholderValues: emptyPlaceholders,
-              ),
-              AppInfoSheetItem(
-                label: l10n.tenantFacilityTenantStatusLabel,
-                value: statusLabel,
-              ),
-            ],
-          ),
-          SizedBox(height: theme.spacing.md),
-          section(
-            title: l10n.tenantFacilityFacilityDetailsContactHeading,
-            icon: Icons.contact_mail_outlined,
-            items: <AppInfoSheetItem>[
-              AppInfoSheetItem(
-                label: l10n.tenantFacilityTenantDetailsContactNameLabel,
-                value: tenant.contactName,
-              ),
-              AppInfoSheetItem(
-                label: l10n.profilePhoneLabel,
-                value: tenant.contactPhone,
-              ),
-              AppInfoSheetItem(
-                label: l10n.profileEmailLabel,
-                value: tenant.contactEmail,
-              ),
-            ],
-          ),
-          SizedBox(height: theme.spacing.md),
-          section(
-            title: l10n.settingsConfigurationTenantTitle,
-            icon: Icons.tune_outlined,
-            maxColumns: 2,
-            items: <AppInfoSheetItem>[
-              AppInfoSheetItem(
-                label: l10n.tenantFacilityDefaultCurrencyLabel,
-                value: resolveDefaultCurrency(tenantCurrency: tenant.currency),
-              ),
-              AppInfoSheetItem(
-                label: l10n.settingsConfigurationConsultationFeeLabel,
-                value: () {
-                  final String feeAmount = resolveDefaultConsultationFee(
-                    fee: tenant.standardConsultationFee,
-                  );
-                  final num? parsed = num.tryParse(
-                    normalizeCurrencyAmount(feeAmount),
-                  );
-                  final String formatted = parsed == null
-                      ? feeAmount
-                      : formatCurrencyAmountInput(parsed);
-                  return '${resolveDefaultCurrency(tenantCurrency: tenant.currency)} $formatted';
-                }(),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-
-    final Widget framedBody = Column(
+    final Widget sections = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: <Color>[
-                colorScheme.primaryContainer.withValues(alpha: 0.72),
-                colorScheme.surface,
-              ],
-            ),
-          ),
-          child: header,
-        ),
-        Divider(height: 1, color: theme.borders.faint),
-        if (expandToFill)
-          Expanded(child: SingleChildScrollView(child: sections))
-        else
-          sections,
-      ],
-    );
-
-    if (!framed) {
-      return LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          final bool boundedHeight = constraints.hasBoundedHeight;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: boundedHeight ? MainAxisSize.max : MainAxisSize.min,
+      mainAxisSize: MainAxisSize.min,
+      children: appCollapsibleSectionSpacing(context, <Widget>[
+        AppCollapsibleSection(
+          collapsible: false,
+          headerActions: headerActions,
+          titleWidget: Row(
             children: <Widget>[
-              header,
-              SizedBox(height: theme.spacing.md),
-              if (boundedHeight)
-                Expanded(child: SingleChildScrollView(child: sections))
-              else
-                sections,
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: colorScheme.primary.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                  border: theme.borders.all(
+                    color: colorScheme.primary.withValues(alpha: 0.22),
+                  ),
+                ),
+                child: SizedBox.square(
+                  dimension: 44,
+                  child: Center(
+                    child: Text(
+                      _initials(tenant.name),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: colorScheme.primary,
+                        fontWeight: AppFontWeight.emphasis,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(width: theme.spacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      tenant.name,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: AppFontWeight.strong,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (showSlug) ...<Widget>[
+                      SizedBox(height: theme.spacing.xs / 2),
+                      Text(
+                        slug,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ],
-          );
-        },
-      );
-    }
-
-    final Widget card = Material(
-      color: colorScheme.surface,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.zero,
-        side: theme.borders.side(),
-      ),
-      clipBehavior: Clip.hardEdge,
-      child: framedBody,
+          ),
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: _TenantStatusBadge(label: statusLabel, tone: statusTone),
+          ),
+        ),
+        section(
+          title: l10n.hrStaffOverviewSectionTitle,
+          icon: Icons.info_outline,
+          items: <AppInfoSheetItem>[
+            AppInfoSheetItem(
+              label: l10n.tenantFacilityTenantSlugLabel,
+              value: tenant.slug,
+              copyable: true,
+              copyTooltip: l10n.copyIdentifierAction,
+              copiedMessage: l10n.identifierCopiedMessage,
+              copyPlaceholderValues: emptyPlaceholders,
+            ),
+            AppInfoSheetItem(
+              label: l10n.tenantFacilityTenantDetailsIdLabel,
+              value: tenant.displayId,
+              copyable: true,
+              copyTooltip: l10n.copyIdentifierAction,
+              copiedMessage: l10n.identifierCopiedMessage,
+              copyPlaceholderValues: emptyPlaceholders,
+            ),
+            AppInfoSheetItem(
+              label: l10n.tenantFacilityTenantStatusLabel,
+              value: statusLabel,
+            ),
+          ],
+        ),
+        section(
+          title: l10n.tenantFacilityFacilityDetailsContactHeading,
+          icon: Icons.contact_mail_outlined,
+          items: <AppInfoSheetItem>[
+            AppInfoSheetItem(
+              label: l10n.tenantFacilityTenantDetailsContactNameLabel,
+              value: tenant.contactName,
+            ),
+            AppInfoSheetItem(
+              label: l10n.profilePhoneLabel,
+              value: tenant.contactPhone,
+            ),
+            AppInfoSheetItem(
+              label: l10n.profileEmailLabel,
+              value: tenant.contactEmail,
+            ),
+          ],
+        ),
+        section(
+          title: l10n.settingsConfigurationTenantTitle,
+          icon: Icons.tune_outlined,
+          maxColumns: 2,
+          items: <AppInfoSheetItem>[
+            AppInfoSheetItem(
+              label: l10n.tenantFacilityDefaultCurrencyLabel,
+              value: resolveDefaultCurrency(tenantCurrency: tenant.currency),
+            ),
+            AppInfoSheetItem(
+              label: l10n.settingsConfigurationConsultationFeeLabel,
+              value: () {
+                final String feeAmount = resolveDefaultConsultationFee(
+                  fee: tenant.standardConsultationFee,
+                );
+                final num? parsed = num.tryParse(
+                  normalizeCurrencyAmount(feeAmount),
+                );
+                final String formatted = parsed == null
+                    ? feeAmount
+                    : formatCurrencyAmountInput(parsed);
+                return '${resolveDefaultCurrency(tenantCurrency: tenant.currency)} $formatted';
+              }(),
+            ),
+          ],
+        ),
+      ]),
     );
 
-    if (!expandToFill) {
-      return card;
-    }
-
-    return SizedBox.expand(child: card);
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        if (!constraints.hasBoundedHeight) {
+          return sections;
+        }
+        return SingleChildScrollView(child: sections);
+      },
+    );
   }
 }
 
@@ -2306,45 +2200,6 @@ class _TenantStatusBadge extends StatelessWidget {
             fontWeight: AppFontWeight.emphasis,
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _TenantMetaRow extends StatelessWidget {
-  const _TenantMetaRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colorScheme = theme.colorScheme;
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: theme.spacing.sm),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          SizedBox(
-            width: 118,
-            child: Text(
-              label,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: AppFontWeight.emphasis,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -3801,199 +3656,204 @@ class _FacilityDetailsSummary extends StatelessWidget {
             .where((String value) => value.isNotEmpty)
             .join(', ');
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLowest,
-        border: theme.borders.all(),
-        borderRadius: BorderRadius.circular(12),
+    final String emptyValue = l10n.profileUnknownValue;
+
+    final List<AppInfoSheetItem> overviewItems = <AppInfoSheetItem>[
+      AppInfoSheetItem(label: l10n.profileTenantLabel, value: tenantLabel),
+      AppInfoSheetItem(
+        label: l10n.profileFacilityTypeLabel,
+        value: facility.type.name,
       ),
-      child: Padding(
-        padding: EdgeInsets.all(theme.spacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                _FacilityLogoAvatar(logoUrl: facility.logoUrl),
-                SizedBox(width: theme.spacing.sm),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        facility.name,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: AppFontWeight.emphasis,
-                          height: 1.2,
-                        ),
+      if (displayId != null)
+        AppInfoSheetItem(
+          label: l10n.tenantFacilityFacilityIdLabel,
+          value: displayId,
+          copyable: true,
+          copyTooltip: l10n.copyIdentifierAction,
+          copiedMessage: l10n.identifierCopiedMessage,
+          copyPlaceholderValues: <String>{emptyValue, '—'},
+        ),
+      AppInfoSheetItem(
+        label: l10n.tenantFacilityTenantStatusLabel,
+        value: statusLabel,
+      ),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: appCollapsibleSectionSpacing(context, <Widget>[
+        AppCollapsibleSection(
+          collapsible: false,
+          titleWidget: Row(
+            children: <Widget>[
+              _FacilityLogoAvatar(logoUrl: facility.logoUrl),
+              SizedBox(width: theme.spacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      facility.name,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: AppFontWeight.strong,
                       ),
-                      SizedBox(height: theme.spacing.xs),
-                      _TenantStatusBadge(label: statusLabel, tone: statusTone),
+                    ),
+                    SizedBox(height: theme.spacing.xs),
+                    _TenantStatusBadge(label: statusLabel, tone: statusTone),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              if (canManageLogo) ...<Widget>[
+                if (logoBusy)
+                  const LinearProgressIndicator(minHeight: 2)
+                else
+                  Wrap(
+                    spacing: theme.spacing.sm,
+                    runSpacing: theme.spacing.xs,
+                    children: <Widget>[
+                      AppButton.secondary(
+                        label: hasLogo
+                            ? l10n.tenantFacilityDetailsChangeLogoAction
+                            : l10n.tenantFacilityDetailsAddLogoAction,
+                        leadingIcon: hasLogo
+                            ? Icons.sync_outlined
+                            : Icons.add_photo_alternate_outlined,
+                        onPressed: onAddOrChangeLogo,
+                      ),
+                      if (hasLogo)
+                        AppButton.secondary(
+                          label: l10n.tenantFacilityDetailsRemoveLogoAction,
+                          leadingIcon: Icons.hide_image_outlined,
+                          color: colorScheme.error,
+                          onPressed: onRemoveLogo,
+                        ),
                     ],
                   ),
+                SizedBox(height: theme.spacing.md),
+              ],
+              AppInfoSheetGrid(
+                emptyValue: emptyValue,
+                maxColumns: 2,
+                items: overviewItems,
+              ),
+            ],
+          ),
+        ),
+        AppCollapsibleSection(
+          title: l10n.tenantFacilityFacilityDetailsStructureHeading,
+          titleIcon: Icons.account_tree_outlined,
+          child: loading && snapshot == null
+              ? const Center(child: CircularProgressIndicator())
+              : Wrap(
+                  spacing: theme.spacing.sm,
+                  runSpacing: theme.spacing.sm,
+                  children: <Widget>[
+                    _FacilityMetricChip(
+                      label: l10n.tenantFacilityFacilityDetailsUsersHeading,
+                      value: userCount,
+                      selected:
+                          selectedPanel == _FacilityDetailsPanel.users,
+                      onTap: () =>
+                          onPanelSelected(_FacilityDetailsPanel.users),
+                    ),
+                    _FacilityMetricChip(
+                      label: l10n.tenantFacilityDepartmentsListTitle,
+                      value:
+                          snapshot?.departments
+                              .where(
+                                (DepartmentProfile item) => !item.isDeleted,
+                              )
+                              .length ??
+                          0,
+                      selected:
+                          selectedPanel ==
+                          _FacilityDetailsPanel.departments,
+                      onTap: () => onPanelSelected(
+                        _FacilityDetailsPanel.departments,
+                      ),
+                    ),
+                    _FacilityMetricChip(
+                      label: l10n.tenantFacilityUnitsListTitle,
+                      value:
+                          snapshot?.units
+                              .where((UnitProfile item) => !item.isDeleted)
+                              .length ??
+                          0,
+                      selected:
+                          selectedPanel == _FacilityDetailsPanel.units,
+                      onTap: () =>
+                          onPanelSelected(_FacilityDetailsPanel.units),
+                    ),
+                    _FacilityMetricChip(
+                      label: l10n.tenantFacilityWardsLabel,
+                      value:
+                          snapshot?.wards
+                              .where((WardProfile item) => !item.isDeleted)
+                              .length ??
+                          0,
+                      selected:
+                          selectedPanel == _FacilityDetailsPanel.wards,
+                      onTap: () =>
+                          onPanelSelected(_FacilityDetailsPanel.wards),
+                    ),
+                    _FacilityMetricChip(
+                      label: l10n.tenantFacilityRoomsLabel,
+                      value:
+                          snapshot?.rooms
+                              .where((RoomProfile item) => !item.isDeleted)
+                              .length ??
+                          0,
+                      selected:
+                          selectedPanel == _FacilityDetailsPanel.rooms,
+                      onTap: () =>
+                          onPanelSelected(_FacilityDetailsPanel.rooms),
+                    ),
+                    _FacilityMetricChip(
+                      label: l10n.tenantFacilityBedsLabel,
+                      value:
+                          snapshot?.beds
+                              .where((BedProfile item) => !item.isDeleted)
+                              .length ??
+                          0,
+                      selected: selectedPanel == _FacilityDetailsPanel.beds,
+                      onTap: () =>
+                          onPanelSelected(_FacilityDetailsPanel.beds),
+                    ),
+                  ],
                 ),
+        ),        if (phone != null || email != null || address.isNotEmpty)
+          AppCollapsibleSection(
+            title: l10n.tenantFacilityFacilityDetailsContactHeading,
+            titleIcon: Icons.contact_mail_outlined,
+            child: AppInfoSheetGrid(
+              emptyValue: emptyValue,
+              maxColumns: 2,
+              items: <AppInfoSheetItem>[
+                if (phone != null && phone.isNotEmpty)
+                  AppInfoSheetItem(
+                    label: l10n.profilePhoneLabel,
+                    value: phone,
+                  ),
+                if (email != null && email.isNotEmpty)
+                  AppInfoSheetItem(
+                    label: l10n.profileEmailLabel,
+                    value: email,
+                  ),
+                if (address.isNotEmpty)
+                  AppInfoSheetItem(
+                    label: l10n.tenantFacilityAddressLineLabel,
+                    value: address,
+                  ),
               ],
             ),
-            if (canManageLogo) ...<Widget>[
-              SizedBox(height: theme.spacing.sm),
-              if (logoBusy)
-                const LinearProgressIndicator(minHeight: 2)
-              else
-                Wrap(
-                  spacing: theme.spacing.sm,
-                  runSpacing: theme.spacing.xs,
-                  children: <Widget>[
-                    AppButton.secondary(
-                      label: hasLogo
-                          ? l10n.tenantFacilityDetailsChangeLogoAction
-                          : l10n.tenantFacilityDetailsAddLogoAction,
-                      leadingIcon: hasLogo
-                          ? Icons.sync_outlined
-                          : Icons.add_photo_alternate_outlined,
-                      onPressed: onAddOrChangeLogo,
-                    ),
-                    if (hasLogo)
-                      AppButton.secondary(
-                        label: l10n.tenantFacilityDetailsRemoveLogoAction,
-                        leadingIcon: Icons.hide_image_outlined,
-                        color: colorScheme.error,
-                        onPressed: onRemoveLogo,
-                      ),
-                  ],
-                ),
-            ],
-            SizedBox(height: theme.spacing.md),
-            const Divider(height: 1),
-            SizedBox(height: theme.spacing.md),
-            _TenantMetaRow(label: l10n.profileTenantLabel, value: tenantLabel),
-            _TenantMetaRow(
-              label: l10n.profileFacilityTypeLabel,
-              value: facility.type.name,
-            ),
-            if (displayId != null)
-              _TenantMetaRow(
-                label: l10n.tenantFacilityFacilityIdLabel,
-                value: displayId,
-              ),
-            _TenantMetaRow(
-              label: l10n.tenantFacilityTenantStatusLabel,
-              value: statusLabel,
-            ),
-            SizedBox(height: theme.spacing.md),
-            AppCollapsibleSection(
-              title: l10n.tenantFacilityFacilityDetailsStructureHeading,
-              child: loading && snapshot == null
-                  ? const Center(child: CircularProgressIndicator())
-                  : Wrap(
-                      spacing: theme.spacing.sm,
-                      runSpacing: theme.spacing.sm,
-                      children: <Widget>[
-                        _FacilityMetricChip(
-                          label: l10n.tenantFacilityFacilityDetailsUsersHeading,
-                          value: userCount,
-                          selected:
-                              selectedPanel == _FacilityDetailsPanel.users,
-                          onTap: () =>
-                              onPanelSelected(_FacilityDetailsPanel.users),
-                        ),
-                        _FacilityMetricChip(
-                          label: l10n.tenantFacilityDepartmentsListTitle,
-                          value:
-                              snapshot?.departments
-                                  .where(
-                                    (DepartmentProfile item) => !item.isDeleted,
-                                  )
-                                  .length ??
-                              0,
-                          selected:
-                              selectedPanel ==
-                              _FacilityDetailsPanel.departments,
-                          onTap: () => onPanelSelected(
-                            _FacilityDetailsPanel.departments,
-                          ),
-                        ),
-                        _FacilityMetricChip(
-                          label: l10n.tenantFacilityUnitsListTitle,
-                          value:
-                              snapshot?.units
-                                  .where((UnitProfile item) => !item.isDeleted)
-                                  .length ??
-                              0,
-                          selected:
-                              selectedPanel == _FacilityDetailsPanel.units,
-                          onTap: () =>
-                              onPanelSelected(_FacilityDetailsPanel.units),
-                        ),
-                        _FacilityMetricChip(
-                          label: l10n.tenantFacilityWardsLabel,
-                          value:
-                              snapshot?.wards
-                                  .where((WardProfile item) => !item.isDeleted)
-                                  .length ??
-                              0,
-                          selected:
-                              selectedPanel == _FacilityDetailsPanel.wards,
-                          onTap: () =>
-                              onPanelSelected(_FacilityDetailsPanel.wards),
-                        ),
-                        _FacilityMetricChip(
-                          label: l10n.tenantFacilityRoomsLabel,
-                          value:
-                              snapshot?.rooms
-                                  .where((RoomProfile item) => !item.isDeleted)
-                                  .length ??
-                              0,
-                          selected:
-                              selectedPanel == _FacilityDetailsPanel.rooms,
-                          onTap: () =>
-                              onPanelSelected(_FacilityDetailsPanel.rooms),
-                        ),
-                        _FacilityMetricChip(
-                          label: l10n.tenantFacilityBedsLabel,
-                          value:
-                              snapshot?.beds
-                                  .where((BedProfile item) => !item.isDeleted)
-                                  .length ??
-                              0,
-                          selected: selectedPanel == _FacilityDetailsPanel.beds,
-                          onTap: () =>
-                              onPanelSelected(_FacilityDetailsPanel.beds),
-                        ),
-                      ],
-                    ),
-            ),
-            if (phone != null ||
-                email != null ||
-                address.isNotEmpty) ...<Widget>[
-              SizedBox(height: theme.spacing.md),
-              AppCollapsibleSection(
-                title: l10n.tenantFacilityFacilityDetailsContactHeading,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    if (phone != null && phone.isNotEmpty)
-                      _TenantMetaRow(
-                        label: l10n.profilePhoneLabel,
-                        value: phone,
-                      ),
-                    if (email != null && email.isNotEmpty)
-                      _TenantMetaRow(
-                        label: l10n.profileEmailLabel,
-                        value: email,
-                      ),
-                    if (address.isNotEmpty)
-                      _TenantMetaRow(
-                        label: l10n.tenantFacilityAddressLineLabel,
-                        value: address,
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
+          ),
+      ]),
     );
   }
 }
@@ -5346,8 +5206,6 @@ class _ManageFacilitiesPanelState extends ConsumerState<ManageFacilitiesPanel> {
         facility: facility,
         statusLabel: statusLabel,
         statusTone: statusTone,
-        framed: true,
-        expandToFill: true,
         onEdit: canEditFacility ? _editScopedFacility : null,
         editLabel: l10n.tenantFacilityEditFacilityAction,
       ),
@@ -5891,8 +5749,6 @@ class _FacilityScopedDetailsSummary extends StatelessWidget {
     required this.statusTone,
     this.onEdit,
     this.editLabel,
-    this.framed = false,
-    this.expandToFill = false,
   });
 
   final FacilityProfile facility;
@@ -5900,8 +5756,6 @@ class _FacilityScopedDetailsSummary extends StatelessWidget {
   final AppWorkspaceStatusTone statusTone;
   final Future<void> Function()? onEdit;
   final String? editLabel;
-  final bool framed;
-  final bool expandToFill;
 
   @override
   Widget build(BuildContext context) {
@@ -5917,92 +5771,18 @@ class _FacilityScopedDetailsSummary extends StatelessWidget {
       opaqueId: facility.resourceUuid ?? facility.id,
     );
 
-    final Widget editButton =
-        editAction != null &&
-            resolvedEditLabel != null &&
-            resolvedEditLabel.isNotEmpty
-        ? AppButton.secondary(
-            label: resolvedEditLabel,
-            leadingIcon: Icons.edit_outlined,
-            onPressed: () {
-              unawaited(editAction());
-            },
-          )
-        : const SizedBox.shrink();
-
-    final Widget headerContent = Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        _FacilityLogoAvatar(logoUrl: facility.logoUrl),
-        SizedBox(width: theme.spacing.md),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                facility.name,
-                style:
-                    (framed
-                            ? theme.textTheme.headlineSmall
-                            : theme.textTheme.titleLarge)
-                        ?.copyWith(fontWeight: AppFontWeight.emphasis, height: 1.15),
-              ),
-              SizedBox(height: theme.spacing.xs),
-              Wrap(
-                spacing: theme.spacing.sm,
-                runSpacing: theme.spacing.xs,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: <Widget>[
-                  _TenantStatusBadge(label: statusLabel, tone: statusTone),
-                  if (displayId != null)
-                    Text(
-                      displayId,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                        fontWeight: AppFontWeight.regular,
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
+    final List<Widget> headerActions = <Widget>[
+      if (editAction != null &&
+          resolvedEditLabel != null &&
+          resolvedEditLabel.isNotEmpty)
+        AppButton.secondary(
+          label: resolvedEditLabel,
+          leadingIcon: Icons.edit_outlined,
+          onPressed: () {
+            unawaited(editAction());
+          },
         ),
-      ],
-    );
-
-    final Widget header = Padding(
-      padding: EdgeInsets.fromLTRB(
-        theme.spacing.lg,
-        theme.spacing.lg,
-        theme.spacing.md,
-        theme.spacing.md,
-      ),
-      child: LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          final bool stackEdit =
-              editAction != null && constraints.maxWidth < 560;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Expanded(child: headerContent),
-                  if (!stackEdit && editAction != null) ...<Widget>[
-                    SizedBox(width: theme.spacing.sm),
-                    editButton,
-                  ],
-                ],
-              ),
-              if (stackEdit) ...<Widget>[
-                SizedBox(height: theme.spacing.sm),
-                Align(alignment: Alignment.centerLeft, child: editButton),
-              ],
-            ],
-          );
-        },
-      ),
-    );
+    ];
 
     Widget section({
       required String title,
@@ -6016,139 +5796,129 @@ class _FacilityScopedDetailsSummary extends StatelessWidget {
         child: AppInfoSheetGrid(
           emptyValue: emptyValue,
           maxColumns: maxColumns,
-          minItemWidth: framed ? 180 : 120,
           items: items,
         ),
       );
     }
 
-    final Widget sections = Padding(
-      padding: EdgeInsets.fromLTRB(
-        theme.spacing.lg,
-        theme.spacing.md,
-        theme.spacing.lg,
-        theme.spacing.lg,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          section(
-            title: l10n.hrStaffOverviewSectionTitle,
-            icon: Icons.info_outline,
-            items: <AppInfoSheetItem>[
-              AppInfoSheetItem(
-                label: l10n.profileFacilityTypeLabel,
-                value: tenantFacilityFacilityTypeLabel(l10n, facility.type),
-              ),
-              AppInfoSheetItem(
-                label: l10n.tenantFacilityFacilityIdLabel,
-                value: displayId,
-                copyable: displayId != null,
-                copyTooltip: l10n.copyIdentifierAction,
-                copiedMessage: l10n.identifierCopiedMessage,
-                copyPlaceholderValues: emptyPlaceholders,
-              ),
-              AppInfoSheetItem(
-                label: l10n.tenantFacilityTenantStatusLabel,
-                value: statusLabel,
-              ),
-            ],
-          ),
-          SizedBox(height: theme.spacing.md),
-          section(
-            title: l10n.tenantFacilityFacilityDetailsContactHeading,
-            icon: Icons.contact_mail_outlined,
-            items: <AppInfoSheetItem>[
-              AppInfoSheetItem(
-                label: l10n.profilePhoneLabel,
-                value: facility.phone,
-              ),
-              AppInfoSheetItem(
-                label: l10n.profileEmailLabel,
-                value: facility.email,
-              ),
-              AppInfoSheetItem(
-                label: l10n.tenantFacilityAddressLineLabel,
-                value: facility.addressLine1,
-              ),
-              AppInfoSheetItem(
-                label: l10n.tenantFacilityCityLabel,
-                value: facility.city,
-              ),
-              AppInfoSheetItem(
-                label: l10n.tenantFacilityCountryLabel,
-                value: facility.country,
-              ),
-            ],
-          ),
-          SizedBox(height: theme.spacing.md),
-          section(
-            title: l10n.settingsConfigurationTenantTitle,
-            icon: Icons.tune_outlined,
-            maxColumns: 2,
-            items: <AppInfoSheetItem>[
-              AppInfoSheetItem(
-                label: l10n.tenantFacilityDefaultCurrencyLabel,
-                value: facility.currency,
-              ),
-              AppInfoSheetItem(
-                label: l10n.settingsConfigurationConsultationFeeLabel,
-                value: facility.standardConsultationFee,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-
-    final Widget framedBody = Column(
+    final Widget sections = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: <Color>[
-                colorScheme.primaryContainer.withValues(alpha: 0.72),
-                colorScheme.surface,
-              ],
-            ),
+      mainAxisSize: MainAxisSize.min,
+      children: appCollapsibleSectionSpacing(context, <Widget>[
+        AppCollapsibleSection(
+          collapsible: false,
+          headerActions: headerActions,
+          titleWidget: Row(
+            children: <Widget>[
+              _FacilityLogoAvatar(logoUrl: facility.logoUrl),
+              SizedBox(width: theme.spacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      facility.name,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: AppFontWeight.strong,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (displayId != null) ...<Widget>[
+                      SizedBox(height: theme.spacing.xs / 2),
+                      Text(
+                        displayId,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
-          child: header,
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: _TenantStatusBadge(label: statusLabel, tone: statusTone),
+          ),
         ),
-        Divider(height: 1, color: theme.borders.faint),
-        if (expandToFill)
-          Expanded(child: SingleChildScrollView(child: sections))
-        else
-          sections,
-      ],
+        section(
+          title: l10n.hrStaffOverviewSectionTitle,
+          icon: Icons.info_outline,
+          items: <AppInfoSheetItem>[
+            AppInfoSheetItem(
+              label: l10n.profileFacilityTypeLabel,
+              value: tenantFacilityFacilityTypeLabel(l10n, facility.type),
+            ),
+            AppInfoSheetItem(
+              label: l10n.tenantFacilityFacilityIdLabel,
+              value: displayId,
+              copyable: displayId != null,
+              copyTooltip: l10n.copyIdentifierAction,
+              copiedMessage: l10n.identifierCopiedMessage,
+              copyPlaceholderValues: emptyPlaceholders,
+            ),
+            AppInfoSheetItem(
+              label: l10n.tenantFacilityTenantStatusLabel,
+              value: statusLabel,
+            ),
+          ],
+        ),
+        section(
+          title: l10n.tenantFacilityFacilityDetailsContactHeading,
+          icon: Icons.contact_mail_outlined,
+          items: <AppInfoSheetItem>[
+            AppInfoSheetItem(
+              label: l10n.profilePhoneLabel,
+              value: facility.phone,
+            ),
+            AppInfoSheetItem(
+              label: l10n.profileEmailLabel,
+              value: facility.email,
+            ),
+            AppInfoSheetItem(
+              label: l10n.tenantFacilityAddressLineLabel,
+              value: facility.addressLine1,
+            ),
+            AppInfoSheetItem(
+              label: l10n.tenantFacilityCityLabel,
+              value: facility.city,
+            ),
+            AppInfoSheetItem(
+              label: l10n.tenantFacilityCountryLabel,
+              value: facility.country,
+            ),
+          ],
+        ),
+        section(
+          title: l10n.settingsConfigurationTenantTitle,
+          icon: Icons.tune_outlined,
+          maxColumns: 2,
+          items: <AppInfoSheetItem>[
+            AppInfoSheetItem(
+              label: l10n.tenantFacilityDefaultCurrencyLabel,
+              value: facility.currency,
+            ),
+            AppInfoSheetItem(
+              label: l10n.settingsConfigurationConsultationFeeLabel,
+              value: facility.standardConsultationFee,
+            ),
+          ],
+        ),
+      ]),
     );
 
-    if (!framed) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          header,
-          SizedBox(height: theme.spacing.md),
-          sections,
-        ],
-      );
-    }
-
-    final Widget card = Material(
-      color: colorScheme.surface,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.zero,
-        side: theme.borders.side(),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: framedBody,
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        if (!constraints.hasBoundedHeight) {
+          return sections;
+        }
+        return SingleChildScrollView(child: sections);
+      },
     );
-
-    return card;
   }
 }
 

@@ -2089,19 +2089,9 @@ class _FacilityProfileFormState extends ConsumerState<_FacilityProfileForm> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Text(
-          _isCreate
-              ? l10n.tenantFacilityCreateFacilityTitle
-              : l10n.tenantFacilityEditFacilityTitle,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: AppFontWeight.emphasis,
-          ),
-        ),
-        SizedBox(height: theme.spacing.xs),
-        Text(
           l10n.tenantFacilityFacilitySectionBody,
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
-            height: 1.35,
           ),
         ),
         SizedBox(height: theme.spacing.lg),
@@ -7767,78 +7757,60 @@ class _FacilityChangeDiffCard extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colorScheme = theme.colorScheme;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: theme.borders.all(),
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(theme.spacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Text(
-              change.label,
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: AppFontWeight.emphasis,
-              ),
+    return AppCollapsibleSection(
+      title: change.label,
+      collapsible: false,
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final bool stacked = constraints.maxWidth < 420;
+          final Widget previousPane = _FacilityChangeValuePane(
+            tone: _FacilityChangePaneTone.previous,
+            caption: l10n.tenantFacilityFieldPreviousLabel,
+            textValue: change.previousValue,
+            isLogo: change.isLogo,
+            logoUrl: change.previousLogoUrl,
+            emptyLogoLabel: l10n.tenantFacilityFacilityDetailsNoLogo,
+          );
+          final Widget nextPane = _FacilityChangeValuePane(
+            tone: _FacilityChangePaneTone.next,
+            caption: l10n.tenantFacilityFieldNewLabel,
+            textValue: change.nextValue,
+            isLogo: change.isLogo,
+            logoBytes: change.nextLogoBytes,
+            logoCleared: change.logoCleared,
+            emptyLogoLabel: change.logoCleared
+                ? l10n.tenantFacilityLogoRemovedLabel
+                : l10n.tenantFacilityFacilityDetailsNoLogo,
+          );
+          final Widget arrow = Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: stacked ? 0 : theme.spacing.sm,
+              vertical: stacked ? theme.spacing.sm : 0,
             ),
-            SizedBox(height: theme.spacing.sm),
-            LayoutBuilder(
-              builder: (BuildContext context, BoxConstraints constraints) {
-                final bool stacked = constraints.maxWidth < 420;
-                final Widget previousPane = _FacilityChangeValuePane(
-                  tone: _FacilityChangePaneTone.previous,
-                  caption: l10n.tenantFacilityFieldPreviousLabel,
-                  textValue: change.previousValue,
-                  isLogo: change.isLogo,
-                  logoUrl: change.previousLogoUrl,
-                  emptyLogoLabel: l10n.tenantFacilityFacilityDetailsNoLogo,
-                );
-                final Widget nextPane = _FacilityChangeValuePane(
-                  tone: _FacilityChangePaneTone.next,
-                  caption: l10n.tenantFacilityFieldNewLabel,
-                  textValue: change.nextValue,
-                  isLogo: change.isLogo,
-                  logoBytes: change.nextLogoBytes,
-                  logoCleared: change.logoCleared,
-                  emptyLogoLabel: change.logoCleared
-                      ? l10n.tenantFacilityLogoRemovedLabel
-                      : l10n.tenantFacilityFacilityDetailsNoLogo,
-                );
-                final Widget arrow = Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: stacked ? 0 : theme.spacing.sm,
-                    vertical: stacked ? theme.spacing.sm : 0,
-                  ),
-                  child: Icon(
-                    stacked
-                        ? Icons.arrow_downward_rounded
-                        : Icons.arrow_forward_rounded,
-                    color: colorScheme.primary,
-                    size: 22,
-                  ),
-                );
-
-                if (stacked) {
-                  return Column(
-                    children: <Widget>[previousPane, arrow, nextPane],
-                  );
-                }
-
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Expanded(child: previousPane),
-                    arrow,
-                    Expanded(child: nextPane),
-                  ],
-                );
-              },
+            child: Icon(
+              stacked
+                  ? Icons.arrow_downward_rounded
+                  : Icons.arrow_forward_rounded,
+              color: colorScheme.primary,
+              size: 22,
             ),
-          ],
-        ),
+          );
+
+          if (stacked) {
+            return Column(
+              children: <Widget>[previousPane, arrow, nextPane],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Expanded(child: previousPane),
+              arrow,
+              Expanded(child: nextPane),
+            ],
+          );
+        },
       ),
     );
   }

@@ -121,7 +121,9 @@ void main() {
       expect(setupPageSource.contains('_openDepartmentDetails'), isTrue);
       expect(detailsSource.contains('showTenantFacilityDepartmentFormDialog'), isTrue);
       expect(detailsSource.contains('deleteDepartment(_department.mutationId)'), isTrue);
-      expect(detailsSource.contains('_DepartmentFactTile'), isTrue);
+      expect(detailsSource.contains('AppCollapsibleSection'), isTrue);
+      expect(detailsSource.contains('AppInfoSheetGrid'), isTrue);
+      expect(detailsSource.contains('_DepartmentFactTile'), isFalse);
       expect(detailsSource.contains('AppLoadingIndicator.compact'), isTrue);
       expect(
         detailsSource.contains('tenantFacilityEditDepartmentDetailsAction'),

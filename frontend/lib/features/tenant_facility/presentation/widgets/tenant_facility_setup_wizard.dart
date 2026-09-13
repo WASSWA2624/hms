@@ -394,166 +394,106 @@ class _SetupStepPanel extends StatelessWidget {
     final TenantFacilityWizardStepRequirement? primaryOutstanding =
         outstanding.isEmpty ? null : outstanding.first;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: <Color>[
-            colorScheme.primary.withValues(alpha: 0.06),
-            colorScheme.surfaceContainerLowest,
-            colorScheme.surface,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(theme.radius.lg),
-        border: theme.borders.all(color: colorScheme.primary.withValues(alpha: 0.18)),
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(theme.spacing.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            if (wide)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Expanded(
-                    child: _headerIdentity(l10n, theme, colorScheme, title),
-                  ),
-                  SizedBox(width: theme.spacing.md),
-                  Flexible(child: actionRow),
-                ],
-              )
-            else ...<Widget>[
-              _headerIdentity(l10n, theme, colorScheme, title),
-              SizedBox(height: theme.spacing.md),
-              actionRow,
-            ],
-            if (pendingIntro != null && blockers.isNotEmpty) ...<Widget>[
-              SizedBox(height: theme.spacing.md),
-              AppFormInformationBanner(
-                title: hasPrerequisiteBlockers
-                    ? l10n.tenantFacilityWizardBlockersTitle
-                    : l10n.tenantFacilityWizardPendingTitle,
-                message: pendingIntro,
-                variant: optional && !hasPrerequisiteBlockers
-                    ? AppFormInformationVariant.info
-                    : AppFormInformationVariant.warning,
-                icon: optional && !hasPrerequisiteBlockers
-                    ? Icons.info_outline
-                    : Icons.playlist_add_check_circle_outlined,
-                children: <Widget>[
-                  _SetupStepRequirementsChecklist(
-                    requirements: blockers,
-                    optional: optional && !hasPrerequisiteBlockers,
-                    onFixRequirement:
-                        (TenantFacilityWizardStepRequirement item) {
-                          onOpenFixStep(item.fixStep);
-                        },
-                  ),
-                  if (primaryOutstanding != null)
-                    AppButton.secondary(
-                      label: tenantFacilityWizardPrimaryActionLabel(
-                        l10n,
-                        step: primaryOutstanding.fixStep,
-                        snapshot: snapshot,
-                        canCreateTenant: canCreateTenant,
-                      ),
-                      leadingIcon: tenantFacilityWizardPrimaryActionIcon(
-                        step: primaryOutstanding.fixStep,
-                        snapshot: snapshot,
-                      ),
-                      onPressed: () =>
-                          onOpenFixStep(primaryOutstanding.fixStep),
-                    ),
-                ],
-              ),
-            ],
-            if (step == TenantFacilitySetupWizardStep.tenant &&
-                canCreateTenant) ...<Widget>[
-              SizedBox(height: theme.spacing.md),
-              _SetupTenantContextPicker(selectedTenantId: snapshot.tenant?.id),
-            ],
-            SizedBox(height: theme.spacing.lg),
-            _SetupStepRecordSelector(
-              step: step,
-              snapshot: snapshot,
-              onSelectFacility: onSelectFacility,
-            ),
-            if (!canManageTenant &&
-                step == TenantFacilitySetupWizardStep.tenant) ...<Widget>[
-              SizedBox(height: theme.spacing.md),
-              AppFormInformationBanner(
-                title: l10n.tenantFacilityPermissionsTitle,
-                message: l10n.tenantFacilityPermissionRequired,
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _headerIdentity(
-    AppLocalizations l10n,
-    ThemeData theme,
-    ColorScheme colorScheme,
-    String title,
-  ) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final Widget badgeRow = Wrap(
+      spacing: theme.spacing.sm,
+      runSpacing: theme.spacing.xs,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: <Widget>[
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: colorScheme.primary.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(theme.radius.md),
-          ),
-          child: Icon(
-            tenantFacilityWizardStepIcon(step),
-            color: colorScheme.primary,
-          ),
-        ),
-        SizedBox(width: theme.spacing.md),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Wrap(
-                spacing: theme.spacing.sm,
-                runSpacing: theme.spacing.xs,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: <Widget>[
-                  Text(
-                    title,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: AppFontWeight.emphasis,
-                    ),
-                  ),
-                  if (optional)
-                    _StepBadge(label: 'Optional', tone: colorScheme.tertiary),
-                  _StepBadge(
-                    label: completed
-                        ? l10n.tenantFacilityStatusActive
-                        : l10n.nursingChecklistPendingStatus,
-                    tone: completed
-                        ? theme.statusColors.success
-                        : colorScheme.onSurfaceVariant,
-                  ),
-                ],
-              ),
-              SizedBox(height: theme.spacing.xs),
-              Text(
-                tenantFacilityWizardStepSummary(l10n, snapshot, step),
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
+        if (optional)
+          _StepBadge(label: 'Optional', tone: colorScheme.tertiary),
+        _StepBadge(
+          label: completed
+              ? l10n.tenantFacilityStatusActive
+              : l10n.nursingChecklistPendingStatus,
+          tone: completed
+              ? theme.statusColors.success
+              : colorScheme.onSurfaceVariant,
         ),
       ],
+    );
+
+    return AppCollapsibleSection(
+      titleIcon: tenantFacilityWizardStepIcon(step),
+      title: title,
+      subtitle: tenantFacilityWizardStepSummary(l10n, snapshot, step),
+      collapsible: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          if (wide)
+            Row(
+              children: <Widget>[
+                Expanded(child: badgeRow),
+                SizedBox(width: theme.spacing.md),
+                Flexible(child: actionRow),
+              ],
+            )
+          else ...<Widget>[
+            badgeRow,
+            SizedBox(height: theme.spacing.md),
+            actionRow,
+          ],
+          if (pendingIntro != null && blockers.isNotEmpty) ...<Widget>[
+            SizedBox(height: theme.spacing.md),
+            AppFormInformationBanner(
+              title: hasPrerequisiteBlockers
+                  ? l10n.tenantFacilityWizardBlockersTitle
+                  : l10n.tenantFacilityWizardPendingTitle,
+              message: pendingIntro,
+              variant: optional && !hasPrerequisiteBlockers
+                  ? AppFormInformationVariant.info
+                  : AppFormInformationVariant.warning,
+              icon: optional && !hasPrerequisiteBlockers
+                  ? Icons.info_outline
+                  : Icons.playlist_add_check_circle_outlined,
+              children: <Widget>[
+                _SetupStepRequirementsChecklist(
+                  requirements: blockers,
+                  optional: optional && !hasPrerequisiteBlockers,
+                  onFixRequirement:
+                      (TenantFacilityWizardStepRequirement item) {
+                        onOpenFixStep(item.fixStep);
+                      },
+                ),
+                if (primaryOutstanding != null)
+                  AppButton.secondary(
+                    label: tenantFacilityWizardPrimaryActionLabel(
+                      l10n,
+                      step: primaryOutstanding.fixStep,
+                      snapshot: snapshot,
+                      canCreateTenant: canCreateTenant,
+                    ),
+                    leadingIcon: tenantFacilityWizardPrimaryActionIcon(
+                      step: primaryOutstanding.fixStep,
+                      snapshot: snapshot,
+                    ),
+                    onPressed: () =>
+                        onOpenFixStep(primaryOutstanding.fixStep),
+                  ),
+              ],
+            ),
+          ],
+          if (step == TenantFacilitySetupWizardStep.tenant &&
+              canCreateTenant) ...<Widget>[
+            SizedBox(height: theme.spacing.md),
+            _SetupTenantContextPicker(selectedTenantId: snapshot.tenant?.id),
+          ],
+          SizedBox(height: theme.spacing.lg),
+          _SetupStepRecordSelector(
+            step: step,
+            snapshot: snapshot,
+            onSelectFacility: onSelectFacility,
+          ),
+          if (!canManageTenant &&
+              step == TenantFacilitySetupWizardStep.tenant) ...<Widget>[
+            SizedBox(height: theme.spacing.md),
+            AppFormInformationBanner(
+              title: l10n.tenantFacilityPermissionsTitle,
+              message: l10n.tenantFacilityPermissionRequired,
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

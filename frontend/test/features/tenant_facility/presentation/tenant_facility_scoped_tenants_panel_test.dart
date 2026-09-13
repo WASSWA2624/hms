@@ -110,9 +110,9 @@ void main() {
         isTrue,
       );
       expect(
-        managementDialogsSource.contains('framed: true'),
+        managementDialogsSource.contains('appCollapsibleSectionSpacing('),
         isTrue,
-        reason: 'scoped tenant details should use the framed summary layout',
+        reason: 'scoped tenant details should stack shared collapsible sections',
       );
       expect(
         managementDialogsSource.contains('AppInfoSheetGrid'),
@@ -120,9 +120,9 @@ void main() {
         reason: 'scoped tenant details should present fields in info sheets',
       );
       expect(
-        managementDialogsSource.contains('expandToFill: true'),
+        managementDialogsSource.contains('return SingleChildScrollView(child: sections);'),
         isTrue,
-        reason: 'scoped tenant details should expand across available space',
+        reason: 'scoped tenant details should scroll within the space they get',
       );
       expect(
         managementDialogsSource.contains(
