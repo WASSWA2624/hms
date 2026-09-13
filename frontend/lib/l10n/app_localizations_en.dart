@@ -27307,6 +27307,16 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String accessAdminPermanentDeleteUserWarningBody(String name) {
+    return 'WARNING: Permanently deleting staff \"$name\" erases the account, its profile, roles, and direct permissions forever. Staff with audit, clinical, or operational history cannot be purged and stay deleted. This cannot be recovered.';
+  }
+
+  @override
+  String accessAdminPermanentDeleteUserConfirmationBody(String name) {
+    return 'Final confirmation: permanently delete staff \"$name\" and erase the account\'s profile, roles, and direct permissions? This action is irreversible.';
+  }
+
+  @override
   String get accessAdminTenantContextRequiredTitle => 'Tenant context required';
 
   @override

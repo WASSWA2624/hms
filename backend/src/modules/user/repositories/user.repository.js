@@ -7,6 +7,7 @@
  * Per prisma.mdc: All queries use soft delete filtering (deleted_at: null).
  */
 
+const { Prisma } = require('.prisma/client');
 const prisma = require('@prisma/client');
 const { HttpError } = require('@lib/errors');
 const { runWithoutTenantGuard } = require('../../../prisma/tenant-guard');
@@ -564,6 +565,14 @@ const softDelete = async (id) => {
         data: {
           deleted_at: deletedAt}});
 
+      // A deleted account must not keep working through sessions it already holds.
+      await tx.user_session.updateMany({
+        where: {
+          user_id: id,
+          revoked_at: null,
+          deleted_at: null},
+        data: { revoked_at: deletedAt }});
+
       return deletedUser;
     });
   } catch (error) {
@@ -655,6 +664,161 @@ const restore = async (id) => {
   }
 };
 
+/**
+ * Rows that exist only to give an account access. They are removed with it.
+ */
+const USER_OWNED_MODELS = Object.freeze(new Set([
+  'user_profile',
+  'staff_profile',
+  'user_session',
+  'verification_token',
+  'user_role',
+  'user_permission',
+  'user_module_assignment',
+  'user_mfa',
+  'oauth_account',
+  'registration_follow_up',
+  'clinical_term_favorite'
+]));
+
+/**
+ * References the database detaches on delete that carry no history: inbox rows,
+ * analytics events, and the self-registration idempotency record.
+ */
+const USER_DETACHABLE_MODELS = Object.freeze(new Set([
+  'notification',
+  'analytics_event',
+  'registration_attempt'
+]));
+
+/** Personal details stored against a user or staff profile. */
+const PROFILE_OWNED_MODELS = Object.freeze(new Set(['address', 'contact']));
+
+/**
+ * Every (model, foreign key) pair pointing at `targetModel`, read from the
+ * schema so a newly added relation is checked without editing this file.
+ */
+const listReferencingFields = (targetModel) =>
+  Prisma.dmmf.datamodel.models.flatMap((model) =>
+    model.fields
+      .filter(
+        (field) =>
+          field.kind === 'object' &&
+          field.type === targetModel &&
+          Array.isArray(field.relationFromFields) &&
+          field.relationFromFields.length === 1
+      )
+      .map((field) => ({ model: model.name, field: field.relationFromFields[0] }))
+  );
+
+const findBlockingReferences = async (tx, targetModel, id, ignoredModels) => {
+  const blocking = [];
+  for (const { model, field } of listReferencingFields(targetModel)) {
+    if (ignoredModels.has(model)) {
+      continue;
+    }
+    const rows = await tx[model].count({ where: { [field]: id } });
+    if (rows > 0) {
+      blocking.push(model);
+    }
+  }
+  return blocking;
+};
+
+/**
+ * Permanently delete a soft-deleted user with the rows that only grant it access.
+ *
+ * Anything else pointing at the account (audit trails, clinical and operational
+ * records, HR history) would lose its author — most of those foreign keys are
+ * ON DELETE SET NULL — so its presence blocks the purge instead.
+ *
+ * @param {string} id - User ID
+ * @returns {Promise<{ removed_access_rows: number }>}
+ */
+const permanentDelete = async (id) => {
+  try {
+    // Hard-delete must see soft-deleted rows; tenant-guard would otherwise force
+    // deleted_at: null and the purge would 404.
+    return await runWithoutTenantGuard(async () => {
+      const existing = await prisma.user.findFirst({
+        where: userWhereById(id, { includeDeleted: true }),
+        select: { id: true, deleted_at: true }
+      });
+
+      if (!existing) {
+        throw Object.assign(new Error('Record not found'), { code: 'P2025' });
+      }
+      if (!existing.deleted_at) {
+        throw new HttpError('errors.user.permanent_delete_not_soft_deleted', 400);
+      }
+
+      return await prisma.$transaction(async (tx) => {
+        const profileIds = (
+          await tx.user_profile.findMany({ where: { user_id: id }, select: { id: true } })
+        ).map((row) => row.id);
+        const staffProfileIds = (
+          await tx.staff_profile.findMany({ where: { user_id: id }, select: { id: true } })
+        ).map((row) => row.id);
+
+        const blocking = await findBlockingReferences(
+          tx,
+          'user',
+          id,
+          new Set([...USER_OWNED_MODELS, ...USER_DETACHABLE_MODELS])
+        );
+        for (const profileId of profileIds) {
+          blocking.push(
+            ...(await findBlockingReferences(tx, 'user_profile', profileId, PROFILE_OWNED_MODELS))
+          );
+        }
+        for (const staffProfileId of staffProfileIds) {
+          blocking.push(
+            ...(await findBlockingReferences(tx, 'staff_profile', staffProfileId, PROFILE_OWNED_MODELS))
+          );
+        }
+        if (blocking.length > 0) {
+          throw new HttpError('errors.user.permanent_delete_has_history', 409, [
+            { field: 'id', reason: 'has_history', tables: [...new Set(blocking)].sort() }
+          ]);
+        }
+
+        let removedAccessRows = 0;
+        const profileScopes = [
+          ...(profileIds.length > 0 ? [{ user_profile_id: { in: profileIds } }] : []),
+          ...(staffProfileIds.length > 0 ? [{ staff_profile_id: { in: staffProfileIds } }] : [])
+        ];
+        if (profileScopes.length > 0) {
+          for (const model of PROFILE_OWNED_MODELS) {
+            const removed = await tx[model].deleteMany({ where: { OR: profileScopes } });
+            removedAccessRows += removed.count || 0;
+          }
+        }
+        for (const { model, field } of listReferencingFields('user')) {
+          if (USER_OWNED_MODELS.has(model)) {
+            const removed = await tx[model].deleteMany({ where: { [field]: id } });
+            removedAccessRows += removed.count || 0;
+          }
+        }
+
+        await tx.user.delete({ where: { id } });
+        return { removed_access_rows: removedAccessRows };
+      }, { timeout: 30000 });
+    });
+  } catch (error) {
+    if (error instanceof HttpError) throw error;
+    if (error.code === 'P2025') {
+      throw new HttpError('errors.user.not_found', 404);
+    }
+    if (error.code === 'P2003') {
+      // A restricting reference the schema scan did not cover.
+      throw new HttpError('errors.user.permanent_delete_has_history', 409, [
+        { field: 'id', reason: 'has_history' }
+      ]);
+    }
+    throw new HttpError('errors.database.unexpected', 500, [{ originalError: error.message }]);
+  }
+};
+
 module.exports = {
   findById,
   findMany,
@@ -663,6 +827,7 @@ module.exports = {
   update,
   softDelete,
   restore,
+  permanentDelete,
   findActiveByTenantEmail,
   findActiveByTenantPhone,
   findDeletedByTenantEmail,

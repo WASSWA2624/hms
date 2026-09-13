@@ -2528,6 +2528,7 @@ class _FacilityDetailsDialogState
         RealtimeEvents.userUpdated,
         RealtimeEvents.userDeleted,
         RealtimeEvents.userRestored,
+        RealtimeEvents.userPermanentlyDeleted,
       },
       onMutated: () => _mutated = true,
       reload: ({bool silent = false, RealtimeMessage? message}) async {

@@ -492,6 +492,8 @@
   "errors.user.phone_invalid": "Enter a valid phone number with 7 to 15 digits",
   "errors.user.reset_requires_email": "This user has no email address to receive a reset link",
   "errors.user.staff_number_conflict": "A unique staff number could not be assigned. Try again.",
+  "errors.user.permanent_delete_not_soft_deleted": "Delete the user first, then permanently delete it.",
+  "errors.user.permanent_delete_has_history": "This user has audit, clinical, or operational history and cannot be permanently deleted. Keep the account deleted instead.",
   "errors.user_mfa.already_disabled": "MFA is already disabled",
   "errors.user_mfa.already_enabled": "MFA is already enabled",
   "errors.user_mfa.disabled": "MFA is not enabled for this configuration",

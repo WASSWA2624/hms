@@ -723,6 +723,86 @@ class _ManageUsersPanelState
     }
   }
 
+  bool _canPermanentlyDeleteUser(AccessAdminItem user) {
+    return canWrite &&
+        user.isDeleted &&
+        canMutateAccessAdminDemoAccount(user) &&
+        (_canManageProtectedUsers || !user.isSystemCritical);
+  }
+
+  Future<void> _confirmPermanentDeleteUser(AccessAdminItem user) async {
+    if (!_canPermanentlyDeleteUser(user)) {
+      return;
+    }
+    final AppLocalizations l10n = context.l10n;
+    final String confirmName = user.title.trim();
+    final String? typed = await showAppDialog<String>(
+      context: context,
+      builder: (BuildContext dialogContext) => AppTextInputActionDialog(
+        title: l10n.tenantFacilityPermanentDeleteConfirmationTitle,
+        description: l10n.accessAdminPermanentDeleteUserWarningBody(
+          confirmName,
+        ),
+        fieldLabel: l10n.tenantFacilityPermanentDeleteConfirmFieldLabel(
+          confirmName,
+        ),
+        submitLabel: l10n.tenantFacilityPermanentDeleteConfirmAction,
+        cancelLabel: l10n.commonCancelActionLabel,
+        requiredMessage: l10n.validationRequired,
+        confirmExactValue: confirmName,
+        confirmMismatchMessage:
+            l10n.tenantFacilityPermanentDeleteConfirmFieldLabel(confirmName),
+        destructive: true,
+        minLines: 1,
+        maxLines: 1,
+        icon: const Icon(Icons.delete_forever_outlined),
+      ),
+    );
+    if (!mounted || typed == null) {
+      return;
+    }
+    // Dialog already validates the typed name; keep a hard guard.
+    if (typed.trim().toLowerCase() != confirmName.toLowerCase()) {
+      return;
+    }
+
+    final bool? confirmed = await showAppDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AppConfirmActionDialog(
+        title: l10n.tenantFacilityPermanentDeleteConfirmationTitle,
+        body: l10n.accessAdminPermanentDeleteUserConfirmationBody(confirmName),
+        highlightedText: confirmName,
+        submitLabel: l10n.tenantFacilityPermanentDeleteConfirmAction,
+        destructive: true,
+        icon: const Icon(Icons.delete_forever_outlined),
+        onConfirm: () async {
+          final Result<void> result = await repository.permanentDeleteUser(
+            user.mutationId,
+          );
+          return result.when(
+            success: (_) => null,
+            // Already purged elsewhere: treat as done so the stale row drops.
+            failure: (AppFailure failure) =>
+                failure.category == AppFailureCategory.notFound
+                ? null
+                : failure,
+          );
+        },
+      ),
+    );
+    if (confirmed == true && mounted) {
+      mutated = true;
+      setState(() {
+        items = <AccessAdminItem>[
+          for (final AccessAdminItem entry in items)
+            if (entry.id != user.id && entry.mutationId != user.mutationId)
+              entry,
+        ];
+      });
+      unawaited(reload(resetPage: false, silent: true));
+    }
+  }
+
   Future<void> _openUserDetail(
     AccessAdminItem item, {
     bool coverListImmediately = false,
@@ -1076,15 +1156,37 @@ class _ManageUsersPanelState
                       padding: EdgeInsetsDirectional.only(
                         end: theme.spacing.sm,
                       ),
-                      child: AppButton.tertiary(
-                        leadingIcon: Icons.restore_outlined,
-                        label: l10n.accessAdminRestoreUserAction,
-                        semanticLabel: l10n.accessAdminRestoreUserAction,
-                        tooltip: l10n.accessAdminRestoreUserAction,
-                        enabled: actionsEnabled,
-                        onPressed: actionsEnabled
-                            ? () => unawaited(_confirmRestoreUser(user))
-                            : null,
+                      child: Wrap(
+                        spacing: actionGap,
+                        runSpacing: theme.spacing.xs,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: <Widget>[
+                          AppButton.tertiary(
+                            leadingIcon: Icons.restore_outlined,
+                            label: l10n.accessAdminRestoreUserAction,
+                            semanticLabel: l10n.accessAdminRestoreUserAction,
+                            tooltip: l10n.accessAdminRestoreUserAction,
+                            enabled: actionsEnabled,
+                            onPressed: actionsEnabled
+                                ? () => unawaited(_confirmRestoreUser(user))
+                                : null,
+                          ),
+                          if (_canPermanentlyDeleteUser(user))
+                            AppButton.tertiary(
+                              leadingIcon: Icons.delete_forever_outlined,
+                              label: l10n.tenantFacilityPermanentDeleteAction,
+                              semanticLabel:
+                                  l10n.tenantFacilityPermanentDeleteAction,
+                              tooltip: l10n.tenantFacilityPermanentDeleteAction,
+                              color: colorScheme.error,
+                              enabled: actionsEnabled,
+                              onPressed: actionsEnabled
+                                  ? () => unawaited(
+                                        _confirmPermanentDeleteUser(user),
+                                      )
+                                  : null,
+                            ),
+                        ],
                       ),
                     );
                   }
@@ -2601,20 +2703,19 @@ class _PermissionDetailSummaryCard extends StatelessWidget {
               ],
             ),
             SizedBox(height: theme.spacing.md),
-            Wrap(
-              spacing: theme.spacing.md,
-              runSpacing: theme.spacing.sm,
-              children: <Widget>[
-                _AccessAdminDetailMetaChip(
-                  icon: Icons.tag_outlined,
+            AppInfoSheetGrid(
+              items: <AppInfoSheetItem>[
+                AppInfoSheetItem(
                   label: l10n.accessAdminPermissionIdColumnLabel,
                   value: permission.effectiveDisplayId,
+                  copyable: true,
+                  copyTooltip: l10n.copyIdentifierAction,
+                  copiedMessage: l10n.identifierCopiedMessage,
                 ),
                 if (code != null)
-                  _AccessAdminDetailMetaChip(
-                    icon: Icons.code_outlined,
+                  AppInfoSheetItem(
                     label: l10n.accessAdminPermissionCodeColumnLabel,
-                    value: code!,
+                    value: code,
                   ),
               ],
             ),
@@ -3039,22 +3140,20 @@ class _RoleDetailSummaryCard extends StatelessWidget {
               ),
             ),
             SizedBox(height: theme.spacing.md),
-            Wrap(
-              spacing: theme.spacing.md,
-              runSpacing: theme.spacing.sm,
-              children: <Widget>[
-                _AccessAdminDetailMetaChip(
-                  icon: Icons.tag_outlined,
+            AppInfoSheetGrid(
+              items: <AppInfoSheetItem>[
+                AppInfoSheetItem(
                   label: l10n.accessAdminColumnId,
                   value: role.effectiveDisplayId,
+                  copyable: true,
+                  copyTooltip: l10n.copyIdentifierAction,
+                  copiedMessage: l10n.identifierCopiedMessage,
                 ),
-                _AccessAdminDetailMetaChip(
-                  icon: Icons.lock_outline,
+                AppInfoSheetItem(
                   label: l10n.accessAdminRolePermissionsLabel,
                   value: l10n.hrAccessPermissionCountLabel(permissionCount),
                 ),
-                _AccessAdminDetailMetaChip(
-                  icon: Icons.group_outlined,
+                AppInfoSheetItem(
                   label: l10n.accessAdminRoleDetailUsersLabel,
                   value: '${role.userCount}',
                 ),
@@ -3253,61 +3352,6 @@ class _RolePermissionsEditorDialogState
   }
 }
 
-class _AccessAdminDetailMetaChip extends StatelessWidget {
-  const _AccessAdminDetailMetaChip({
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.copyable = false,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-  final bool copyable;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colors = theme.colorScheme;
-    final AppLocalizations l10n = context.l10n;
-
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: theme.spacing.sm,
-        vertical: theme.spacing.xs,
-      ),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(theme.radius.sm),
-        border: theme.borders.all(),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Icon(icon, size: 16, color: colors.onSurfaceVariant),
-          SizedBox(width: theme.spacing.xs),
-          Text(
-            '$label: ',
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: colors.onSurfaceVariant,
-            ),
-          ),
-          if (copyable)
-            AppCopyableIdentifier(
-              value: value,
-              tooltip: l10n.copyIdentifierAction,
-              copiedMessage: l10n.identifierCopiedMessage,
-              textStyle: theme.textTheme.labelMedium,
-            )
-          else
-            Text(value, style: theme.textTheme.labelMedium),
-        ],
-      ),
-    );
-  }
-}
-
 class _RoleScopeBadge extends StatelessWidget {
   const _RoleScopeBadge({required this.item});
 
@@ -3402,6 +3446,11 @@ class _AccessAdminUserDetailDialogState
   late AccessAdminUserDetail _detail;
   bool _saving = false;
 
+  // Mutation feedback renders inside the dialog: a SnackBar sits behind the
+  // modal barrier, where a rejected change reads as nothing happening.
+  AppFailure? _actionFailure;
+  String? _actionNotice;
+
   @override
   void initState() {
     super.initState();
@@ -3409,8 +3458,35 @@ class _AccessAdminUserDetailDialogState
     _detail = widget.detail;
   }
 
+  void _showActionFailure(AppFailure failure) {
+    setState(() {
+      _saving = false;
+      _actionFailure = failure;
+      _actionNotice = null;
+    });
+  }
+
+  void _showActionNotice(String message) {
+    setState(() {
+      _saving = false;
+      _actionFailure = null;
+      _actionNotice = message;
+    });
+  }
+
+  void _clearActionFeedback() {
+    if (_actionFailure == null && _actionNotice == null) {
+      return;
+    }
+    setState(() {
+      _actionFailure = null;
+      _actionNotice = null;
+    });
+  }
+
   Future<void> _toggleStatus() async {
     final String nextStatus = _item.status == 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    _clearActionFeedback();
     setState(() => _saving = true);
     final AppFailure? failure = await widget.onStatusChanged(nextStatus);
     if (!mounted) return;
@@ -3420,10 +3496,7 @@ class _AccessAdminUserDetailDialogState
       Navigator.of(context).pop();
       return;
     }
-    setState(() => _saving = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(context.l10n.failureMessage(failure))),
-    );
+    _showActionFailure(failure);
   }
 
   Future<void> _resetCredentials() async {
@@ -3453,12 +3526,7 @@ class _AccessAdminUserDetailDialogState
         });
         widget.onMutated?.call();
       },
-      failure: (AppFailure failure) {
-        setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.l10n.failureMessage(failure))),
-        );
-      },
+      failure: _showActionFailure,
     );
   }
 
@@ -3493,14 +3561,13 @@ class _AccessAdminUserDetailDialogState
     final AppLocalizations l10n = context.l10n;
     final String? tenantId = (widget.tenantId ?? _item.tenantId)?.trim();
     if (tenantId == null || tenantId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.accessAdminTenantContextRequiredBody)),
-      );
+      _showActionNotice(l10n.accessAdminTenantContextRequiredBody);
       return;
     }
 
     // Always load roles for this user's tenant/facility. Workspace list lookups
     // may be empty (lean/skipLookups) or scoped to a different tenant.
+    _clearActionFeedback();
     setState(() => _saving = true);
     final Result<AccessAdminLookups> lookupResult = await widget.repository
         .getReferenceData(
@@ -3516,17 +3583,11 @@ class _AccessAdminUserDetailDialogState
     );
     setState(() => _saving = false);
     if (resolved == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            lookupResult.when(
-              success: (_) =>
-                  l10n.accessAdminUserAccessNoAssignableRolesMessage,
-              failure: (AppFailure failure) =>
-                  context.l10n.failureMessage(failure),
-            ),
-          ),
+      lookupResult.when(
+        success: (_) => _showActionNotice(
+          l10n.accessAdminUserAccessNoAssignableRolesMessage,
         ),
+        failure: _showActionFailure,
       );
       return;
     }
@@ -3546,11 +3607,7 @@ class _AccessAdminUserDetailDialogState
         .toList(growable: false);
 
     if (availableRoles.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.accessAdminUserAccessNoAssignableRolesMessage),
-        ),
-      );
+      _showActionNotice(l10n.accessAdminUserAccessNoAssignableRolesMessage);
       return;
     }
 
@@ -3604,14 +3661,11 @@ class _AccessAdminUserDetailDialogState
       }
     }
     if (!mounted) return;
-    if (lastFailure != null) {
-      setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.l10n.failureMessage(lastFailure))),
-      );
-      return;
-    }
+    // Reload even after a partial failure so roles that did save show up.
     await _reloadDetail();
+    if (mounted && lastFailure != null) {
+      _showActionFailure(lastFailure);
+    }
   }
 
   Future<void> _removeRole(AppUserAccessRoleGroup group) async {
@@ -3694,12 +3748,11 @@ class _AccessAdminUserDetailDialogState
     final AppLocalizations l10n = context.l10n;
     final String? tenantId = (widget.tenantId ?? _item.tenantId)?.trim();
     if (tenantId == null || tenantId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.accessAdminTenantContextRequiredBody)),
-      );
+      _showActionNotice(l10n.accessAdminTenantContextRequiredBody);
       return;
     }
 
+    _clearActionFeedback();
     setState(() => _saving = true);
     final Result<AccessAdminLookups> lookupResult = await widget.repository
         .getReferenceData(
@@ -3715,17 +3768,11 @@ class _AccessAdminUserDetailDialogState
     );
     setState(() => _saving = false);
     if (resolved == null || resolved.permissions.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            lookupResult.when(
-              success: (_) =>
-                  l10n.accessAdminPermissionCatalogUnavailableMessage,
-              failure: (AppFailure failure) =>
-                  context.l10n.failureMessage(failure),
-            ),
-          ),
+      lookupResult.when(
+        success: (_) => _showActionNotice(
+          l10n.accessAdminPermissionCatalogUnavailableMessage,
         ),
+        failure: _showActionFailure,
       );
       return;
     }
@@ -3751,79 +3798,35 @@ class _AccessAdminUserDetailDialogState
         )
         .toList(growable: false);
 
-    final bool? confirmed = await showAppDialog<bool>(
+    // The editor keeps save errors (missing read rights, assignment ceiling)
+    // inline, so the selection survives a rejected save.
+    final bool? saved = await showAppDialog<bool>(
       context: context,
-      builder: (BuildContext dialogContext) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setDialogState) {
-            return AppDialog(
-              title: Text(
-                l10n.accessAdminUserAccessAddDirectPermissionDialogTitle,
-              ),
-              icon: const Icon(Icons.key_outlined),
-              maxWidth: 720,
-              scrollable: true,
-              content: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  Text(
-                    l10n.accessAdminUserAccessAddDirectPermissionDialogDescription,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  SizedBox(height: Theme.of(context).spacing.md),
-                  AppPermissionAssignmentPicker(
-                    permissions: options,
-                    selectedPermissionIds: selectedIds,
-                    onSelectionChanged: (Set<String> next) {
-                      setDialogState(() {
-                        selectedIds
-                          ..clear()
-                          ..addAll(next);
-                      });
-                    },
-                  ),
-                ],
-              ),
-              actions: <Widget>[
-                AppButton.close(
-                  label: l10n.commonCancelActionLabel,
-                  leadingIcon: Icons.close,
-                  onPressed: () => Navigator.of(dialogContext).pop(false),
-                ),
-                AppButton.primary(
-                  label: l10n.commonSaveActionLabel,
-                  leadingIcon: Icons.save_outlined,
-                  onPressed: () => Navigator.of(dialogContext).pop(true),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (BuildContext dialogContext) => _RolePermissionsEditorDialog(
+        title: l10n.accessAdminUserAccessAddDirectPermissionDialogTitle,
+        description:
+            l10n.accessAdminUserAccessAddDirectPermissionDialogDescription,
+        options: options,
+        initialSelectedIds: selectedIds,
+        onSave: (Set<String> permissionIds) async {
+          final Result<void> result = await widget.repository
+              .syncUserDirectPermissions(
+                userId: _item.mutationId,
+                permissionIds: permissionIds.toList(growable: false),
+              );
+          return result.when(
+            success: (_) => null,
+            failure: (AppFailure failure) => failure,
+          );
+        },
+      ),
     );
 
-    if (confirmed != true || !mounted) {
+    if (saved != true || !mounted) {
       return;
     }
 
     setState(() => _saving = true);
-    final Result<void> result = await widget.repository
-        .syncUserDirectPermissions(
-          userId: _item.mutationId,
-          permissionIds: selectedIds.toList(growable: false),
-        );
-    if (!mounted) return;
-    final AppFailure? failure = result.when(
-      success: (_) => null,
-      failure: (AppFailure value) => value,
-    );
-    if (failure != null) {
-      setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.l10n.failureMessage(failure))),
-      );
-      return;
-    }
     await _reloadDetail();
   }
 
@@ -3850,10 +3853,7 @@ class _AccessAdminUserDetailDialogState
       failure: (AppFailure value) => value,
     );
     if (failure != null) {
-      setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.l10n.failureMessage(failure))),
-      );
+      _showActionFailure(failure);
       return;
     }
     await _reloadDetail();
@@ -3925,6 +3925,20 @@ class _AccessAdminUserDetailDialogState
             child: _UserDetailAccountFields(item: item),
           ),
           SizedBox(height: theme.spacing.md),
+          // Right above the role / permission actions that produce it.
+          if (_actionFailure != null) ...<Widget>[
+            AppFormInformationBanner.failure(
+              context: context,
+              failure: _actionFailure!,
+            ),
+            SizedBox(height: theme.spacing.md),
+          ] else if (_actionNotice != null) ...<Widget>[
+            AppFormInformationBanner.message(
+              message: _actionNotice!,
+              variant: AppFormInformationVariant.warning,
+            ),
+            SizedBox(height: theme.spacing.md),
+          ],
           AppUserAccessPanel(
             roleGroups: _roleGroups,
             directPermissions: _directPermissions,
@@ -4086,61 +4100,51 @@ class _UserDetailAccountFields extends StatelessWidget {
               ? item.facilityName!.trim()
               : item.facilityId!.trim());
 
-    return AppInfoTileGrid(
+    return AppInfoSheetGrid(
       emptyValue: l10n.profileUnknownValue,
-      maxColumns: 2,
-      minItemWidth: 200,
-      items: <AppInfoTileData>[
+      items: <AppInfoSheetItem>[
         if (displayName != null)
-          AppInfoTileData(
+          AppInfoSheetItem(
             label: l10n.accessAdminColumnName,
             value: displayName,
-            icon: Icons.person_outline,
           ),
         if (displayId.isNotEmpty)
-          AppInfoTileData(
+          AppInfoSheetItem(
             label: l10n.accessAdminColumnId,
             value: displayId,
-            icon: Icons.tag_outlined,
             copyable: true,
             copyTooltip: l10n.copyIdentifierAction,
             copiedMessage: l10n.identifierCopiedMessage,
           ),
         if (email != null && email.isNotEmpty)
-          AppInfoTileData(
+          AppInfoSheetItem(
             label: l10n.accessAdminEmailLabel,
             value: email,
-            icon: Icons.mail_outline,
           ),
         if (phone != null && phone.isNotEmpty)
-          AppInfoTileData(
+          AppInfoSheetItem(
             label: l10n.accessAdminPhoneLabel,
             value: phone,
-            icon: Icons.phone_outlined,
           ),
         if (status != null && status.isNotEmpty)
-          AppInfoTileData(
+          AppInfoSheetItem(
             label: l10n.accessAdminStatusLabel,
             value: status,
-            icon: Icons.flag_outlined,
           ),
         if (position != null && position.isNotEmpty)
-          AppInfoTileData(
+          AppInfoSheetItem(
             label: l10n.accessAdminPositionLabel,
             value: position,
-            icon: Icons.work_outline,
           ),
         if (tenant != null && tenant.isNotEmpty)
-          AppInfoTileData(
+          AppInfoSheetItem(
             label: l10n.settingsWorkspaceTenantLabel,
             value: tenant,
-            icon: Icons.apartment_outlined,
           ),
         if (facility != null && facility.isNotEmpty)
-          AppInfoTileData(
+          AppInfoSheetItem(
             label: l10n.settingsWorkspaceFacilityLabel,
             value: facility,
-            icon: Icons.local_hospital_outlined,
           ),
       ],
     );

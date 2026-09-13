@@ -85,6 +85,27 @@ describe('assignable-access', () => {
       expect(names.has(PERMISSIONS.PLATFORM_ADMIN)).toBe(false);
     });
 
+    it('gives tenant admins every non-admin permission beyond their session pack', () => {
+      const actor = {
+        roles: [ROLES.TENANT_ADMIN],
+        permissions: [PERMISSIONS.TENANT_ADMIN, PERMISSIONS.PROFILE_READ],
+      };
+      const names = resolveActorAssignablePermissionNames(actor);
+      expect(names.has(PERMISSIONS.TENANT_ADMIN)).toBe(true);
+      expect(names.has(PERMISSIONS.ACCOUNTS_WRITE)).toBe(true);
+      expect(names.has(PERMISSIONS.HR_WRITE)).toBe(true);
+      expect(names.has(PERMISSIONS.PLATFORM_ADMIN)).toBe(false);
+      expect(
+        isRoleWithinActorCeiling(
+          {
+            name: 'ACCOUNTANT',
+            permissions: [{ permission: { name: PERMISSIONS.ACCOUNTS_WRITE } }]},
+          actor
+        )
+      ).toBe(true);
+      expect(isRoleWithinActorCeiling({ name: ROLES.PLATFORM_ADMIN }, actor)).toBe(false);
+    });
+
     it('keeps a full ceiling for platform admins even when JWT permissions are plan-gated', () => {
       const names = resolveActorAssignablePermissionNames({
         roles: [ROLES.PLATFORM_ADMIN],

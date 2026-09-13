@@ -34966,6 +34966,20 @@
       "name": { "type": "String" }
     }
   },
+  "accessAdminPermanentDeleteUserWarningBody": "WARNING: Permanently deleting staff \"{name}\" erases the account, its profile, roles, and direct permissions forever. Staff with audit, clinical, or operational history cannot be purged and stay deleted. This cannot be recovered.",
+  "@accessAdminPermanentDeleteUserWarningBody": {
+    "description": "Warning before permanently deleting a soft-deleted user.",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "accessAdminPermanentDeleteUserConfirmationBody": "Final confirmation: permanently delete staff \"{name}\" and erase the account's profile, roles, and direct permissions? This action is irreversible.",
+  "@accessAdminPermanentDeleteUserConfirmationBody": {
+    "description": "Final confirmation body for permanent user delete.",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
   "accessAdminTenantContextRequiredTitle": "Tenant context required",
   "@accessAdminTenantContextRequiredTitle": {
     "description": "Access admin tenant context required title."

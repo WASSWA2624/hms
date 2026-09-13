@@ -14,4 +14,11 @@ describe('user.routes contract', () => {
     );
     expect(layer?.route?.methods?.post).toBe(true);
   });
+
+  it('registers the permanent delete route', () => {
+    const layer = subject.stack.find(
+      (entry) => entry.route?.path === '/:id/permanent'
+    );
+    expect(layer?.route?.methods?.delete).toBe(true);
+  });
 });

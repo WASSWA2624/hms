@@ -291,6 +291,18 @@ final class AccessAdminRepositoryImpl implements AccessAdminRepository {
   }
 
   @override
+  Future<Result<void>> permanentDeleteUser(String userId) {
+    return _afterAccessMutation(
+      () => _apiClient.delete<void>(
+        ApiEndpoints.nested(HmsApiResource.users, userId, const <String>[
+          'permanent',
+        ]),
+        decoder: (_) {},
+      ),
+    );
+  }
+
+  @override
   Future<Result<void>> setUserStatus(String userId, String status) {
     return _afterAccessMutation(
       () => _apiClient.put<void>(

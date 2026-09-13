@@ -800,4 +800,79 @@ describe('User Service', () => {
       ).rejects.toThrow(httpError);
     });
   });
+
+  describe('permanentDeleteUser', () => {
+    const userId = '550e8400-e29b-41d4-a716-446655440000';
+    const deletedUser = {
+      id: userId,
+      tenant_id: '550e8400-e29b-41d4-a716-446655440001',
+      email: 'test@example.com',
+      status: 'ACTIVE',
+      password_hash: '$2b$10$hashedpasswordplaceholder',
+      deleted_at: new Date('2026-09-01T00:00:00.000Z')
+    };
+
+    it('should purge a soft-deleted user and audit it as irreversible', async () => {
+      userRepository.findById.mockResolvedValue(deletedUser);
+      userRepository.permanentDelete.mockResolvedValue({ removed_access_rows: 3 });
+      createAuditLog.mockResolvedValue(true);
+
+      await userService.permanentDeleteUser(userId, 'deleter-id', '127.0.0.1');
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(userRepository.findById).toHaveBeenCalledWith(userId, undefined, {
+        includeDeleted: true
+      });
+      expect(userRepository.permanentDelete).toHaveBeenCalledWith(userId);
+      expect(createAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'USER_PERMANENTLY_DELETED',
+          entity: 'user',
+          entity_id: userId,
+          diff: expect.objectContaining({ irreversible: true, removed_access_rows: 3 })
+        })
+      );
+      expect(createAuditLog.mock.calls[0][0].diff.before).not.toHaveProperty('password_hash');
+      expect(publishCrudRealtimeEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ event: 'user.permanently_deleted' })
+      );
+    });
+
+    it('should refuse a user that is not soft-deleted', async () => {
+      userRepository.findById.mockResolvedValue({ ...deletedUser, deleted_at: null });
+
+      await expect(
+        userService.permanentDeleteUser(userId, 'deleter-id', '127.0.0.1')
+      ).rejects.toMatchObject({
+        messageKey: 'errors.user.permanent_delete_not_soft_deleted',
+        statusCode: 400
+      });
+      expect(userRepository.permanentDelete).not.toHaveBeenCalled();
+    });
+
+    it('should throw not found when the user does not exist', async () => {
+      userRepository.findById.mockResolvedValue(null);
+
+      await expect(
+        userService.permanentDeleteUser(userId, 'deleter-id', '127.0.0.1')
+      ).rejects.toMatchObject({
+        messageKey: 'errors.user.not_found',
+        statusCode: 404
+      });
+    });
+
+    it('should propagate the history block from the repository', async () => {
+      userRepository.findById.mockResolvedValue(deletedUser);
+      userRepository.permanentDelete.mockRejectedValue(
+        new HttpError('errors.user.permanent_delete_has_history', 409)
+      );
+
+      await expect(
+        userService.permanentDeleteUser(userId, 'deleter-id', '127.0.0.1')
+      ).rejects.toMatchObject({
+        messageKey: 'errors.user.permanent_delete_has_history',
+        statusCode: 409
+      });
+    });
+  });
 });

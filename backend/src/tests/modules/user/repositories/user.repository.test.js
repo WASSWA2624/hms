@@ -14,6 +14,33 @@ jest.mock('../../../../prisma/tenant-guard', () => ({
   runWithoutTenantGuard: jest.fn(async (callback) => callback()),
 }));
 
+// Trimmed schema for the permanent-delete reference scan: owned, detachable,
+// history, and profile-child relations.
+jest.mock('.prisma/client', () => {
+  const relation = (type, field) => ({
+    name: `${type}_${field}`,
+    kind: 'object',
+    type,
+    relationFromFields: [field]});
+  return {
+    Prisma: {
+      dmmf: {
+        datamodel: {
+          models: [
+            { name: 'user_profile', fields: [relation('user', 'user_id')] },
+            { name: 'staff_profile', fields: [relation('user', 'user_id')] },
+            { name: 'user_role', fields: [relation('user', 'user_id')] },
+            { name: 'user_permission', fields: [relation('user', 'user_id')] },
+            { name: 'notification', fields: [relation('user', 'user_id')] },
+            { name: 'audit_log', fields: [relation('user', 'user_id')] },
+            { name: 'staff_leave', fields: [relation('staff_profile', 'staff_profile_id')] },
+            {
+              name: 'address',
+              fields: [
+                relation('user_profile', 'user_profile_id'),
+                relation('staff_profile', 'staff_profile_id')]}]}}}};
+});
+
 // Mock Prisma client
 jest.mock('@prisma/client', () => {
   const prismaMock = {
@@ -23,24 +50,42 @@ jest.mock('@prisma/client', () => {
       findMany: jest.fn(),
       count: jest.fn(),
       create: jest.fn(),
-      update: jest.fn()
+      update: jest.fn(),
+      delete: jest.fn()
     },
     user_permission: {
       findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
-      updateMany: jest.fn()},
+      updateMany: jest.fn(),
+      deleteMany: jest.fn()},
     user_role: {
-      create: jest.fn()},
+      create: jest.fn(),
+      deleteMany: jest.fn()},
     user_session: {
       updateMany: jest.fn()},
+    user_profile: {
+      findMany: jest.fn(),
+      deleteMany: jest.fn()},
     tenant: {
       findFirst: jest.fn()},
     facility: {
       findFirst: jest.fn()},
     staff_profile: {
       create: jest.fn(),
-      updateMany: jest.fn()}};
+      updateMany: jest.fn(),
+      findMany: jest.fn(),
+      deleteMany: jest.fn()},
+    notification: {
+      count: jest.fn()},
+    audit_log: {
+      count: jest.fn()},
+    staff_leave: {
+      count: jest.fn()},
+    address: {
+      deleteMany: jest.fn()},
+    contact: {
+      deleteMany: jest.fn()}};
 
   return prismaMock;
 });
@@ -624,6 +669,12 @@ describe('User Repository', () => {
           deleted_at: null},
         data: {
           deleted_at: expect.any(Date)}});
+      expect(prisma.user_session.updateMany).toHaveBeenCalledWith({
+        where: {
+          user_id: userId,
+          revoked_at: null,
+          deleted_at: null},
+        data: { revoked_at: expect.any(Date) }});
     });
 
     it('should throw HttpError if user not found', async () => {
@@ -729,6 +780,103 @@ describe('User Repository', () => {
 
       await expect(userRepository.restore(userId)).rejects.toMatchObject({
         messageKey: 'errors.user.restore_requires_active_tenant',
+        statusCode: 409,
+      });
+    });
+  });
+
+  describe('permanentDelete', () => {
+    const userId = '550e8400-e29b-41d4-a716-446655440000';
+    const deletedAt = new Date('2026-09-01T00:00:00.000Z');
+
+    const arrangeDeletedUser = () => {
+      prisma.user.findFirst.mockResolvedValue({ id: userId, deleted_at: deletedAt });
+      prisma.user_profile.findMany.mockResolvedValue([{ id: 'profile-1' }]);
+      prisma.staff_profile.findMany.mockResolvedValue([{ id: 'staff-1' }]);
+      prisma.audit_log.count.mockResolvedValue(0);
+      prisma.staff_leave.count.mockResolvedValue(0);
+      prisma.address.deleteMany.mockResolvedValue({ count: 1 });
+      prisma.contact.deleteMany.mockResolvedValue({ count: 0 });
+      prisma.user_profile.deleteMany.mockResolvedValue({ count: 1 });
+      prisma.staff_profile.deleteMany.mockResolvedValue({ count: 1 });
+      prisma.user_role.deleteMany.mockResolvedValue({ count: 2 });
+      prisma.user_permission.deleteMany.mockResolvedValue({ count: 1 });
+      prisma.user.delete.mockResolvedValue({ id: userId });
+    };
+
+    it('should purge a user whose only references grant it access', async () => {
+      arrangeDeletedUser();
+
+      const result = await userRepository.permanentDelete(userId);
+
+      expect(result).toEqual({ removed_access_rows: 6 });
+      expect(prisma.user.findFirst).toHaveBeenCalledWith({
+        where: {
+          id: userId,
+          OR: [{ deleted_at: null }, { deleted_at: { not: null } }],
+        },
+        select: { id: true, deleted_at: true },
+      });
+      // Inbox rows are detached by the database, never counted as history.
+      expect(prisma.notification.count).not.toHaveBeenCalled();
+      expect(prisma.address.deleteMany).toHaveBeenCalledWith({
+        where: {
+          OR: [
+            { user_profile_id: { in: ['profile-1'] } },
+            { staff_profile_id: { in: ['staff-1'] } }]}});
+      expect(prisma.user_role.deleteMany).toHaveBeenCalledWith({
+        where: { user_id: userId }});
+      expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: userId } });
+    });
+
+    it('should refuse when history still references the user', async () => {
+      arrangeDeletedUser();
+      prisma.audit_log.count.mockResolvedValue(4);
+
+      await expect(userRepository.permanentDelete(userId)).rejects.toMatchObject({
+        messageKey: 'errors.user.permanent_delete_has_history',
+        statusCode: 409,
+      });
+      expect(prisma.user_role.deleteMany).not.toHaveBeenCalled();
+      expect(prisma.user.delete).not.toHaveBeenCalled();
+    });
+
+    it('should refuse when the staff profile carries HR history', async () => {
+      arrangeDeletedUser();
+      prisma.staff_leave.count.mockResolvedValue(1);
+
+      await expect(userRepository.permanentDelete(userId)).rejects.toMatchObject({
+        messageKey: 'errors.user.permanent_delete_has_history',
+        statusCode: 409,
+      });
+      expect(prisma.user.delete).not.toHaveBeenCalled();
+    });
+
+    it('should refuse a user that is not soft-deleted', async () => {
+      prisma.user.findFirst.mockResolvedValue({ id: userId, deleted_at: null });
+
+      await expect(userRepository.permanentDelete(userId)).rejects.toMatchObject({
+        messageKey: 'errors.user.permanent_delete_not_soft_deleted',
+        statusCode: 400,
+      });
+      expect(prisma.user.delete).not.toHaveBeenCalled();
+    });
+
+    it('should throw not_found when the user is missing', async () => {
+      prisma.user.findFirst.mockResolvedValue(null);
+
+      await expect(userRepository.permanentDelete(userId)).rejects.toMatchObject({
+        messageKey: 'errors.user.not_found',
+        statusCode: 404,
+      });
+    });
+
+    it('should report a restricting reference the scan missed as history', async () => {
+      arrangeDeletedUser();
+      prisma.user.delete.mockRejectedValue({ code: 'P2003' });
+
+      await expect(userRepository.permanentDelete(userId)).rejects.toMatchObject({
+        messageKey: 'errors.user.permanent_delete_has_history',
         statusCode: 409,
       });
     });

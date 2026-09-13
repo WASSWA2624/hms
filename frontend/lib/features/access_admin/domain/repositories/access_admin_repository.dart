@@ -40,6 +40,9 @@ abstract interface class AccessAdminRepository {
 
   Future<Result<void>> restoreUser(String userId);
 
+  /// Permanently deletes a soft-deleted user that has no recorded history.
+  Future<Result<void>> permanentDeleteUser(String userId);
+
   Future<Result<void>> setUserStatus(String userId, String status);
 
   /// Emails the user a single-use link to choose a new password.

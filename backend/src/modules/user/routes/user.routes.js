@@ -77,6 +77,30 @@ router.post(
 );
 
 /**
+ * @description Permanently delete a soft-deleted user
+ * @method DELETE
+ * @route /api/v1/users/:id/permanent
+ * @authentication Required (JWT)
+ * @permissions hr:write, tenant:admin, facility:admin, platform:admin, platform:owner
+ * @urlParams {string} id - User ID (UUID or friendly ID)
+ * @queryParams None
+ * @bodyParams None
+ * @returns {void} 204 No Content
+ * @throws 400 User is not soft-deleted
+ * @throws 401 Unauthorized
+ * @throws 403 Demo, out-of-scope, or protected platform account
+ * @throws 404 User not found
+ * @throws 409 User has audit, clinical, or operational history
+ */
+router.delete(
+  '/:id/permanent',
+  validateRequest({ params: userIdParamsSchema }),
+  authenticate(),
+  authorize(USER_WRITE_SCOPES, 'permission'),
+  userController.permanentDeleteUser
+);
+
+/**
  * @description Issue a single-use password reset link to a user
  * @method POST
  * @route /api/v1/users/:id/reset-credentials

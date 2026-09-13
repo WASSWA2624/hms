@@ -146,6 +146,20 @@ const restoreUser = asyncHandler(async (req, res) => {
   sendSuccess(res, 200, 'messages.user.restore.success', user);
 });
 
+/**
+ * Permanently delete soft-deleted user
+ * DELETE /api/v1/users/:id/permanent
+ */
+const permanentDeleteUser = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user?.id;
+  const ipAddress = req.ip;
+
+  await userService.permanentDeleteUser(id, userId, ipAddress, req.user);
+
+  sendNoContent(res);
+});
+
 const readHeader = (req, name) =>
   typeof req.get === 'function' ? req.get(name) || null : null;
 
@@ -176,4 +190,5 @@ module.exports = {
   updateUser,
   deleteUser,
   restoreUser,
+  permanentDeleteUser,
   resetUserCredentials};

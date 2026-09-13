@@ -187,6 +187,13 @@ const resolveActorAssignablePermissionNames = (user = {}) => {
     return new Set(ROLE_PERMISSIONS[ROLES.PLATFORM_ADMIN] || []);
   }
 
+  // Tenant admins outrank facility managers, so they grant at least the same
+  // non-admin catalog; their own session rights keep tenant and facility admin
+  // grantable. Plan modules still gate the catalog.
+  if (roleNames.includes(ROLES.TENANT_ADMIN)) {
+    return new Set([...nonAdminPermissionNames(), ...getUserPermissions(user)]);
+  }
+
   // Facility HR / facility admin: grant any non-admin permission (plan modules
   // still gate the catalog). Do not fall through to JWT shell packs.
   if (isFacilityScopedAccessActor(user)) {

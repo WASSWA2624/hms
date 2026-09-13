@@ -341,6 +341,33 @@ describe('User Controller', () => {
     });
   });
 
+  describe('permanentDeleteUser', () => {
+    const userId = '550e8400-e29b-41d4-a716-446655440000';
+
+    it('should permanently delete user', async () => {
+      req.params = { id: userId };
+      userService.permanentDeleteUser.mockResolvedValue(undefined);
+
+      await userController.permanentDeleteUser(req, res);
+
+      expect(userService.permanentDeleteUser).toHaveBeenCalledWith(
+        userId,
+        'requester-id',
+        '127.0.0.1',
+        { id: 'requester-id' }
+      );
+      expect(sendNoContent).toHaveBeenCalledWith(res);
+    });
+
+    it('should handle service errors', async () => {
+      req.params = { id: userId };
+      const error = new Error('Service error');
+      userService.permanentDeleteUser.mockRejectedValue(error);
+
+      await expect(userController.permanentDeleteUser(req, res)).rejects.toThrow(error);
+    });
+  });
+
   describe('resetUserCredentials', () => {
     const userId = '550e8400-e29b-41d4-a716-446655440000';
     const issued = {

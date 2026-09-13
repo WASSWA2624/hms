@@ -1095,6 +1095,64 @@ const restoreUser = async (id, userId, ipAddress, actor = {}) => {
 };
 
 /**
+ * Permanently delete a soft-deleted user
+ * Per prisma.mdc: Mutations must create audit logs
+ *
+ * Only accounts without audit, clinical, or operational history can be purged;
+ * the repository refuses otherwise so no record loses its author.
+ *
+ * @param {string} id - User ID
+ * @param {string} userId - User ID for audit
+ * @param {string} ipAddress - User IP for audit
+ * @param {Object} [actor] - Authenticated actor (req.user)
+ * @returns {Promise<void>}
+ */
+const permanentDeleteUser = async (id, userId, ipAddress, actor = {}) => {
+  try {
+    const resolvedUserId = await resolveUserId(id, { includeDeleted: true });
+    const before = await userRepository.findById(resolvedUserId, undefined, {
+      includeDeleted: true
+    });
+
+    if (!before) {
+      throw new HttpError('errors.user.not_found', 404);
+    }
+    if (!before.deleted_at) {
+      throw new HttpError('errors.user.permanent_delete_not_soft_deleted', 400);
+    }
+
+    assertDemoUserNotMutable(before, 'delete');
+    await assertActorCanMutateTargetAccount(resolvedUserId, actor);
+    assertActorWithinTenant(before.tenant_id, actor);
+
+    const { removed_access_rows: removedAccessRows } =
+      await userRepository.permanentDelete(resolvedUserId);
+
+    createAuditLog({
+      user_id: userId,
+      action: 'USER_PERMANENTLY_DELETED',
+      entity: 'user',
+      entity_id: resolvedUserId,
+      diff: {
+        before: toPublicUser(before),
+        irreversible: true,
+        removed_access_rows: removedAccessRows
+      },
+      ip_address: ipAddress
+    }).catch(() => {});
+
+    await publishUserRealtimeEvent(
+      PLATFORM_ADMIN_EVENTS.USER_PERMANENTLY_DELETED,
+      before,
+      userId
+    );
+  } catch (error) {
+    if (error instanceof HttpError) throw error;
+    throw new HttpError('errors.server.unexpected', 500, [{ originalError: error.message }]);
+  }
+};
+
+/**
  * Issue a single-use credential reset for another account.
  *
  * The reset link and code reach the user only by email: nothing secret is
@@ -1168,4 +1226,5 @@ module.exports = {
   updateUser,
   deleteUser,
   restoreUser,
+  permanentDeleteUser,
   resetUserCredentials};

@@ -445,10 +445,10 @@ const serializeUserDetail = (record) => {
 };
 
 const buildLookups = (records = {}, user = null, enabledModules = null) => {
-  // Hide admin roles from facility-scoped assigners; other actors still see the
-  // full in-scope directory (assignment APIs re-check ceiling).
+  // Assigners only see roles they can grant; read-only viewers keep the full
+  // in-scope directory for filtering (assignment APIs re-check ceiling).
   const roles =
-    user && isFacilityScopedAccessActor(user)
+    user && (isFacilityScopedAccessActor(user) || canWriteAccess(user))
       ? filterRoleRecordsByCeiling(records.roles || [], user)
       : records.roles || [];
   const permissions = user
@@ -471,7 +471,10 @@ const buildLookups = (records = {}, user = null, enabledModules = null) => {
       facility_type: entry.facility_type || null,
     })),
     roles: roles.map((entry) => ({
-      id: safePublicId(entry.human_friendly_id, entry.id),
+      // UUID like permissions: role friendly ids restart per tenant and collide
+      // with platform catalog roles, so assigning by them can pick another role.
+      id: entry.id,
+      human_friendly_id: safePublicId(entry.human_friendly_id, entry.id),
       label: entry.name,
       display_name: entry.display_name || entry.name,
       facility_id: safePublicId(entry.facility_id),
