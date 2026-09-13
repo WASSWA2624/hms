@@ -220,6 +220,18 @@ running the demo seeder, not from tenant creation.
   role of the same name, then soft-delete the tenant-local clones.
   `consolidateTenantCatalogDuplicates` in
   `@lib/authorization/permission-catalog-sync` already does this shape of work.
+- **Update 2026-09-13 — done.** No path creates tenant copies any more:
+  `ensureAssignableRoles` is gone and HR reads platform roles, registration and
+  doctor onboarding assign the platform `TENANT_ADMIN` / `DOCTOR` roles, the
+  ambulance-operator backfill only seeds the platform role, and role/permission
+  create, rename and restore refuse a platform name for a tenant.
+  `consolidateTenantCatalogDuplicates` now matches every platform role and
+  permission by name, moves user assignments, permission links and API-key
+  grants onto the platform row, and deletes the copy; a role copy granting more
+  than its platform role is reported under `needs_review` instead. Run
+  `node scripts/sync-permission-catalog.js --dry-run`, review, then run it
+  without `--dry-run`. Development went from 233 role and 416 permission copies
+  to none.
 
 ### 5.2 A GET endpoint performs writes
 

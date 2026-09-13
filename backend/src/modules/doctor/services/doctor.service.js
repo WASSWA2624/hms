@@ -9,6 +9,7 @@ const staffProfileService = require('@services/staff-profile/staff-profile.servi
 const { HttpError } = require('@lib/errors');
 const { hashPassword } = require('@lib/crypto');
 const { createAuditLog } = require('@lib/audit');
+const { resolvePlatformRole } = require('@lib/authorization/platform-access-catalog');
 
 const BCRYPT_PREFIX_REGEX = /^\$2[aby]\$\d{2}\$/;
 const {
@@ -143,20 +144,13 @@ const normalizeConsultationPayload = (inputData = {}, fallbackPractitionerType =
   return data;
 };
 
-const resolveDoctorRole = async (tx, tenantId, facilityId = null) => {
-  const role = await doctorRepository.findDoctorRole(tenantId, facilityId, tx);
-
-  if (role) return role;
-
-  return doctorRepository.createRole(
-    {
-      tenant_id: tenantId,
-      facility_id: facilityId,
-      name: ROLE_DOCTOR,
-      description: 'Doctor role (auto-created by doctor onboarding)'
-    },
-    tx
-  );
+// Doctors hold the platform DOCTOR role; organizations never keep a copy of it.
+const resolveDoctorRole = async (tx) => {
+  const role = await resolvePlatformRole(ROLE_DOCTOR, tx);
+  if (!role) {
+    throw new HttpError('errors.role.not_found', 404, [{ field: 'role_ids' }]);
+  }
+  return role;
 };
 
 const resolveRoleByIdentifier = async (tx, identifier, tenantId) => {
@@ -569,7 +563,7 @@ const createSchedulesTx = async ({
   }
 };
 
-const resolveRoleIds = async (tx, { tenantId, facilityId, roleIds = [] }) => {
+const resolveRoleIds = async (tx, { tenantId, roleIds = [] }) => {
   const resolvedRoleIds = new Set();
 
   for (const identifier of roleIds || []) {
@@ -580,7 +574,7 @@ const resolveRoleIds = async (tx, { tenantId, facilityId, roleIds = [] }) => {
     resolvedRoleIds.add(role.id);
   }
 
-  const doctorRole = await resolveDoctorRole(tx, tenantId, facilityId || null);
+  const doctorRole = await resolveDoctorRole(tx);
   resolvedRoleIds.add(doctorRole.id);
 
   return Array.from(resolvedRoleIds);

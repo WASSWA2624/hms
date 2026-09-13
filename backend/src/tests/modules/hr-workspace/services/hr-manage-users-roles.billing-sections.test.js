@@ -13,6 +13,10 @@ jest.mock('@repositories/permission/permission.repository');
 jest.mock('@repositories/user-role/user-role.repository');
 jest.mock('@repositories/role-permission/role-permission.repository');
 jest.mock('@repositories/staff-profile/staff-profile.repository');
+jest.mock('@lib/authorization/platform-access-catalog', () => ({
+  findActivePlatformRoleByName: jest.fn().mockResolvedValue(null),
+  findActivePlatformPermissionByName: jest.fn().mockResolvedValue(null),
+}));
 jest.mock('@lib/audit', () => ({
   createAuditLog: jest.fn().mockResolvedValue({}),
 }));

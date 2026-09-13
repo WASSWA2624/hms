@@ -2,8 +2,9 @@
  * Platform-scoped access catalog (roles + permissions with tenant_id null).
  *
  * Default/system roles and permissions live once at platform scope. Tenant actors
- * can read them; only platform admins may mutate them. Tenant-local clones of the
- * catalog are consolidated away to prevent duplicates.
+ * can read them; only platform admins may mutate them. Organizations use these
+ * roles as they are, or extend them as custom roles under their own name — never
+ * as a same-name tenant copy.
  *
  * @module lib/authorization/platform-access-catalog
  */
@@ -15,6 +16,10 @@ const {
   getPermissionMetadata,
   getRoleMetadata,
 } = require('@config/permission-catalog-metadata');
+const {
+  countReferencingRows,
+  listForeignKeyReferences,
+} = require('@lib/database/foreign-key-references');
 const { runWithoutTenantGuard } = require('../../prisma/tenant-guard');
 
 const CANONICAL_PERMISSION_KEYS = Object.freeze(
@@ -259,146 +264,344 @@ const loadPlatformRoleMap = async () =>
   });
 
 /**
- * Remap tenant-local catalog clones onto the platform catalog and soft-delete
- * the clones so the catalog is not duplicated per tenant.
+ * The platform role callers should assign instead of creating a tenant copy.
+ * Seeds the catalog first on a database that has never been seeded.
+ *
+ * @param {string} roleName
+ * @param {Object} [client] - Prisma client or transaction client for the lookup
+ * @returns {Promise<Object|null>}
  */
-const consolidateTenantCatalogDuplicates = async () =>
+const resolvePlatformRole = async (roleName, client = prisma) =>
   runWithoutTenantGuard(async () => {
-    await ensurePlatformAccessCatalog({ force: true });
-    const platformPermissions = await loadPlatformPermissionMap();
-    const platformRoles = await loadPlatformRoleMap();
+    const existing = await findPlatformRoleByName(roleName, client);
+    if (existing) {
+      return existing;
+    }
+    await ensurePlatformAccessCatalog();
+    // Read outside any caller transaction: its snapshot predates the seed.
+    return findPlatformRoleByName(roleName);
+  });
 
-    let remappedUserRoles = 0;
-    let remappedRolePermissions = 0;
-    let remappedUserPermissions = 0;
-    let softDeletedRoles = 0;
-    let softDeletedPermissions = 0;
+/**
+ * Active platform role with this name, or null. The database collation makes
+ * the match case-insensitive.
+ *
+ * @param {string} name
+ * @returns {Promise<{ id: string, name: string }|null>}
+ */
+const findActivePlatformRoleByName = async (name) => {
+  const trimmed = String(name || '').trim();
+  if (!trimmed) {
+    return null;
+  }
+  return runWithoutTenantGuard(async () =>
+    prisma.role.findFirst({
+      where: { tenant_id: null, facility_id: null, deleted_at: null, name: trimmed },
+      select: { id: true, name: true },
+    })
+  );
+};
 
-    const tenantSystemRoles = await prisma.role.findMany({
-      where: {
-        deleted_at: null,
-        name: { in: [...SYSTEM_ROLE_CODES] },
-        NOT: { tenant_id: null },
+/**
+ * Active platform permission with this name, or null.
+ *
+ * @param {string} name
+ * @returns {Promise<{ id: string, name: string }|null>}
+ */
+const findActivePlatformPermissionByName = async (name) => {
+  const trimmed = String(name || '').trim();
+  if (!trimmed) {
+    return null;
+  }
+  return runWithoutTenantGuard(async () =>
+    prisma.permission.findFirst({
+      where: { tenant_id: null, deleted_at: null, name: trimmed },
+      select: { id: true, name: true },
+    })
+  );
+};
+
+const roleNameKey = (name) => String(name || '').trim().toUpperCase();
+const permissionNameKey = (name) => String(name || '').trim().toLowerCase();
+
+/** Tables that grant a permission to a holder, keyed by the holder column. */
+const PERMISSION_LINK_TABLES = Object.freeze({
+  role_permission: 'role_id',
+  user_permission: 'user_id',
+  api_key_permission: 'api_key_id',
+});
+
+const ROLE_LINK_TABLES = Object.freeze(new Set(['user_role', 'role_permission']));
+
+const REVIEW_LIMIT = 50;
+
+const indexByName = (records, keyOf) => {
+  const index = new Map();
+  for (const record of records) {
+    const key = keyOf(record.name);
+    if (key && !index.has(key)) {
+      index.set(key, record);
+    }
+  }
+  return index;
+};
+
+const grantedPermissionNames = (role) =>
+  new Set(
+    (role.permissions || [])
+      .map((link) => permissionNameKey(link.permission?.name))
+      .filter(Boolean)
+  );
+
+/** Tables outside `expectedTables` that still reference the row. */
+const findUnexpectedReferences = async (table, id, expectedTables) => {
+  const unexpected = [];
+  for (const reference of await listForeignKeyReferences(prisma, table)) {
+    if (expectedTables.has(reference.table)) {
+      continue;
+    }
+    if ((await countReferencingRows(prisma, reference, [id])) > 0) {
+      unexpected.push(reference.table);
+    }
+  }
+  return unexpected;
+};
+
+/**
+ * Point a link row at the platform record. When the holder already has that
+ * link, drop the copy's row instead, reviving the platform link if only the
+ * copy's link was active.
+ */
+const moveLink = async (delegate, link, platformLinkWhere, data) => {
+  const existing = await delegate.findFirst({ where: platformLinkWhere });
+  if (!existing) {
+    await delegate.update({ where: { id: link.id }, data });
+    return { remapped: 1, restored: 0, removed: 0 };
+  }
+
+  let restored = 0;
+  if (!link.deleted_at && existing.deleted_at) {
+    await delegate.update({ where: { id: existing.id }, data: { deleted_at: null } });
+    restored = 1;
+  }
+  await delegate.delete({ where: { id: link.id } });
+  return { remapped: 0, restored, removed: 1 };
+};
+
+/**
+ * Merge tenant copies of platform roles and permissions into the platform catalog.
+ *
+ * A tenant role or permission with the same name as a platform one is a copy.
+ * Its user assignments, permission links and API-key grants move to the
+ * platform record, then the copy is deleted. A role copy that grants permissions
+ * the platform role does not is an extension under the platform name: it is
+ * left in place and reported, so nobody silently loses access — rename it to
+ * keep it as a custom role.
+ *
+ * Seed the platform catalog first (`ensurePlatformAccessCatalog`) so every
+ * system role has a platform record to merge into.
+ *
+ * @param {Object} [options]
+ * @param {boolean} [options.dryRun=false] - Report what would change, write nothing
+ * @returns {Promise<Object>} Counts, affected tenants, and copies needing review
+ */
+const consolidateTenantCatalogDuplicates = async ({ dryRun = false } = {}) =>
+  runWithoutTenantGuard(async () => {
+    const [platformRoles, platformPermissions] = await Promise.all([
+      prisma.role.findMany({
+        where: { tenant_id: null, facility_id: null, deleted_at: null },
+        include: {
+          permissions: {
+            where: { deleted_at: null },
+            include: { permission: { select: { name: true } } },
+          },
+        },
+        orderBy: [{ created_at: 'asc' }],
+      }),
+      prisma.permission.findMany({
+        where: { tenant_id: null, deleted_at: null },
+        orderBy: [{ created_at: 'asc' }],
+      }),
+    ]);
+    const platformRoleByName = indexByName(platformRoles, roleNameKey);
+    const platformPermissionByName = indexByName(platformPermissions, permissionNameKey);
+
+    const tenants = new Set();
+    const roles = {
+      copies: 0,
+      merged: 0,
+      remapped_user_roles: 0,
+      restored_user_roles: 0,
+      removed_user_roles: 0,
+      removed_role_permissions: 0,
+      needs_review: [],
+    };
+    const permissions = {
+      copies: 0,
+      merged: 0,
+      remapped_links: 0,
+      restored_links: 0,
+      removed_links: 0,
+      needs_review: [],
+    };
+    const flag = (bucket, entry) => {
+      if (bucket.needs_review.length < REVIEW_LIMIT) {
+        bucket.needs_review.push(entry);
+      }
+    };
+
+    const tenantRoles = await prisma.role.findMany({
+      where: { NOT: { tenant_id: null } },
+      include: {
+        permissions: {
+          where: { deleted_at: null },
+          include: { permission: { select: { name: true } } },
+        },
+        tenant: { select: { name: true } },
       },
-      select: { id: true, name: true, tenant_id: true },
+      orderBy: [{ created_at: 'asc' }],
     });
 
-    for (const tenantRole of tenantSystemRoles) {
-      const platformRole = platformRoles.get(tenantRole.name);
+    for (const copy of tenantRoles) {
+      const platformRole = platformRoleByName.get(roleNameKey(copy.name));
       if (!platformRole) {
         continue;
       }
+      roles.copies += 1;
+      const tenantName = copy.tenant?.name || copy.tenant_id;
 
-      const updated = await prisma.user_role.updateMany({
-        where: { role_id: tenantRole.id, deleted_at: null },
-        data: { role_id: platformRole.id },
-      });
-      remappedUserRoles += updated.count;
-
-      await prisma.role_permission.updateMany({
-        where: { role_id: tenantRole.id, deleted_at: null },
-        data: { deleted_at: nowIso() },
-      });
-
-      await prisma.role.update({
-        where: { id: tenantRole.id },
-        data: { deleted_at: nowIso() },
-      });
-      softDeletedRoles += 1;
-    }
-
-    const tenantCatalogPermissions = await prisma.permission.findMany({
-      where: {
-        deleted_at: null,
-        name: { in: [...CANONICAL_PERMISSION_KEYS] },
-        NOT: { tenant_id: null },
-      },
-      select: { id: true, name: true, tenant_id: true },
-    });
-
-    for (const tenantPermission of tenantCatalogPermissions) {
-      const platformPermission = platformPermissions.get(tenantPermission.name);
-      if (!platformPermission) {
+      const platformGrants = grantedPermissionNames(platformRole);
+      const extraGrants = [...grantedPermissionNames(copy)].filter(
+        (name) => !platformGrants.has(name)
+      );
+      if (extraGrants.length > 0) {
+        flag(roles, {
+          tenant: tenantName,
+          role: copy.name,
+          role_id: copy.id,
+          reason: 'extends_platform_role',
+          extra_permissions: extraGrants.sort(),
+        });
         continue;
       }
 
-      const roleLinks = await prisma.role_permission.findMany({
-        where: { permission_id: tenantPermission.id, deleted_at: null },
-      });
-
-      for (const link of roleLinks) {
-        const existing = await prisma.role_permission.findFirst({
-          where: {
-            role_id: link.role_id,
-            permission_id: platformPermission.id,
-          },
+      const unexpected = await findUnexpectedReferences('role', copy.id, ROLE_LINK_TABLES);
+      if (unexpected.length > 0) {
+        flag(roles, {
+          tenant: tenantName,
+          role: copy.name,
+          role_id: copy.id,
+          reason: 'referenced_elsewhere',
+          tables: unexpected,
         });
-        if (existing) {
-          if (existing.deleted_at) {
-            await prisma.role_permission.update({
-              where: { id: existing.id },
-              data: { deleted_at: null },
-            });
-          }
-          await prisma.role_permission.update({
-            where: { id: link.id },
-            data: { deleted_at: nowIso() },
-          });
-        } else {
-          await prisma.role_permission.update({
-            where: { id: link.id },
-            data: { permission_id: platformPermission.id },
-          });
-        }
-        remappedRolePermissions += 1;
+        continue;
       }
 
-      const userLinks = await prisma.user_permission.findMany({
-        where: { permission_id: tenantPermission.id, deleted_at: null },
-      });
+      tenants.add(tenantName);
+      roles.merged += 1;
 
-      for (const link of userLinks) {
-        const existing = await prisma.user_permission.findFirst({
-          where: {
-            user_id: link.user_id,
-            permission_id: platformPermission.id,
-          },
+      if (dryRun) {
+        roles.remapped_user_roles += await prisma.user_role.count({ where: { role_id: copy.id } });
+        roles.removed_role_permissions += await prisma.role_permission.count({
+          where: { role_id: copy.id },
         });
-        if (existing) {
-          if (existing.deleted_at) {
-            await prisma.user_permission.update({
-              where: { id: existing.id },
-              data: { deleted_at: null },
-            });
-          }
-          await prisma.user_permission.update({
-            where: { id: link.id },
-            data: { deleted_at: nowIso() },
-          });
-        } else {
-          await prisma.user_permission.update({
-            where: { id: link.id },
-            data: { permission_id: platformPermission.id },
-          });
-        }
-        remappedUserPermissions += 1;
+        continue;
       }
 
-      await prisma.permission.update({
-        where: { id: tenantPermission.id },
-        data: { deleted_at: nowIso() },
+      await prisma.$transaction(async (tx) => {
+        const assignments = await tx.user_role.findMany({ where: { role_id: copy.id } });
+        for (const assignment of assignments) {
+          const moved = await moveLink(
+            tx.user_role,
+            assignment,
+            {
+              user_id: assignment.user_id,
+              role_id: platformRole.id,
+              tenant_id: assignment.tenant_id,
+              facility_id: assignment.facility_id,
+            },
+            { role_id: platformRole.id }
+          );
+          roles.remapped_user_roles += moved.remapped;
+          roles.restored_user_roles += moved.restored;
+          roles.removed_user_roles += moved.removed;
+        }
+
+        const links = await tx.role_permission.deleteMany({ where: { role_id: copy.id } });
+        roles.removed_role_permissions += links.count || 0;
+        await tx.role.delete({ where: { id: copy.id } });
       });
-      softDeletedPermissions += 1;
+    }
+
+    const tenantPermissions = await prisma.permission.findMany({
+      where: { NOT: { tenant_id: null } },
+      include: { tenant: { select: { name: true } } },
+      orderBy: [{ created_at: 'asc' }],
+    });
+    const permissionLinkTables = new Set(Object.keys(PERMISSION_LINK_TABLES));
+
+    for (const copy of tenantPermissions) {
+      const platformPermission = platformPermissionByName.get(permissionNameKey(copy.name));
+      if (!platformPermission) {
+        continue;
+      }
+      permissions.copies += 1;
+      const tenantName = copy.tenant?.name || copy.tenant_id;
+
+      const unexpected = await findUnexpectedReferences(
+        'permission',
+        copy.id,
+        permissionLinkTables
+      );
+      if (unexpected.length > 0) {
+        flag(permissions, {
+          tenant: tenantName,
+          permission: copy.name,
+          permission_id: copy.id,
+          reason: 'referenced_elsewhere',
+          tables: unexpected,
+        });
+        continue;
+      }
+
+      tenants.add(tenantName);
+      permissions.merged += 1;
+
+      if (dryRun) {
+        for (const table of permissionLinkTables) {
+          permissions.remapped_links += await prisma[table].count({
+            where: { permission_id: copy.id },
+          });
+        }
+        continue;
+      }
+
+      await prisma.$transaction(async (tx) => {
+        for (const [table, holderColumn] of Object.entries(PERMISSION_LINK_TABLES)) {
+          const links = await tx[table].findMany({ where: { permission_id: copy.id } });
+          for (const link of links) {
+            const moved = await moveLink(
+              tx[table],
+              link,
+              { [holderColumn]: link[holderColumn], permission_id: platformPermission.id },
+              { permission_id: platformPermission.id }
+            );
+            permissions.remapped_links += moved.remapped;
+            permissions.restored_links += moved.restored;
+            permissions.removed_links += moved.removed;
+          }
+        }
+        await tx.permission.delete({ where: { id: copy.id } });
+      });
     }
 
     return {
-      remapped_user_roles: remappedUserRoles,
-      remapped_role_permissions: remappedRolePermissions,
-      remapped_user_permissions: remappedUserPermissions,
-      soft_deleted_roles: softDeletedRoles,
-      soft_deleted_permissions: softDeletedPermissions,
-      platform_permissions: platformPermissions.size,
-      platform_roles: platformRoles.size,
+      dry_run: Boolean(dryRun),
+      platform_roles: platformRoleByName.size,
+      platform_permissions: platformPermissionByName.size,
+      tenants_affected: [...tenants].sort(),
+      roles,
+      permissions,
     };
   });
 
@@ -419,7 +622,10 @@ module.exports = {
   SYSTEM_ROLE_CODES,
   consolidateTenantCatalogDuplicates,
   ensurePlatformAccessCatalog,
+  findActivePlatformPermissionByName,
+  findActivePlatformRoleByName,
   listPlatformPermissions,
   loadPlatformPermissionMap,
   loadPlatformRoleMap,
+  resolvePlatformRole,
 };

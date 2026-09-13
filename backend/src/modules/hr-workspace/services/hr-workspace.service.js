@@ -141,7 +141,6 @@ const {
   HR_ASSIGNABLE_ROLE_NAMES,
   enrichRoleOption,
   sortRoleRecords,
-  roleLabel,
 } = require('@lib/hr/role-catalog');
 const {
   DEFAULT_FACILITY_DEPARTMENT_NAMES,
@@ -1105,7 +1104,6 @@ const getReferenceData = async (filters = {}) => {
   await ensureDefaultStaffPositions(scope);
   await ensureDefaultFacilityStructure(scope);
   const tenantId = await resolveTenantIdForScope(scope);
-  await ensureAssignableRoles(scope, tenantId);
   const staffPositionWhere = tenantId
     ? {
         deleted_at: null,
@@ -1309,7 +1307,8 @@ const getReferenceData = async (filters = {}) => {
         where: {
           deleted_at: null,
           name: { in: [...HR_ASSIGNABLE_ROLE_NAMES] },
-          ...(tenantId ? { tenant_id: tenantId } : {}),
+          // Assignable defaults are the platform catalog; tenants keep no copies.
+          tenant_id: null,
           facility_id: null,
         },
         orderBy: { name: 'asc' },
@@ -1564,67 +1563,6 @@ const buildStaffPositionCatalogWhere = (scope, tenantId) => ({
       }
     : { facility_id: null }),
 });
-
-const ensureAssignableRoles = async (scope, tenantId = null) => {
-  const resolvedTenantId = tenantId || (await resolveTenantIdForScope(scope));
-  if (!resolvedTenantId) {
-    return;
-  }
-
-  const existingRoles = await prisma.role.findMany({
-    where: {
-      tenant_id: resolvedTenantId,
-      deleted_at: null,
-      facility_id: null,
-      name: { in: [...HR_ASSIGNABLE_ROLE_NAMES] },
-    },
-    select: { id: true, name: true },
-  });
-  const existingNames = new Set(
-    existingRoles.map((entry) => normalizeString(entry.name).toUpperCase()).filter(Boolean)
-  );
-  const missingRoleNames = HR_ASSIGNABLE_ROLE_NAMES.filter((name) => !existingNames.has(name));
-  if (missingRoleNames.length === 0) {
-    return;
-  }
-
-  const permissions = await prisma.permission.findMany({
-    where: {
-      tenant_id: resolvedTenantId,
-      deleted_at: null,
-    },
-    select: { id: true, name: true },
-  });
-  const permissionIdByName = new Map(
-    permissions.map((entry) => [normalizeString(entry.name), entry.id]).filter(([name]) => Boolean(name))
-  );
-
-  for (const roleName of missingRoleNames) {
-    const role = await prisma.role.create({
-      data: {
-        tenant_id: resolvedTenantId,
-        facility_id: null,
-        name: roleName,
-        description: roleLabel(roleName),
-      },
-      select: { id: true, name: true },
-    });
-
-    const permissionNames = ROLE_PERMISSIONS[roleName] || [];
-    for (const permissionName of permissionNames) {
-      const permissionId = permissionIdByName.get(permissionName);
-      if (!permissionId) {
-        continue;
-      }
-      await prisma.role_permission.create({
-        data: {
-          role_id: role.id,
-          permission_id: permissionId,
-        },
-      });
-    }
-  }
-};
 
 const ensureDefaultStaffPositions = async (scope) => {
   const tenantId = await resolveTenantIdForScope(scope);

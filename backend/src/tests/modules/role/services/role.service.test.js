@@ -9,6 +9,8 @@ const { HttpError } = require('@lib/errors');
 
 // Mock repository
 jest.mock('@repositories/role/role.repository');
+jest.mock('@lib/authorization/platform-access-catalog', () => ({
+  findActivePlatformRoleByName: jest.fn().mockResolvedValue(null)}));
 jest.mock('@lib/billing/identifiers', () => ({
   ...jest.requireActual('@lib/billing/identifiers'),
   resolveIdentifierForPayload: jest.fn(async ({ value }) => value),

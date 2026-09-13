@@ -3,95 +3,69 @@
  */
 
 jest.mock('@prisma/client', () => ({
-  tenant: {
-    findMany: jest.fn()},
-  facility: {
-    findMany: jest.fn()},
   role: {
-    findFirst: jest.fn(),
+    count: jest.fn(),
     create: jest.fn()},
   $disconnect: jest.fn()}));
 
+jest.mock('@lib/authorization/platform-access-catalog', () => ({
+  ensurePlatformAccessCatalog: jest.fn(),
+  findActivePlatformRoleByName: jest.fn()}));
+
 const prisma = require('@prisma/client');
+const platformCatalog = require('@lib/authorization/platform-access-catalog');
 const {
   parseCliArgs,
-  backfillAmbulanceOperatorRole} = require('../../../scripts/backfill-ambulance-operator-role');
+  ensureAmbulanceOperatorRole} = require('../../../scripts/backfill-ambulance-operator-role');
 
 describe('backfill-ambulance-operator-role script', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    prisma.role.count.mockResolvedValue(0);
   });
 
   describe('parseCliArgs', () => {
-    it('supports --dry-run and --tenant-id in equals and split forms', () => {
-      expect(parseCliArgs(['--dry-run', '--tenant-id=tenant-a'])).toEqual({
-        dryRun: true,
-        tenantId: 'tenant-a'});
-
-      expect(parseCliArgs(['--tenant-id', 'tenant-b'])).toEqual({
-        dryRun: false,
-        tenantId: 'tenant-b'});
-    });
-
-    it('throws when --tenant-id value is missing', () => {
-      expect(() => parseCliArgs(['--tenant-id='])).toThrow('Missing value for --tenant-id');
-      expect(() => parseCliArgs(['--tenant-id'])).toThrow('Missing value for --tenant-id');
-      expect(() => parseCliArgs(['--tenant-id', '--dry-run'])).toThrow(
-        'Missing value for --tenant-id'
-      );
+    it('reads --dry-run', () => {
+      expect(parseCliArgs(['--dry-run'])).toEqual({ dryRun: true });
+      expect(parseCliArgs([])).toEqual({ dryRun: false });
     });
   });
 
-  describe('backfillAmbulanceOperatorRole', () => {
-    it('tracks dry-run create/skip counts for facility-scoped roles', async () => {
-      prisma.tenant.findMany.mockResolvedValue([{ id: 'tenant-1', name: 'Tenant One' }]);
-      prisma.facility.findMany.mockResolvedValue([
-        { id: 'facility-1', name: 'Facility One' },
-        { id: 'facility-2', name: 'Facility Two' }]);
-      prisma.role.findFirst
-        .mockResolvedValueOnce({ id: 'existing-role' })
-        .mockResolvedValueOnce(null);
+  describe('ensureAmbulanceOperatorRole', () => {
+    it('never creates tenant or facility copies of the platform role', async () => {
+      platformCatalog.findActivePlatformRoleByName.mockResolvedValue({ id: 'platform-role' });
+      prisma.role.count.mockResolvedValue(2);
 
-      const summary = await backfillAmbulanceOperatorRole({
-        dryRun: true});
+      const summary = await ensureAmbulanceOperatorRole({ dryRun: false });
 
       expect(summary).toEqual({
-        dryRun: true,
-        tenantFilter: null,
-        tenantsProcessed: 1,
-        facilitiesProcessed: 2,
-        rolesCreated: 0,
-        rolesSkipped: 1,
-        rolesWouldCreate: 1,
-        failures: 0});
+        dryRun: false,
+        platformRoleExists: true,
+        platformRoleCreated: false,
+        tenantCopies: 2});
+      expect(prisma.role.create).not.toHaveBeenCalled();
+      expect(platformCatalog.ensurePlatformAccessCatalog).not.toHaveBeenCalled();
+    });
+
+    it('seeds the platform catalog when the role is missing', async () => {
+      platformCatalog.findActivePlatformRoleByName
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: 'platform-role' });
+
+      const summary = await ensureAmbulanceOperatorRole({ dryRun: false });
+
+      expect(platformCatalog.ensurePlatformAccessCatalog).toHaveBeenCalledTimes(1);
+      expect(summary).toMatchObject({ platformRoleExists: true, platformRoleCreated: true });
       expect(prisma.role.create).not.toHaveBeenCalled();
     });
 
-    it('creates tenant-level role when no facilities exist and role is missing', async () => {
-      prisma.tenant.findMany.mockResolvedValue([{ id: 'tenant-1', name: 'Tenant One' }]);
-      prisma.facility.findMany.mockResolvedValue([]);
-      prisma.role.findFirst.mockResolvedValue(null);
-      prisma.role.create.mockResolvedValue({ id: 'created-role' });
+    it('writes nothing on a dry run', async () => {
+      platformCatalog.findActivePlatformRoleByName.mockResolvedValue(null);
 
-      const summary = await backfillAmbulanceOperatorRole({
-        dryRun: false,
-        tenantId: 'tenant-1'});
+      const summary = await ensureAmbulanceOperatorRole({ dryRun: true });
 
-      expect(summary).toEqual({
-        dryRun: false,
-        tenantFilter: 'tenant-1',
-        tenantsProcessed: 1,
-        facilitiesProcessed: 0,
-        rolesCreated: 1,
-        rolesSkipped: 0,
-        rolesWouldCreate: 0,
-        failures: 0});
-      expect(prisma.role.create).toHaveBeenCalledWith({
-        data: {
-          tenant_id: 'tenant-1',
-          facility_id: null,
-          name: 'AMBULANCE_OPERATOR',
-          description: 'Default AMBULANCE_OPERATOR role'}});
+      expect(summary).toMatchObject({ dryRun: true, platformRoleExists: false, platformRoleCreated: false });
+      expect(platformCatalog.ensurePlatformAccessCatalog).not.toHaveBeenCalled();
     });
   });
 });

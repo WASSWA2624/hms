@@ -7,9 +7,13 @@
  * Per prisma.mdc: All queries use soft delete filtering (deleted_at: null).
  */
 
-const { Prisma } = require('.prisma/client');
 const prisma = require('@prisma/client');
 const { HttpError } = require('@lib/errors');
+const {
+  countReferencingRows,
+  deleteReferencingRows,
+  listForeignKeyReferences
+} = require('@lib/database/foreign-key-references');
 const { runWithoutTenantGuard } = require('../../../prisma/tenant-guard');
 
 /**
@@ -665,9 +669,9 @@ const restore = async (id) => {
 };
 
 /**
- * Rows that exist only to give an account access. They are removed with it.
+ * Tables whose rows exist only to give an account access. They are removed with it.
  */
-const USER_OWNED_MODELS = Object.freeze(new Set([
+const USER_OWNED_TABLES = Object.freeze(new Set([
   'user_profile',
   'staff_profile',
   'user_session',
@@ -685,44 +689,46 @@ const USER_OWNED_MODELS = Object.freeze(new Set([
  * References the database detaches on delete that carry no history: inbox rows,
  * analytics events, and the self-registration idempotency record.
  */
-const USER_DETACHABLE_MODELS = Object.freeze(new Set([
+const USER_DETACHABLE_TABLES = Object.freeze(new Set([
   'notification',
   'analytics_event',
   'registration_attempt'
 ]));
 
 /** Personal details stored against a user or staff profile. */
-const PROFILE_OWNED_MODELS = Object.freeze(new Set(['address', 'contact']));
+const PROFILE_OWNED_TABLES = Object.freeze(new Set(['address', 'contact']));
 
 /**
- * Every (model, foreign key) pair pointing at `targetModel`, read from the
- * schema so a newly added relation is checked without editing this file.
+ * Tables outside `ignoredTables` with rows pointing at `ids`. Foreign keys come
+ * from the live schema, so a newly added relation is checked automatically.
  */
-const listReferencingFields = (targetModel) =>
-  Prisma.dmmf.datamodel.models.flatMap((model) =>
-    model.fields
-      .filter(
-        (field) =>
-          field.kind === 'object' &&
-          field.type === targetModel &&
-          Array.isArray(field.relationFromFields) &&
-          field.relationFromFields.length === 1
-      )
-      .map((field) => ({ model: model.name, field: field.relationFromFields[0] }))
-  );
-
-const findBlockingReferences = async (tx, targetModel, id, ignoredModels) => {
+const findBlockingReferences = async (tx, table, ids, ignoredTables) => {
+  if (ids.length === 0) {
+    return [];
+  }
   const blocking = [];
-  for (const { model, field } of listReferencingFields(targetModel)) {
-    if (ignoredModels.has(model)) {
+  for (const reference of await listForeignKeyReferences(tx, table)) {
+    if (ignoredTables.has(reference.table)) {
       continue;
     }
-    const rows = await tx[model].count({ where: { [field]: id } });
-    if (rows > 0) {
-      blocking.push(model);
+    if ((await countReferencingRows(tx, reference, ids)) > 0) {
+      blocking.push(reference.table);
     }
   }
   return blocking;
+};
+
+const deleteOwnedReferences = async (tx, table, ids, ownedTables) => {
+  if (ids.length === 0) {
+    return 0;
+  }
+  let removed = 0;
+  for (const reference of await listForeignKeyReferences(tx, table)) {
+    if (ownedTables.has(reference.table)) {
+      removed += await deleteReferencingRows(tx, reference, ids);
+    }
+  }
+  return removed;
 };
 
 /**
@@ -760,45 +766,27 @@ const permanentDelete = async (id) => {
           await tx.staff_profile.findMany({ where: { user_id: id }, select: { id: true } })
         ).map((row) => row.id);
 
-        const blocking = await findBlockingReferences(
-          tx,
-          'user',
-          id,
-          new Set([...USER_OWNED_MODELS, ...USER_DETACHABLE_MODELS])
-        );
-        for (const profileId of profileIds) {
-          blocking.push(
-            ...(await findBlockingReferences(tx, 'user_profile', profileId, PROFILE_OWNED_MODELS))
-          );
-        }
-        for (const staffProfileId of staffProfileIds) {
-          blocking.push(
-            ...(await findBlockingReferences(tx, 'staff_profile', staffProfileId, PROFILE_OWNED_MODELS))
-          );
-        }
+        const blocking = [
+          ...(await findBlockingReferences(
+            tx,
+            'user',
+            [id],
+            new Set([...USER_OWNED_TABLES, ...USER_DETACHABLE_TABLES])
+          )),
+          ...(await findBlockingReferences(tx, 'user_profile', profileIds, PROFILE_OWNED_TABLES)),
+          ...(await findBlockingReferences(tx, 'staff_profile', staffProfileIds, PROFILE_OWNED_TABLES))
+        ];
         if (blocking.length > 0) {
           throw new HttpError('errors.user.permanent_delete_has_history', 409, [
             { field: 'id', reason: 'has_history', tables: [...new Set(blocking)].sort() }
           ]);
         }
 
-        let removedAccessRows = 0;
-        const profileScopes = [
-          ...(profileIds.length > 0 ? [{ user_profile_id: { in: profileIds } }] : []),
-          ...(staffProfileIds.length > 0 ? [{ staff_profile_id: { in: staffProfileIds } }] : [])
-        ];
-        if (profileScopes.length > 0) {
-          for (const model of PROFILE_OWNED_MODELS) {
-            const removed = await tx[model].deleteMany({ where: { OR: profileScopes } });
-            removedAccessRows += removed.count || 0;
-          }
-        }
-        for (const { model, field } of listReferencingFields('user')) {
-          if (USER_OWNED_MODELS.has(model)) {
-            const removed = await tx[model].deleteMany({ where: { [field]: id } });
-            removedAccessRows += removed.count || 0;
-          }
-        }
+        // Profile details first: they point at the profiles removed after them.
+        const removedAccessRows =
+          (await deleteOwnedReferences(tx, 'user_profile', profileIds, PROFILE_OWNED_TABLES)) +
+          (await deleteOwnedReferences(tx, 'staff_profile', staffProfileIds, PROFILE_OWNED_TABLES)) +
+          (await deleteOwnedReferences(tx, 'user', [id], USER_OWNED_TABLES));
 
         await tx.user.delete({ where: { id } });
         return { removed_access_rows: removedAccessRows };

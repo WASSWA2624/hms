@@ -1,4 +1,6 @@
 jest.mock('@repositories/role/role.repository');
+jest.mock('@lib/authorization/platform-access-catalog', () => ({
+  findActivePlatformRoleByName: jest.fn().mockResolvedValue(null)}));
 jest.mock('@lib/billing/clinical-request-billing', () => ({
   upsertClinicalRequestBilling: jest.fn(),
   receiveClinicalRequestPayment: jest.fn(),

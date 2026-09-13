@@ -39,43 +39,22 @@ const findFacilityByIdentifier = async (identifier, tenantId = null, client = pr
   }
 };
 
-const findDoctorRole = async (tenantId, facilityId = null, client = prisma) => {
-  try {
-    return await client.role.findFirst({
-      where: {
-        deleted_at: null,
-        tenant_id: tenantId,
-        name: 'DOCTOR',
-        OR: [{ facility_id: facilityId }, { facility_id: null }],
-      },
-      orderBy: [{ facility_id: 'desc' }, { created_at: 'asc' }],
-    });
-  } catch (error) {
-    throw new HttpError('errors.database.unexpected', 500, [{ originalError: error.message }]);
-  }
-};
-
-const createRole = async (data, client = prisma) => {
-  try {
-    return await client.role.create({ data });
-  } catch (error) {
-    if (error.code === 'P2002') throw new HttpError('errors.database.unique_field', 409);
-    if (error.code === 'P2003') throw new HttpError('errors.database.foreign_key_field', 400);
-    throw new HttpError('errors.database.unexpected', 500, [{ originalError: error.message }]);
-  }
-};
-
 const findRoleByIdentifier = async (identifier, tenantId, client = prisma) => {
   try {
-    const normalized = normalizeUpperIdentifier(identifier);
+    const normalized = normalizeIdentifier(identifier);
     if (!normalized) return null;
 
+    // Assignable roles are the platform catalog plus the tenant's own custom roles.
+    // The tenant's role wins a friendly-id tie; UUIDs are never ambiguous.
     return await client.role.findFirst({
       where: {
         deleted_at: null,
-        tenant_id: tenantId,
-        human_friendly_id: normalized,
+        AND: [
+          { OR: [{ id: normalized }, { human_friendly_id: normalized.toUpperCase() }] },
+          { OR: [{ tenant_id: tenantId }, { tenant_id: null, facility_id: null }] },
+        ],
       },
+      orderBy: [{ tenant_id: 'desc' }],
     });
   } catch (error) {
     throw new HttpError('errors.database.unexpected', 500, [{ originalError: error.message }]);
@@ -414,7 +393,6 @@ const softDeleteProviderSchedules = async (scheduleIds = [], client = prisma) =>
 
 module.exports = {
   createAvailabilitySlot,
-  createRole,
   createStaffPosition,
   createStaffProfile,
   createProviderSchedule,
@@ -424,7 +402,6 @@ module.exports = {
   findAvailabilitySlots,
   findDoctorById,
   findDoctorByIdentifier,
-  findDoctorRole,
   findFacilityByIdentifier,
   findManyDoctors,
   findProviderSchedules,

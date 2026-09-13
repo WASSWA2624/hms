@@ -8,6 +8,8 @@
 const { HttpError } = require('@lib/errors');
 
 jest.mock('@repositories/permission/permission.repository');
+jest.mock('@lib/authorization/platform-access-catalog', () => ({
+  findActivePlatformPermissionByName: jest.fn().mockResolvedValue(null)}));
 jest.mock('@lib/audit', () => ({
   createAuditLog: jest.fn().mockResolvedValue({})
 }));

@@ -28,6 +28,7 @@ const {
   isCatalogProtectedRoleName,
 } = require('@lib/authorization/assignable-access');
 const { checkRoleDuplicates } = require('@lib/role/role-similarity');
+const { findActivePlatformRoleByName } = require('@lib/authorization/platform-access-catalog');
 
 const ROLE_REALTIME_RECIPIENT_ROLES = Object.freeze([ROLES.TENANT_ADMIN]);
 const ROLE_SIMILARITY_LOOKUP_LIMIT = 500;
@@ -53,6 +54,13 @@ const assertRoleUniqueness = async ({
     facilityId == null || String(facilityId).trim() === ''
       ? null
       : String(facilityId).trim();
+
+  // Organizations use or extend platform roles; a same-name tenant role is a copy.
+  if (scopeTenantId != null && (await findActivePlatformRoleByName(data?.name))) {
+    throw new HttpError('errors.role.catalog_duplicate', 409, [
+      { field: 'name', reason: 'platform_catalog_exists' },
+    ]);
+  }
 
   // Broad peer set for similarity: platform proposals scan all roles; tenant
   // proposals include every facility/org role in that tenant (not only the

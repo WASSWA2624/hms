@@ -36,7 +36,12 @@ jest.mock('@lib/tenant/resolve-tenant-contact', () => ({
   buildRegistrationContactExtension: jest.fn().mockReturnValue({}),
 }));
 
+jest.mock('@lib/authorization/platform-access-catalog', () => ({
+  resolvePlatformRole: jest.fn(),
+}));
+
 const prisma = require('@prisma/client');
+const { resolvePlatformRole } = require('@lib/authorization/platform-access-catalog');
 const {
   registerFacilityOwner,
   beginRegistrationAttempt,
@@ -72,10 +77,11 @@ const registrationPayload = {
 describe('Auth repository - registration bootstrap', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    resolvePlatformRole.mockResolvedValue({ id: 'platform-tenant-admin' });
   });
 
   describe('registerFacilityOwner', () => {
-    it('creates tenant, facility, role, user, and profile inside one transaction', async () => {
+    it('creates tenant, facility, user, and profile inside one transaction', async () => {
       const tx = buildTx();
       prisma.$transaction.mockImplementation((callback) => callback(tx));
 
@@ -84,10 +90,15 @@ describe('Auth repository - registration bootstrap', () => {
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
       expect(tx.tenant.create).toHaveBeenCalledTimes(1);
       expect(tx.facility.create).toHaveBeenCalledTimes(1);
-      expect(tx.role.create).toHaveBeenCalledTimes(1);
       expect(tx.user.create).toHaveBeenCalledTimes(1);
       expect(tx.user_profile.create).toHaveBeenCalledTimes(1);
       expect(tx.user_role.create).toHaveBeenCalledTimes(1);
+      // The owner holds the platform TENANT_ADMIN role; no tenant copy is created.
+      expect(resolvePlatformRole).toHaveBeenCalledWith('TENANT_ADMIN', tx);
+      expect(tx.role.create).not.toHaveBeenCalled();
+      expect(tx.user_role.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ role_id: 'platform-tenant-admin' }),
+      });
 
       // Nothing is written outside the transaction, so a later failure cannot
       // leave an orphaned tenant or facility behind.

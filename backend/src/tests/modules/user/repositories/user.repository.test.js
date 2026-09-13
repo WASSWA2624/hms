@@ -14,32 +14,10 @@ jest.mock('../../../../prisma/tenant-guard', () => ({
   runWithoutTenantGuard: jest.fn(async (callback) => callback()),
 }));
 
-// Trimmed schema for the permanent-delete reference scan: owned, detachable,
-// history, and profile-child relations.
-jest.mock('.prisma/client', () => {
-  const relation = (type, field) => ({
-    name: `${type}_${field}`,
-    kind: 'object',
-    type,
-    relationFromFields: [field]});
-  return {
-    Prisma: {
-      dmmf: {
-        datamodel: {
-          models: [
-            { name: 'user_profile', fields: [relation('user', 'user_id')] },
-            { name: 'staff_profile', fields: [relation('user', 'user_id')] },
-            { name: 'user_role', fields: [relation('user', 'user_id')] },
-            { name: 'user_permission', fields: [relation('user', 'user_id')] },
-            { name: 'notification', fields: [relation('user', 'user_id')] },
-            { name: 'audit_log', fields: [relation('user', 'user_id')] },
-            { name: 'staff_leave', fields: [relation('staff_profile', 'staff_profile_id')] },
-            {
-              name: 'address',
-              fields: [
-                relation('user_profile', 'user_profile_id'),
-                relation('staff_profile', 'staff_profile_id')]}]}}}};
-});
+jest.mock('@lib/database/foreign-key-references', () => ({
+  listForeignKeyReferences: jest.fn(),
+  countReferencingRows: jest.fn(),
+  deleteReferencingRows: jest.fn()}));
 
 // Mock Prisma client
 jest.mock('@prisma/client', () => {
@@ -57,16 +35,13 @@ jest.mock('@prisma/client', () => {
       findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
-      updateMany: jest.fn(),
-      deleteMany: jest.fn()},
+      updateMany: jest.fn()},
     user_role: {
-      create: jest.fn(),
-      deleteMany: jest.fn()},
+      create: jest.fn()},
     user_session: {
       updateMany: jest.fn()},
     user_profile: {
-      findMany: jest.fn(),
-      deleteMany: jest.fn()},
+      findMany: jest.fn()},
     tenant: {
       findFirst: jest.fn()},
     facility: {
@@ -74,18 +49,7 @@ jest.mock('@prisma/client', () => {
     staff_profile: {
       create: jest.fn(),
       updateMany: jest.fn(),
-      findMany: jest.fn(),
-      deleteMany: jest.fn()},
-    notification: {
-      count: jest.fn()},
-    audit_log: {
-      count: jest.fn()},
-    staff_leave: {
-      count: jest.fn()},
-    address: {
-      deleteMany: jest.fn()},
-    contact: {
-      deleteMany: jest.fn()}};
+      findMany: jest.fn()}};
 
   return prismaMock;
 });
@@ -789,18 +753,30 @@ describe('User Repository', () => {
     const userId = '550e8400-e29b-41d4-a716-446655440000';
     const deletedAt = new Date('2026-09-01T00:00:00.000Z');
 
-    const arrangeDeletedUser = () => {
+    const foreignKeys = require('@lib/database/foreign-key-references');
+    const referencesByTable = {
+      user: [
+        { table: 'audit_log', column: 'user_id' },
+        { table: 'notification', column: 'user_id' },
+        { table: 'staff_profile', column: 'user_id' },
+        { table: 'user_profile', column: 'user_id' },
+        { table: 'user_role', column: 'user_id' }],
+      user_profile: [{ table: 'address', column: 'user_profile_id' }],
+      staff_profile: [
+        { table: 'address', column: 'staff_profile_id' },
+        { table: 'staff_leave', column: 'staff_profile_id' }]};
+
+    const arrangeDeletedUser = ({ counts = {} } = {}) => {
       prisma.user.findFirst.mockResolvedValue({ id: userId, deleted_at: deletedAt });
       prisma.user_profile.findMany.mockResolvedValue([{ id: 'profile-1' }]);
       prisma.staff_profile.findMany.mockResolvedValue([{ id: 'staff-1' }]);
-      prisma.audit_log.count.mockResolvedValue(0);
-      prisma.staff_leave.count.mockResolvedValue(0);
-      prisma.address.deleteMany.mockResolvedValue({ count: 1 });
-      prisma.contact.deleteMany.mockResolvedValue({ count: 0 });
-      prisma.user_profile.deleteMany.mockResolvedValue({ count: 1 });
-      prisma.staff_profile.deleteMany.mockResolvedValue({ count: 1 });
-      prisma.user_role.deleteMany.mockResolvedValue({ count: 2 });
-      prisma.user_permission.deleteMany.mockResolvedValue({ count: 1 });
+      foreignKeys.listForeignKeyReferences.mockImplementation((client, table) =>
+        Promise.resolve(referencesByTable[table] || [])
+      );
+      foreignKeys.countReferencingRows.mockImplementation((client, reference) =>
+        Promise.resolve(counts[reference.table] || 0)
+      );
+      foreignKeys.deleteReferencingRows.mockResolvedValue(1);
       prisma.user.delete.mockResolvedValue({ id: userId });
     };
 
@@ -809,7 +785,8 @@ describe('User Repository', () => {
 
       const result = await userRepository.permanentDelete(userId);
 
-      expect(result).toEqual({ removed_access_rows: 6 });
+      // address x2 (profile details) + staff_profile + user_profile + user_role
+      expect(result).toEqual({ removed_access_rows: 5 });
       expect(prisma.user.findFirst).toHaveBeenCalledWith({
         where: {
           id: userId,
@@ -817,33 +794,48 @@ describe('User Repository', () => {
         },
         select: { id: true, deleted_at: true },
       });
+      expect(foreignKeys.countReferencingRows).toHaveBeenCalledWith(
+        prisma,
+        { table: 'audit_log', column: 'user_id' },
+        [userId]
+      );
       // Inbox rows are detached by the database, never counted as history.
-      expect(prisma.notification.count).not.toHaveBeenCalled();
-      expect(prisma.address.deleteMany).toHaveBeenCalledWith({
-        where: {
-          OR: [
-            { user_profile_id: { in: ['profile-1'] } },
-            { staff_profile_id: { in: ['staff-1'] } }]}});
-      expect(prisma.user_role.deleteMany).toHaveBeenCalledWith({
-        where: { user_id: userId }});
+      expect(foreignKeys.countReferencingRows).not.toHaveBeenCalledWith(
+        prisma,
+        { table: 'notification', column: 'user_id' },
+        expect.anything()
+      );
+      expect(foreignKeys.deleteReferencingRows).toHaveBeenCalledWith(
+        prisma,
+        { table: 'address', column: 'user_profile_id' },
+        ['profile-1']
+      );
+      expect(foreignKeys.deleteReferencingRows).toHaveBeenCalledWith(
+        prisma,
+        { table: 'user_role', column: 'user_id' },
+        [userId]
+      );
+      expect(foreignKeys.deleteReferencingRows).not.toHaveBeenCalledWith(
+        prisma,
+        { table: 'audit_log', column: 'user_id' },
+        expect.anything()
+      );
       expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: userId } });
     });
 
     it('should refuse when history still references the user', async () => {
-      arrangeDeletedUser();
-      prisma.audit_log.count.mockResolvedValue(4);
+      arrangeDeletedUser({ counts: { audit_log: 4 } });
 
       await expect(userRepository.permanentDelete(userId)).rejects.toMatchObject({
         messageKey: 'errors.user.permanent_delete_has_history',
         statusCode: 409,
       });
-      expect(prisma.user_role.deleteMany).not.toHaveBeenCalled();
+      expect(foreignKeys.deleteReferencingRows).not.toHaveBeenCalled();
       expect(prisma.user.delete).not.toHaveBeenCalled();
     });
 
     it('should refuse when the staff profile carries HR history', async () => {
-      arrangeDeletedUser();
-      prisma.staff_leave.count.mockResolvedValue(1);
+      arrangeDeletedUser({ counts: { staff_leave: 1 } });
 
       await expect(userRepository.permanentDelete(userId)).rejects.toMatchObject({
         messageKey: 'errors.user.permanent_delete_has_history',

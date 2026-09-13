@@ -11,6 +11,7 @@ const { HttpError } = require('@lib/errors');
 const {
   buildRegistrationContactExtension,
 } = require('@lib/tenant/resolve-tenant-contact');
+const { resolvePlatformRole } = require('@lib/authorization/platform-access-catalog');
 const crypto = require('crypto');
 
 const userInclude = {
@@ -430,14 +431,11 @@ const registerFacilityOwner = async (data) => {
         },
       });
 
-      const role = await tx.role.create({
-        data: {
-          tenant_id: tenant.id,
-          facility_id: facility.id,
-          name: 'TENANT_ADMIN',
-          description: 'Tenant administrator',
-        },
-      });
+      // The owner holds the platform TENANT_ADMIN role, never a tenant copy of it.
+      const role = await resolvePlatformRole('TENANT_ADMIN', tx);
+      if (!role) {
+        throw new HttpError('errors.role.not_found', 404);
+      }
 
       const user = await tx.user.create({
         data: {

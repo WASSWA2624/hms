@@ -15,6 +15,9 @@ const {
   isCatalogProtectedPermissionName,
   canActorCreatePlatformRole,
 } = require('@lib/authorization/assignable-access');
+const {
+  findActivePlatformPermissionByName,
+} = require('@lib/authorization/platform-access-catalog');
 
 /**
  * List permissions with pagination and filtering
@@ -117,6 +120,13 @@ const createPermission = async (data, userId, ipAddress, actor = null) => {
       ]);
     }
 
+    // Organizations use platform permissions; a same-name copy is a duplicate.
+    if (await findActivePlatformPermissionByName(permissionName)) {
+      throw new HttpError('errors.permission.duplicate', 409, [
+        { field: 'name', reason: 'platform_catalog_exists' },
+      ]);
+    }
+
     const permission = await permissionRepository.create(data);
 
     // Create audit log (non-blocking)
@@ -160,6 +170,16 @@ const updatePermission = async (id, data, userId, ipAddress, actor = null) => {
       'update',
       actor || { id: userId }
     );
+
+    const nextName = String(data?.name || '').trim();
+    if (nextName && nextName !== before.name) {
+      const platformPermission = await findActivePlatformPermissionByName(nextName);
+      if (platformPermission && platformPermission.id !== before.id) {
+        throw new HttpError('errors.permission.duplicate', 409, [
+          { field: 'name', reason: 'platform_catalog_exists' },
+        ]);
+      }
+    }
 
     const permission = await permissionRepository.update(id, data);
 
