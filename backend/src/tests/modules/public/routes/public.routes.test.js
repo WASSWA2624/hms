@@ -19,6 +19,7 @@ describe('public.routes contract', () => {
 
   it('registers canonical public discovery endpoints', () => {
     expect(getRouteSignatures(subject)).toEqual([
+      'GET /facility-logos/:key',
       'GET /providers',
       'GET /services'
     ]);

@@ -7,6 +7,16 @@ const { asyncHandler } = require('@lib/async');
 const { sendPaginated } = require('@lib/response');
 const { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT } = require('@config/constants');
 
+const getFacilityLogo = asyncHandler(async (req, res) => {
+  const result = await publicService.getFacilityLogo(req.params.key);
+
+  res.setHeader('Content-Type', result.mime_type);
+  // Long-lived: upload rewrites the key's `?v=` cache buster, so a changed
+  // logo arrives under a new URL rather than waiting out this TTL.
+  res.setHeader('Cache-Control', 'public, max-age=604800');
+  res.status(200).send(result.buffer);
+});
+
 const listPublicServices = asyncHandler(async (req, res) => {
   const {
     search,
@@ -49,6 +59,7 @@ const listPublicProviders = asyncHandler(async (req, res) => {
 
 
 module.exports = {
+  getFacilityLogo,
   listPublicServices,
   listPublicProviders
 };
