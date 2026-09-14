@@ -307,12 +307,8 @@ class _FeedbackDeleteDialogState extends ConsumerState<FeedbackDeleteDialog> {
         cellBuilder: (_, FeedbackRecord record) =>
             Center(child: _recordCheckbox(l10n, record)),
       ),
-      _textColumn(
-        id: 'reference',
-        label: l10n.feedbackIdColumnLabel,
-        preferredWidth: 130,
-        value: (FeedbackRecord record) => record.referenceId,
-      ),
+      // The table shows the first few columns by default; the rest are one
+      // tap away in Settings.
       _textColumn(
         id: 'submitted_at',
         label: l10n.feedbackSubmittedAtColumnLabel,
@@ -338,6 +334,12 @@ class _FeedbackDeleteDialogState extends ConsumerState<FeedbackDeleteDialog> {
         label: l10n.feedbackSubmittedByLabel,
         preferredWidth: 220,
         value: (FeedbackRecord record) => _submitterText(l10n, record),
+      ),
+      _textColumn(
+        id: 'reference',
+        label: l10n.feedbackIdColumnLabel,
+        preferredWidth: 130,
+        value: (FeedbackRecord record) => record.referenceId,
       ),
       _textColumn(
         id: 'tenant',

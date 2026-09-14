@@ -195,9 +195,12 @@ void main() {
     expect(call.request, const AppPageRequest());
     expect(call.filters.search, isEmpty);
     expect(call.filters.hasActiveFilters, isFalse);
-    expect(find.text('FBK0000001'), findsOneWidget);
     expect(find.text('Feedback message 3'), findsOneWidget);
     expect(find.text('user2@example.com'), findsOneWidget);
+    expect(
+      find.byKey(FeedbackDeleteDialog.rowCheckboxKey('FBK0000001')),
+      findsOneWidget,
+    );
     expect(find.text('No feedback selected'), findsOneWidget);
     expect(tester.widget<AppButton>(_deleteButton).onPressed, isNull);
   });
@@ -271,7 +274,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.pageCalls.last.request.pageIndex, 1);
-    expect(find.text('FBK0000021'), findsOneWidget);
+    expect(find.text('Feedback message 21'), findsOneWidget);
     expect(find.text('21-25 of 25'), findsOneWidget);
     expect(find.text('1 record selected'), findsOneWidget);
 
@@ -423,7 +426,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.pageCalls, hasLength(2));
-    expect(find.text('FBK0000001'), findsOneWidget);
+    expect(find.text('Feedback message 1'), findsOneWidget);
     expect(find.byType(AppFormInformationBanner), findsNothing);
   });
 
