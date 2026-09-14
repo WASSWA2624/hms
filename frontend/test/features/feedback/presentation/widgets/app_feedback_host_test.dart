@@ -421,7 +421,12 @@ void main() {
     await _openLauncher(tester);
     await tester.tap(find.text('Clear feedback'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(AppButton, 'Cancel'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AppConfirmActionDialog),
+        matching: find.widgetWithText(AppButton, 'Close'),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(repository.clearCalls, 0);
