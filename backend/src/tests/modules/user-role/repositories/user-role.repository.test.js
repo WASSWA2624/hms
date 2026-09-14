@@ -181,7 +181,9 @@ describe('User-Role Repository', () => {
             user_id: 'user-123',
             role_id: 'role-123',
             tenant_id: 'tenant-123',
-            facility_id: 'facility-123'}})
+            facility_id: 'facility-123',
+            // Naming deleted_at keeps the tenant guard from hiding soft-deleted rows.
+            OR: [{ deleted_at: null }, { deleted_at: { not: null } }]}})
       );
       expect(prisma.user_role.findFirst).toHaveBeenNthCalledWith(
         2,
@@ -223,7 +225,7 @@ describe('User-Role Repository', () => {
 
       expect(prisma.user_role.create).not.toHaveBeenCalled();
       expect(prisma.user_role.update).toHaveBeenCalledWith({
-        where: { id: 'ur-123' },
+        where: { id: 'ur-123', deleted_at: { not: null } },
         data: {
           deleted_at: null,
           version: { increment: 1 }}});

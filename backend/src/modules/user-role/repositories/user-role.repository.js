@@ -161,11 +161,14 @@ const count = async (filters = {}) => {
  * @returns {Promise<Object>} Created user-role
  */
 const create = async (data) => {
+  // The tenant guard adds `deleted_at: null` to any lookup that doesn't name
+  // deleted_at, which hides the soft-deleted row this has to restore.
   const matchWhere = {
     user_id: data.user_id,
     role_id: data.role_id,
     tenant_id: data.tenant_id,
-    facility_id: data.facility_id ?? null};
+    facility_id: data.facility_id ?? null,
+    OR: [{ deleted_at: null }, { deleted_at: { not: null } }]};
 
   const restoreOrReturnExisting = async () => {
     const existing = await prisma.user_role.findFirst({
@@ -178,7 +181,7 @@ const create = async (data) => {
       return findById(existing.id);
     }
     await prisma.user_role.update({
-      where: { id: existing.id },
+      where: { id: existing.id, deleted_at: { not: null } },
       data: {
         deleted_at: null,
         version: { increment: 1 }}});
