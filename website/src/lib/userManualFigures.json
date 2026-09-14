@@ -1,4 +1,76 @@
 {
+  "access-staff-record": {
+    "src": "/images/user-manual/access-staff-record.jpg",
+    "width": 1280,
+    "height": 640,
+    "alt": "A staff record showing the account details, assigned roles, direct permissions and effective permissions.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 2.19,
+        "y": 10,
+        "w": 95.63,
+        "h": 21.88
+      },
+      {
+        "n": 2,
+        "x": 2.66,
+        "y": 34.69,
+        "w": 94.69,
+        "h": 7.5
+      },
+      {
+        "n": 3,
+        "x": 2.66,
+        "y": 59.22,
+        "w": 94.69,
+        "h": 7.5
+      },
+      {
+        "n": 4,
+        "x": 2.66,
+        "y": 75.63,
+        "w": 94.69,
+        "h": 7.5
+      }
+    ]
+  },
+  "access-user-directory": {
+    "src": "/images/user-manual/access-user-directory.jpg",
+    "width": 1035,
+    "height": 420,
+    "alt": "Access administration on the User directory tab, listing staff with their ID, name, email address, facility and status, with the Create staff button and the list tools.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.48,
+        "w": 44.35,
+        "h": 10.48
+      },
+      {
+        "n": 2,
+        "x": 89.57,
+        "y": 10.71,
+        "w": 9.95,
+        "h": 6.67
+      },
+      {
+        "n": 3,
+        "x": 0.19,
+        "y": 18.57,
+        "w": 77.68,
+        "h": 15.24
+      },
+      {
+        "n": 4,
+        "x": 0.58,
+        "y": 43.81,
+        "w": 99.03,
+        "h": 13.33
+      }
+    ]
+  },
   "auth-forgot": {
     "src": "/images/user-manual/auth-forgot.jpg",
     "width": 560,
@@ -183,6 +255,822 @@
         "y": 68.29,
         "w": 85.71,
         "h": 12.2
+      }
+    ]
+  },
+  "settings-accessibility": {
+    "src": "/images/user-manual/settings-accessibility.jpg",
+    "width": 1035,
+    "height": 400,
+    "alt": "Settings on the Accessibility tab, with the Reduce motion and Bold text switches and the Text size choice.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 3.09,
+        "y": 36.75,
+        "w": 94.01,
+        "h": 12.25
+      },
+      {
+        "n": 2,
+        "x": 3.09,
+        "y": 51,
+        "w": 94.01,
+        "h": 12.25
+      },
+      {
+        "n": 3,
+        "x": 3.09,
+        "y": 66.25,
+        "w": 94.78,
+        "h": 15
+      }
+    ]
+  },
+  "settings-account": {
+    "src": "/images/user-manual/settings-account.jpg",
+    "width": 1035,
+    "height": 764,
+    "alt": "Settings on the Account and security tab, showing your name, account details, professional details and assigned roles, with the Change password and Edit profile buttons.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 75.56,
+        "y": 8.51,
+        "w": 13.24,
+        "h": 3.66
+      },
+      {
+        "n": 2,
+        "x": 88.99,
+        "y": 8.51,
+        "w": 9.37,
+        "h": 3.66
+      },
+      {
+        "n": 3,
+        "x": 96.52,
+        "y": -4.06,
+        "w": 2.9,
+        "h": 3.93
+      },
+      {
+        "n": 4,
+        "x": 2.71,
+        "y": 54.58,
+        "w": 94.78,
+        "h": 4.19
+      },
+      {
+        "n": 5,
+        "x": 2.71,
+        "y": 92.41,
+        "w": 94.78,
+        "h": 4.19
+      }
+    ]
+  },
+  "settings-change-password": {
+    "src": "/images/user-manual/settings-change-password.jpg",
+    "width": 1280,
+    "height": 340,
+    "alt": "The Change password form with the Current password, New password and Confirm password fields.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 1.88,
+        "y": 18.82,
+        "w": 96.88,
+        "h": 18.82
+      },
+      {
+        "n": 2,
+        "x": 1.88,
+        "y": 37.06,
+        "w": 96.88,
+        "h": 18.82
+      },
+      {
+        "n": 3,
+        "x": 1.88,
+        "y": 55.29,
+        "w": 96.88,
+        "h": 18.82
+      },
+      {
+        "n": 4,
+        "x": 81.8,
+        "y": 85,
+        "w": 10.63,
+        "h": 13.53
+      }
+    ]
+  },
+  "settings-configuration": {
+    "src": "/images/user-manual/settings-configuration.jpg",
+    "width": 1035,
+    "height": 684,
+    "alt": "Settings, Configuration tab, with the default consultation fee and currency for the organisation and for the facility, and the Save configuration buttons.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 4.25,
+        "y": 28.65,
+        "w": 92.46,
+        "h": 12.57
+      },
+      {
+        "n": 2,
+        "x": 80.1,
+        "y": 28.65,
+        "w": 15.46,
+        "h": 8.77,
+        "side": "right"
+      },
+      {
+        "n": 3,
+        "x": 20.48,
+        "y": 45.47,
+        "w": 17.87,
+        "h": 5.56
+      },
+      {
+        "n": 4,
+        "x": 3.86,
+        "y": 54.39,
+        "w": 92.46,
+        "h": 4.68
+      },
+      {
+        "n": 5,
+        "x": 4.15,
+        "y": 45.47,
+        "w": 16.14,
+        "h": 5.56
+      }
+    ]
+  },
+  "settings-preferences": {
+    "src": "/images/user-manual/settings-preferences.jpg",
+    "width": 1035,
+    "height": 420,
+    "alt": "Settings on the Preferences tab, with the App theme choices System, Light and Dark.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.48,
+        "w": 85.89,
+        "h": 10.48
+      },
+      {
+        "n": 2,
+        "x": 3.09,
+        "y": 35,
+        "w": 94.01,
+        "h": 51.43
+      }
+    ]
+  },
+  "settings-request-leave": {
+    "src": "/images/user-manual/settings-request-leave.jpg",
+    "width": 1280,
+    "height": 520,
+    "alt": "The Request leave form with the leave type, start date, half-day option, end date and reason fields.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 1.88,
+        "y": 12.31,
+        "w": 96.88,
+        "h": 12.31
+      },
+      {
+        "n": 2,
+        "x": 1.88,
+        "y": 24.23,
+        "w": 96.25,
+        "h": 10.77
+      },
+      {
+        "n": 3,
+        "x": 2.03,
+        "y": 36.15,
+        "w": 95.94,
+        "h": 9.42
+      },
+      {
+        "n": 4,
+        "x": 1.88,
+        "y": 46.73,
+        "w": 96.25,
+        "h": 10.77
+      },
+      {
+        "n": 5,
+        "x": 1.88,
+        "y": 58.27,
+        "w": 96.72,
+        "h": 21.54
+      },
+      {
+        "n": 6,
+        "x": 81.56,
+        "y": 90.19,
+        "w": 10.86,
+        "h": 8.85
+      }
+    ]
+  },
+  "setup-clinical-services": {
+    "src": "/images/user-manual/setup-clinical-services.jpg",
+    "width": 1035,
+    "height": 764,
+    "alt": "The Clinical Services tab listing radiology procedures, with the Radiology, Lab and Diagnoses catalogues, the search box, and the Configure and Create procedure buttons.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 6.54,
+        "w": 28.79,
+        "h": 5.76
+      },
+      {
+        "n": 2,
+        "x": 0.19,
+        "y": 12.57,
+        "w": 71.3,
+        "h": 8.38
+      },
+      {
+        "n": 3,
+        "x": 76.33,
+        "y": 19.76,
+        "w": 9.76,
+        "h": 4.97
+      },
+      {
+        "n": 4,
+        "x": 85.89,
+        "y": 19.76,
+        "w": 14.01,
+        "h": 4.97
+      }
+    ]
+  },
+  "setup-create-bed": {
+    "src": "/images/user-manual/setup-create-bed.jpg",
+    "width": 1280,
+    "height": 360,
+    "alt": "The Create bed form with the facility, bed label, ward, room and bed status fields and the Create button.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 1.88,
+        "y": 17.78,
+        "w": 96.25,
+        "h": 16.11
+      },
+      {
+        "n": 2,
+        "x": 1.88,
+        "y": 33.89,
+        "w": 96.88,
+        "h": 17.78
+      },
+      {
+        "n": 3,
+        "x": 1.88,
+        "y": 50,
+        "w": 47.97,
+        "h": 16.11
+      },
+      {
+        "n": 4,
+        "x": 50.16,
+        "y": 50,
+        "w": 47.97,
+        "h": 16.11
+      },
+      {
+        "n": 5,
+        "x": 1.88,
+        "y": 66.11,
+        "w": 96.25,
+        "h": 16.11
+      },
+      {
+        "n": 6,
+        "x": 85.23,
+        "y": 85.83,
+        "w": 7.19,
+        "h": 12.78
+      }
+    ]
+  },
+  "setup-create-department": {
+    "src": "/images/user-manual/setup-create-department.jpg",
+    "width": 1280,
+    "height": 400,
+    "alt": "The Create department form with the department name, short name, department type and active fields and the Create button.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 1.88,
+        "y": 30.5,
+        "w": 48.59,
+        "h": 16
+      },
+      {
+        "n": 2,
+        "x": 50.16,
+        "y": 30.5,
+        "w": 48.59,
+        "h": 16
+      },
+      {
+        "n": 3,
+        "x": 1.88,
+        "y": 45,
+        "w": 48.59,
+        "h": 16
+      },
+      {
+        "n": 4,
+        "x": 50.16,
+        "y": 45,
+        "w": 47.97,
+        "h": 22.25
+      },
+      {
+        "n": 5,
+        "x": 85.16,
+        "y": 87,
+        "w": 7.34,
+        "h": 12
+      }
+    ]
+  },
+  "setup-create-facility": {
+    "src": "/images/user-manual/setup-create-facility.jpg",
+    "width": 1280,
+    "height": 960,
+    "alt": "The Create facility form with the facility name, type, currency, consultation fee, logo, phone, email and address fields and the Save facility button.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 1.88,
+        "y": 10.42,
+        "w": 96.88,
+        "h": 6.67
+      },
+      {
+        "n": 2,
+        "x": 1.88,
+        "y": 16.88,
+        "w": 96.88,
+        "h": 6.67
+      },
+      {
+        "n": 3,
+        "x": 2.19,
+        "y": 23.33,
+        "w": 95.63,
+        "h": 6.67
+      },
+      {
+        "n": 4,
+        "x": 1.88,
+        "y": 32.5,
+        "w": 96.88,
+        "h": 9.38
+      },
+      {
+        "n": 5,
+        "x": 2.81,
+        "y": 47.92,
+        "w": 8.75,
+        "h": 11.67
+      },
+      {
+        "n": 6,
+        "x": 1.88,
+        "y": 61.25,
+        "w": 96.25,
+        "h": 5.83
+      },
+      {
+        "n": 7,
+        "x": 1.88,
+        "y": 67.5,
+        "w": 96.88,
+        "h": 6.67
+      },
+      {
+        "n": 8,
+        "x": 1.88,
+        "y": 73.96,
+        "w": 96.88,
+        "h": 13.13
+      },
+      {
+        "n": 9,
+        "x": 82.42,
+        "y": 94.58,
+        "w": 10.08,
+        "h": 5
+      }
+    ]
+  },
+  "setup-create-ward": {
+    "src": "/images/user-manual/setup-create-ward.jpg",
+    "width": 1280,
+    "height": 400,
+    "alt": "The Create ward form with the facility, ward name, ward type, department and active fields and the Create button.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 1.88,
+        "y": 16,
+        "w": 96.25,
+        "h": 14.5
+      },
+      {
+        "n": 2,
+        "x": 1.88,
+        "y": 30.5,
+        "w": 48.59,
+        "h": 16
+      },
+      {
+        "n": 3,
+        "x": 50.16,
+        "y": 30.5,
+        "w": 47.97,
+        "h": 14.5
+      },
+      {
+        "n": 4,
+        "x": 1.88,
+        "y": 45,
+        "w": 96.25,
+        "h": 14.5
+      },
+      {
+        "n": 5,
+        "x": 1.88,
+        "y": 59.5,
+        "w": 96.25,
+        "h": 22.25
+      },
+      {
+        "n": 6,
+        "x": 85.23,
+        "y": 87.25,
+        "w": 7.19,
+        "h": 11.5
+      }
+    ]
+  },
+  "setup-edit-tenant": {
+    "src": "/images/user-manual/setup-edit-tenant.jpg",
+    "width": 1280,
+    "height": 640,
+    "alt": "The Edit tenant form with the organisation name, active switch, contact details, default currency and default consultation fee.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 1.88,
+        "y": 15.63,
+        "w": 48.59,
+        "h": 10
+      },
+      {
+        "n": 2,
+        "x": 1.88,
+        "y": 35,
+        "w": 96.25,
+        "h": 13.91
+      },
+      {
+        "n": 3,
+        "x": 1.88,
+        "y": 49.53,
+        "w": 96.25,
+        "h": 19.69
+      },
+      {
+        "n": 4,
+        "x": 50.47,
+        "y": 59.22,
+        "w": 47.34,
+        "h": 10
+      },
+      {
+        "n": 5,
+        "x": 1.88,
+        "y": 72.97,
+        "w": 96.88,
+        "h": 14.06
+      },
+      {
+        "n": 6,
+        "x": 83.13,
+        "y": 91.88,
+        "w": 9.38,
+        "h": 7.5
+      }
+    ]
+  },
+  "setup-tenant": {
+    "src": "/images/user-manual/setup-tenant.jpg",
+    "width": 1035,
+    "height": 530,
+    "alt": "Tenant setup with its tabs for the organisation, facilities, departments, units, wards, rooms, beds, roles and permissions, showing the organisation profile.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.38,
+        "w": 99.42,
+        "h": 8.3
+      },
+      {
+        "n": 2,
+        "x": 96.33,
+        "y": 1.13,
+        "w": 3.48,
+        "h": 6.79,
+        "side": "bottom"
+      },
+      {
+        "n": 3,
+        "x": 84.93,
+        "y": 12.83,
+        "w": 13.14,
+        "h": 7.55
+      },
+      {
+        "n": 4,
+        "x": 2.32,
+        "y": 77.55,
+        "w": 95.56,
+        "h": 6.04
+      }
+    ]
+  },
+  "shell-account-menu": {
+    "src": "/images/user-manual/shell-account-menu.jpg",
+    "width": 380,
+    "height": 380,
+    "alt": "The account menu showing your name, email address, facility and roles, with Profile, Settings, Change password and Logout.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 90,
+        "y": 0.79,
+        "w": 8.95,
+        "h": 8.95,
+        "side": "bottom"
+      },
+      {
+        "n": 2,
+        "x": 13.68,
+        "y": 39.21,
+        "w": 84.21,
+        "h": 12.63
+      },
+      {
+        "n": 3,
+        "x": 13.68,
+        "y": 51.84,
+        "w": 84.21,
+        "h": 12.63
+      },
+      {
+        "n": 4,
+        "x": 13.68,
+        "y": 64.47,
+        "w": 84.21,
+        "h": 12.63
+      },
+      {
+        "n": 5,
+        "x": 13.68,
+        "y": 81.32,
+        "w": 84.21,
+        "h": 12.63
+      }
+    ]
+  },
+  "shell-list-tools": {
+    "src": "/images/user-manual/shell-list-tools.jpg",
+    "width": 1035,
+    "height": 764,
+    "alt": "A list screen with the search box, Filters, Settings, Export and Print buttons, a Create button, sortable column headings, row actions and the record count.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.19,
+        "y": 6.28,
+        "w": 69.28,
+        "h": 8.38
+      },
+      {
+        "n": 2,
+        "x": 68.02,
+        "y": 8.12,
+        "w": 8.99,
+        "h": 3.93,
+        "side": "bottom"
+      },
+      {
+        "n": 3,
+        "x": 77.29,
+        "y": 8.12,
+        "w": 8.12,
+        "h": 3.93,
+        "side": "bottom"
+      },
+      {
+        "n": 4,
+        "x": 85.6,
+        "y": 8.12,
+        "w": 7.15,
+        "h": 3.93,
+        "side": "bottom"
+      },
+      {
+        "n": 5,
+        "x": 92.95,
+        "y": 8.12,
+        "w": 6.18,
+        "h": 3.93,
+        "side": "bottom"
+      },
+      {
+        "n": 6,
+        "x": 85.12,
+        "y": 13.48,
+        "w": 14.78,
+        "h": 4.97
+      },
+      {
+        "n": 7,
+        "x": 30.43,
+        "y": 19.5,
+        "w": 15.27,
+        "h": 4.45
+      },
+      {
+        "n": 8,
+        "x": 60.58,
+        "y": 25.79,
+        "w": 18.84,
+        "h": 4.97
+      },
+      {
+        "n": 9,
+        "x": 0.29,
+        "y": 95.16,
+        "w": 6.09,
+        "h": 3.4
+      }
+    ]
+  },
+  "shell-overview": {
+    "src": "/images/user-manual/shell-overview.jpg",
+    "width": 1280,
+    "height": 800,
+    "alt": "The HOSSPI HMS workspace with the menu on the left, the top bar with the subscription badge, connection status, full screen and account buttons, and the dashboard with summary cards and quick actions.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.13,
+        "w": 2.97,
+        "h": 4.75,
+        "side": "bottom"
+      },
+      {
+        "n": 2,
+        "x": 0.31,
+        "y": 5.5,
+        "w": 18.75,
+        "h": 8
+      },
+      {
+        "n": 3,
+        "x": 0,
+        "y": 13.75,
+        "w": 18.75,
+        "h": 86.25,
+        "side": "right"
+      },
+      {
+        "n": 4,
+        "x": 75.47,
+        "y": 0.25,
+        "w": 15.94,
+        "h": 4.5,
+        "side": "bottom"
+      },
+      {
+        "n": 5,
+        "x": 91.09,
+        "y": 0,
+        "w": 3.13,
+        "h": 5,
+        "side": "bottom"
+      },
+      {
+        "n": 6,
+        "x": 94.06,
+        "y": 0.25,
+        "w": 2.81,
+        "h": 4.5,
+        "side": "bottom"
+      },
+      {
+        "n": 7,
+        "x": 97.03,
+        "y": 0.38,
+        "w": 2.66,
+        "h": 4.25,
+        "side": "bottom"
+      },
+      {
+        "n": 8,
+        "x": 19.3,
+        "y": 6.5,
+        "w": 80.7,
+        "h": 21.25
+      },
+      {
+        "n": 9,
+        "x": 19.77,
+        "y": 29,
+        "w": 79.77,
+        "h": 11.13
+      }
+    ]
+  },
+  "shell-search-menu": {
+    "src": "/images/user-manual/shell-search-menu.jpg",
+    "width": 560,
+    "height": 300,
+    "alt": "Typing lab into Search menu narrows the menu to the Laboratory item.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.71,
+        "y": 2.67,
+        "w": 42.86,
+        "h": 21.33
+      },
+      {
+        "n": 2,
+        "x": -0.71,
+        "y": 23.33,
+        "w": 44.29,
+        "h": 18.67,
+        "side": "right"
+      }
+    ]
+  },
+  "subscription-plans": {
+    "src": "/images/user-manual/subscription-plans.jpg",
+    "width": 1256,
+    "height": 596,
+    "alt": "The subscription window comparing the Free, Basic, Advanced, Pro and Custom packages by price, users, facilities, storage and included areas, with Monthly and Annual billing options.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 1.11,
+        "y": 1.68,
+        "w": 97.77,
+        "h": 6.04
+      },
+      {
+        "n": 2,
+        "x": 11.62,
+        "y": 8.39,
+        "w": 87.26,
+        "h": 13.42
+      },
+      {
+        "n": 3,
+        "x": 85.35,
+        "y": 25.34,
+        "w": 9.47,
+        "h": 7.72
+      },
+      {
+        "n": 4,
+        "x": 86.94,
+        "y": 91.44,
+        "w": 6.37,
+        "h": 7.72
       }
     ]
   }

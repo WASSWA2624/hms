@@ -524,6 +524,15 @@ async function printHtml(browser, htmlPath) {
 
 const decodePdfName = (name) => name.replace(/#([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
 
+/** Indirect objects by number, as latin1 text (one character per byte). */
+function parseObjects(source) {
+  const objects = new Map();
+  for (const match of source.matchAll(/(\d+) 0 obj\b([\s\S]*?)endobj/g)) {
+    objects.set(Number(match[1]), match[2]);
+  }
+  return objects;
+}
+
 /**
  * Page on which each named destination (element id) lands, from the catalog's
  * destination dictionary or name tree, following the page tree order.
@@ -533,10 +542,7 @@ const decodePdfName = (name) => name.replace(/#([0-9A-Fa-f]{2})/g, (_, hex) => S
  */
 function readDestinations(pdf) {
   const source = pdf.toString('latin1');
-  const objects = new Map();
-  for (const match of source.matchAll(/(\d+) 0 obj\b([\s\S]*?)endobj/g)) {
-    objects.set(Number(match[1]), match[2]);
-  }
+  const objects = parseObjects(source);
 
   const catalog = [...objects.values()].find((body) => /\/Type\s*\/Catalog\b/.test(body)) || '';
   const pagesRoot = catalog.match(/\/Pages\s+(\d+)\s+0\s+R/);
@@ -581,6 +587,119 @@ function readDestinations(pdf) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Bookmarks
+ * ------------------------------------------------------------------ */
+
+/** PDF text string in UTF-16BE hex form, safe for any title. */
+function pdfTextString(text) {
+  let hex = 'FEFF';
+  for (const character of text) {
+    const code = character.codePointAt(0);
+    if (code > 0xffff) {
+      const offset = code - 0x10000;
+      hex += (0xd800 + Math.floor(offset / 0x400)).toString(16).padStart(4, '0');
+      hex += (0xdc00 + (offset % 0x400)).toString(16).padStart(4, '0');
+    } else {
+      hex += code.toString(16).padStart(4, '0');
+    }
+  }
+  return `<${hex.toUpperCase()}>`;
+}
+
+const bookmarkTitles = (chapters) => [
+  USER_MANUAL.title,
+  'Contents',
+  ...chapters.flatMap((chapter) => [
+    `${chapter.number}. ${chapter.title}`,
+    ...chapter.sections.map((section) => `${section.number} ${section.title}`),
+  ]),
+];
+
+/**
+ * Give every bookmark the manual's own heading text.
+ *
+ * Chrome builds bookmarks from heading text and sometimes repeats a heading's
+ * text, or runs a line break together. Its outline follows document order, so
+ * items are matched one-to-one with the expected titles and rewritten as an
+ * incremental update appended to the file; the printed bytes stay untouched.
+ *
+ * @param {Buffer} pdf - Printed document
+ * @param {string[]} titles - Expected titles in document order
+ * @returns {Buffer} Document with corrected bookmarks, or the input unchanged
+ */
+function rewriteBookmarks(pdf, titles) {
+  const source = pdf.toString('latin1');
+  const objects = parseObjects(source);
+  const catalog = [...objects.values()].find((body) => /\/Type\s*\/Catalog\b/.test(body)) || '';
+  const outlinesReference = catalog.match(/\/Outlines\s+(\d+)\s+0\s+R/);
+  const firstReference = outlinesReference && (objects.get(Number(outlinesReference[1])) || '').match(/\/First\s+(\d+)\s+0\s+R/);
+  if (!firstReference) {
+    console.warn('Bookmarks: no outline found; left as generated.');
+    return pdf;
+  }
+
+  const items = [];
+  const visit = (objectNumber) => {
+    let current = objectNumber;
+    while (current) {
+      items.push(current);
+      const body = objects.get(current) || '';
+      const child = body.match(/\/First\s+(\d+)\s+0\s+R/);
+      if (child) {
+        visit(Number(child[1]));
+      }
+      const next = body.match(/\/Next\s+(\d+)\s+0\s+R/);
+      current = next ? Number(next[1]) : 0;
+    }
+  };
+  visit(Number(firstReference[1]));
+
+  if (items.length !== titles.length) {
+    console.warn(`Bookmarks: expected ${titles.length} headings but the outline has ${items.length}; left as generated.`);
+    return pdf;
+  }
+
+  // Root, Info and ID come from the last trailer, or the cross-reference stream.
+  let dictionary = source.slice(source.lastIndexOf('trailer'), source.lastIndexOf('startxref'));
+  if (!/\/Root/.test(dictionary)) {
+    const crossReference = [...objects.values()].reverse().find((body) => /\/Type\s*\/XRef\b/.test(body)) || '';
+    dictionary = crossReference.split('stream')[0];
+  }
+  const root = dictionary.match(/\/Root\s+(\d+\s+\d+\s+R)/);
+  const info = dictionary.match(/\/Info\s+(\d+\s+\d+\s+R)/);
+  const identifier = dictionary.match(/\/ID\s*(\[[^\]]*\])/);
+  const previous = source.match(/startxref\s+(\d+)\s+%%EOF\s*$/);
+  if (!root || !previous) {
+    console.warn('Bookmarks: document trailer not recognised; left as generated.');
+    return pdf;
+  }
+
+  let update = '\n';
+  const entries = [];
+  items.forEach((objectNumber, index) => {
+    const body = objects.get(objectNumber).replace(
+      /\/Title\s*(\((?:\\.|[^\\)])*\)|<[0-9A-Fa-f\s]*>)/,
+      `/Title ${pdfTextString(titles[index])}`,
+    );
+    entries.push([objectNumber, pdf.length + update.length]);
+    update += `${objectNumber} 0 obj${body}endobj\n`;
+  });
+
+  const crossReferenceOffset = pdf.length + update.length;
+  update += 'xref\n';
+  for (const [objectNumber, offset] of entries.sort((a, b) => a[0] - b[0])) {
+    update += `${objectNumber} 1\n${String(offset).padStart(10, '0')} 00000 n \n`;
+  }
+  update += 'trailer\n<< ';
+  update += `/Size ${Math.max(...objects.keys()) + 1} /Root ${root[1]} `;
+  update += info ? `/Info ${info[1]} ` : '';
+  update += identifier ? `/ID ${identifier[1]} ` : '';
+  update += `/Prev ${previous[1]} >>\nstartxref\n${crossReferenceOffset}\n%%EOF\n`;
+
+  return Buffer.concat([pdf, Buffer.from(update, 'latin1')]);
+}
+
+/* ------------------------------------------------------------------ *
  * Build
  * ------------------------------------------------------------------ */
 
@@ -610,6 +729,8 @@ try {
       break;
     }
   }
+
+  pdf = rewriteBookmarks(pdf, bookmarkTitles(chapters));
 
   mkdirSync(dirname(OUTPUT_PDF), { recursive: true });
   writeFileSync(OUTPUT_PDF, pdf);

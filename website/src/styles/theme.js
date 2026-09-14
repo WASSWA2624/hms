@@ -119,6 +119,9 @@ export const theme = {
     xs: '320px',
     sm: '768px',
     md: '1024px',
+    // Width at which the header has room for every navigation link inline,
+    // beside the logo and the calls to action.
+    navigation: '1280px',
     lg: '1440px',
     xl: '1920px',
   },

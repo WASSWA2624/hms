@@ -1,9 +1,9 @@
 /**
  * Navigation - Main navigation component
  *
- * Renders inline horizontal links on desktop (1024px+) and a hamburger menu
- * below that. Both are always in the DOM and swapped with CSS media queries,
- * so the server and client render identically.
+ * Renders inline horizontal links from the navigation breakpoint (1280px) and
+ * a hamburger menu below that. Both are always in the DOM and swapped with CSS
+ * media queries, so the server and client render identically.
  *
  * @component
  * @returns {React.ReactElement} Navigation component
@@ -60,14 +60,15 @@ const StyledNav = styled.nav`
   }
 `;
 
-/* Desktop navigation - inline links, shown from 1024px up */
+/* Desktop navigation - inline links, shown once the header can fit them all
+   beside the logo and the calls to action */
 const StyledDesktopList = styled.ul`
   display: none;
   list-style: none;
   margin: 0;
   padding: 0;
 
-  @media (min-width: ${props => props.theme.breakpoints.md}) {
+  @media (min-width: ${props => props.theme.breakpoints.navigation}) {
     display: flex;
     align-items: center;
     gap: ${props => props.theme.spacing.xs};
@@ -203,8 +204,8 @@ const StyledMenuButton = styled.button`
     min-height: 44px;
   }
 
-  /* Desktop uses inline links instead of the hamburger */
-  @media (min-width: ${props => props.theme.breakpoints.md}) {
+  /* Wide screens use inline links instead of the hamburger */
+  @media (min-width: ${props => props.theme.breakpoints.navigation}) {
     display: none;
   }
 
@@ -315,8 +316,8 @@ const StyledMenu = styled.div.withConfig({
     max-width: 400px;
   }
 
-  /* Desktop uses inline links instead of the dropdown */
-  @media (min-width: ${props => props.theme.breakpoints.md}) {
+  /* Wide screens use inline links instead of the dropdown */
+  @media (min-width: ${props => props.theme.breakpoints.navigation}) {
     display: none;
   }
 
