@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hosspi_hms/features/feedback/domain/entities/feedback_entities.dart';
 import 'package:hosspi_hms/features/feedback/presentation/feedback_context_capture.dart';
 
 void main() {
@@ -62,5 +63,13 @@ void main() {
       buildFeedbackExportFileName(DateTime(2026, 1, 5, 9, 4, 3)),
       'HOSSPI-FEEDBACK-05012026-090403.xlsx',
     );
+  });
+
+  test('feedbackDeviceTypeForWidth follows the app breakpoints', () {
+    expect(feedbackDeviceTypeForWidth(390), FeedbackDeviceType.mobile);
+    expect(feedbackDeviceTypeForWidth(599), FeedbackDeviceType.mobile);
+    expect(feedbackDeviceTypeForWidth(600), FeedbackDeviceType.tablet);
+    expect(feedbackDeviceTypeForWidth(1199), FeedbackDeviceType.tablet);
+    expect(feedbackDeviceTypeForWidth(1200), FeedbackDeviceType.desktop);
   });
 }

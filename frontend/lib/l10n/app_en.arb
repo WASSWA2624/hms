@@ -38394,25 +38394,49 @@
   "@feedbackContextTitle": {
     "description": "Title of the banner explaining which context is attached to feedback automatically."
   },
-  "feedbackContextSignedInMessage": "Your account, facility, subscription, and this screen ({screen}) are attached so the team can follow up.",
+  "feedbackContextSignedInMessage": "Your account, facility, subscription, this screen ({screen}), and your screen size ({device}) are attached so the team can follow up.",
   "@feedbackContextSignedInMessage": {
     "description": "Banner text in the feedback form for a signed-in user.",
     "placeholders": {
       "screen": {
         "type": "String",
         "example": "/patients"
+      },
+      "device": {
+        "type": "String",
+        "example": "Desktop"
       }
     }
   },
-  "feedbackContextAnonymousMessage": "You are not signed in, so this is sent anonymously with details of this screen ({screen}).",
+  "feedbackContextAnonymousMessage": "You are not signed in, so this is sent anonymously with this screen ({screen}) and your screen size ({device}).",
   "@feedbackContextAnonymousMessage": {
     "description": "Banner text in the feedback form when nobody is signed in.",
     "placeholders": {
       "screen": {
         "type": "String",
         "example": "/login"
+      },
+      "device": {
+        "type": "String",
+        "example": "Mobile"
       }
     }
+  },
+  "feedbackDeviceTypeMobile": "Mobile",
+  "@feedbackDeviceTypeMobile": {
+    "description": "Screen size class for phone-width windows, shown in the feedback form."
+  },
+  "feedbackDeviceTypeTablet": "Tablet",
+  "@feedbackDeviceTypeTablet": {
+    "description": "Screen size class for tablet-width windows, shown in the feedback form."
+  },
+  "feedbackDeviceTypeDesktop": "Desktop",
+  "@feedbackDeviceTypeDesktop": {
+    "description": "Screen size class for desktop-width windows, shown in the feedback form."
+  },
+  "feedbackDeviceTypeUnknown": "not detected",
+  "@feedbackDeviceTypeUnknown": {
+    "description": "Shown in the feedback form when the screen size class could not be detected."
   },
   "feedbackCategoryLabel": "Feedback type",
   "@feedbackCategoryLabel": {

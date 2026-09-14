@@ -66,12 +66,18 @@ describe('feedback export', () => {
           app_environment: 'production',
           locale: 'en',
           timezone: 'Africa/Kampala',
+          device_type: 'DESKTOP',
+          viewport_width: 1280,
+          viewport_height: 800,
+          screen_width: 1920,
+          screen_height: 1080,
           client_context_json: {
-            viewport: { width: 1280, height: 800, device_pixel_ratio: 2 },
+            device_pixel_ratio: 2,
             breakpoint: 'lg',
             theme_mode: 'light',
             text_scale: 1,
-            connectivity: 'online'
+            connectivity: 'online',
+            orientation: 'landscape'
           },
           client_submitted_at: new Date('2026-09-14T11:35:20.000Z'),
           user_agent: 'Mozilla/5.0',
@@ -117,6 +123,9 @@ describe('feedback export', () => {
         'Route',
         'Page URL',
         'Platform',
+        'Device Type',
+        'Viewport (px)',
+        'Display (px)',
         'User Agent',
         'IP Address'
       ])
@@ -127,7 +136,10 @@ describe('feedback export', () => {
     expect(cell(2, 'Submitted By')).toBe('Signed-in user');
     expect(cell(2, 'Permissions')).toBe('patient:read, patient:write');
     expect(cell(2, 'Submitted At (UTC)')).toBe('2026-09-14T11:35:27.000Z');
-    expect(cell(2, 'Viewport')).toBe('1280x800 @2x');
+    expect(cell(2, 'Device Type')).toBe('Desktop');
+    expect(cell(2, 'Viewport (px)')).toBe('1280x800 @2x');
+    expect(cell(2, 'Display (px)')).toBe('1920x1080');
+    expect(cell(2, 'Orientation')).toBe('landscape');
     const local = cell(2, 'Submitted At (Africa/Kampala)');
     expect(local).toBeInstanceOf(Date);
     expect(local.toISOString()).toBe('2026-09-14T14:35:27.000Z');

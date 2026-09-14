@@ -64,6 +64,12 @@ enum FeedbackSubmitterType {
   ANONYMOUS
 }
 
+enum FeedbackDeviceType {
+  MOBILE
+  TABLET
+  DESKTOP
+}
+
 enum Gender {
   MALE
   FEMALE
@@ -7883,8 +7889,15 @@ model feedback {
   route_name                 String?               @db.VarChar(120)
   page_url                   String?               @db.Text
   screen_title               String?               @db.VarChar(255)
-  // Technical context for reproducing the report.
+  // Technical context for reproducing the report. `device_type` is the screen
+  // size class of the app window (MOBILE < 600, TABLET 600-1199, DESKTOP 1200+
+  // logical px); `viewport_*` is that window and `screen_*` the whole display.
   client_platform            String?               @db.VarChar(40)
+  device_type                FeedbackDeviceType?
+  viewport_width             Int?
+  viewport_height            Int?
+  screen_width               Int?
+  screen_height              Int?
   app_version                String?               @db.VarChar(64)
   app_environment            String?               @db.VarChar(40)
   locale                     String?               @db.VarChar(35)
@@ -7909,6 +7922,7 @@ model feedback {
   @@index([user_id])
   @@index([category])
   @@index([submitter_type])
+  @@index([device_type])
   @@index([submitted_at])
   @@index([deleted_at])
   @@index([human_friendly_id])

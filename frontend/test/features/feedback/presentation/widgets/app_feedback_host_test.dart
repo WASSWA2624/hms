@@ -200,6 +200,9 @@ void main() {
       expect(sent.submission.context.routeName, 'patients');
       expect(sent.submission.context.sessionStatus, 'unauthenticated');
       expect(sent.submission.context.breakpoint, isNotNull);
+      expect(sent.submission.context.deviceType, FeedbackDeviceType.desktop);
+      expect(sent.submission.context.viewportWidth, 1280);
+      expect(sent.submission.context.screenWidth, isNotNull);
       expect(
         find.text('Thank you. Your feedback was sent (reference FBK0000001).'),
         findsOneWidget,
@@ -376,6 +379,17 @@ void main() {
 
     expect(find.byKey(AppFeedbackHost.launcherKey), findsOneWidget);
     expect(find.text('Feedback'), findsNothing);
-    expect(find.bySemanticsLabel('Give us feedback'), findsOneWidget);
+    final Icon launcherIcon = tester.widget<Icon>(
+      find.descendant(
+        of: find.byKey(AppFeedbackHost.launcherKey),
+        matching: find.byType(Icon),
+      ),
+    );
+    expect(launcherIcon.semanticLabel, 'Give us feedback');
+
+    await _openLauncher(tester);
+
+    expect(find.byType(FeedbackSubmitDialog), findsOneWidget);
+    expect(find.textContaining('your screen size (Mobile)'), findsOneWidget);
   });
 }

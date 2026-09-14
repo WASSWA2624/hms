@@ -29969,14 +29969,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get feedbackContextTitle => 'Sent with your feedback';
 
   @override
-  String feedbackContextSignedInMessage(String screen) {
-    return 'Your account, facility, subscription, and this screen ($screen) are attached so the team can follow up.';
+  String feedbackContextSignedInMessage(String screen, String device) {
+    return 'Your account, facility, subscription, this screen ($screen), and your screen size ($device) are attached so the team can follow up.';
   }
 
   @override
-  String feedbackContextAnonymousMessage(String screen) {
-    return 'You are not signed in, so this is sent anonymously with details of this screen ($screen).';
+  String feedbackContextAnonymousMessage(String screen, String device) {
+    return 'You are not signed in, so this is sent anonymously with this screen ($screen) and your screen size ($device).';
   }
+
+  @override
+  String get feedbackDeviceTypeMobile => 'Mobile';
+
+  @override
+  String get feedbackDeviceTypeTablet => 'Tablet';
+
+  @override
+  String get feedbackDeviceTypeDesktop => 'Desktop';
+
+  @override
+  String get feedbackDeviceTypeUnknown => 'not detected';
 
   @override
   String get feedbackCategoryLabel => 'Feedback type';

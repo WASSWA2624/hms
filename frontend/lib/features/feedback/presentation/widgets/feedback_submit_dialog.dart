@@ -19,6 +19,18 @@ String feedbackCategoryLabel(AppLocalizations l10n, FeedbackCategory category) {
   };
 }
 
+String feedbackDeviceTypeLabel(
+  AppLocalizations l10n,
+  FeedbackDeviceType? deviceType,
+) {
+  return switch (deviceType) {
+    FeedbackDeviceType.mobile => l10n.feedbackDeviceTypeMobile,
+    FeedbackDeviceType.tablet => l10n.feedbackDeviceTypeTablet,
+    FeedbackDeviceType.desktop => l10n.feedbackDeviceTypeDesktop,
+    null => l10n.feedbackDeviceTypeUnknown,
+  };
+}
+
 /// "Give us feedback" form. Pops a [FeedbackReceipt] once the feedback is saved.
 ///
 /// The caller captures the screen and device context; the form asks only for
@@ -57,6 +69,10 @@ class _FeedbackSubmitDialogState extends ConsumerState<FeedbackSubmitDialog> {
   Widget build(BuildContext context) {
     final AppLocalizations l10n = context.l10n;
     final String screen = _screenLabel(widget.feedbackContext);
+    final String device = feedbackDeviceTypeLabel(
+      l10n,
+      widget.feedbackContext.deviceType,
+    );
 
     return AppDialog(
       title: Text(l10n.feedbackDialogTitle),
@@ -72,8 +88,8 @@ class _FeedbackSubmitDialogState extends ConsumerState<FeedbackSubmitDialog> {
           AppFormInformationBanner(
             title: l10n.feedbackContextTitle,
             message: widget.signedIn
-                ? l10n.feedbackContextSignedInMessage(screen)
-                : l10n.feedbackContextAnonymousMessage(screen),
+                ? l10n.feedbackContextSignedInMessage(screen, device)
+                : l10n.feedbackContextAnonymousMessage(screen, device),
           ),
           AppSelectField<FeedbackCategory>(
             value: _category,
@@ -123,7 +139,6 @@ class _FeedbackSubmitDialogState extends ConsumerState<FeedbackSubmitDialog> {
       actions: <Widget>[
         AppButton.close(
           label: l10n.commonCancelActionLabel,
-          leadingIcon: AppActionIcons.cancel,
           enabled: !_isSubmitting,
           onPressed: _isSubmitting
               ? null

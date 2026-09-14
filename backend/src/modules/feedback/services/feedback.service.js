@@ -16,7 +16,9 @@ const { resolveTenantModuleEntitlements } = require('@lib/subscriptions/tenant-e
 const { hasFeedbackAdminRole } = require('@lib/feedback/feedback-access');
 const {
   buildFeedbackClientContextJson,
+  resolveFeedbackDeviceType,
   sanitizeFeedbackLocation,
+  toFeedbackPixelCount,
   truncateFeedbackText
 } = require('@lib/feedback/feedback-context');
 const {
@@ -268,6 +270,11 @@ const submitFeedback = async (data = {}, context = {}) => {
     page_url: sanitizeFeedbackLocation(clientContext.page_url, 2048),
     screen_title: truncateFeedbackText(clientContext.screen_title, 255),
     client_platform: truncateFeedbackText(clientContext.platform || context.platform, 40),
+    device_type: resolveFeedbackDeviceType(clientContext),
+    viewport_width: toFeedbackPixelCount(clientContext.viewport?.width),
+    viewport_height: toFeedbackPixelCount(clientContext.viewport?.height),
+    screen_width: toFeedbackPixelCount(clientContext.screen?.width),
+    screen_height: toFeedbackPixelCount(clientContext.screen?.height),
     app_version: truncateFeedbackText(clientContext.app_version, 64),
     app_environment: truncateFeedbackText(clientContext.app_environment, 40),
     locale: truncateFeedbackText(clientContext.locale || context.locale, 35),

@@ -130,7 +130,12 @@ describe('feedback service', () => {
           timezone: 'Africa/Kampala',
           user_agent: 'Mozilla/5.0',
           ip_address: '10.0.0.5',
-          client_context_json: { viewport: { width: 390, height: 844 } },
+          device_type: 'MOBILE',
+          viewport_width: 390,
+          viewport_height: 844,
+          screen_width: null,
+          screen_height: null,
+          client_context_json: null,
           client_submitted_at: new Date('2026-09-14T11:35:20.000Z')
         })
       );
@@ -228,6 +233,32 @@ describe('feedback service', () => {
           user_roles_json: ['NURSE'],
           user_permissions_json: ['patient:read'],
           subscription_plan_name: null
+        })
+      );
+    });
+
+    it('stores the reported screen size class with whole-pixel sizes', async () => {
+      await submitFeedback(
+        {
+          message: 'Table overflows',
+          context: {
+            device_type: 'TABLET',
+            viewport: { width: 1180.4, height: 820.6, device_pixel_ratio: 2 },
+            screen: { width: 1366, height: 1024 },
+            orientation: 'landscape'
+          }
+        },
+        { user: null }
+      );
+
+      expect(feedbackRepository.createFeedback).toHaveBeenCalledWith(
+        expect.objectContaining({
+          device_type: 'TABLET',
+          viewport_width: 1180,
+          viewport_height: 821,
+          screen_width: 1366,
+          screen_height: 1024,
+          client_context_json: { orientation: 'landscape', device_pixel_ratio: 2 }
         })
       );
     });

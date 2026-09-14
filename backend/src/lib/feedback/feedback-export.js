@@ -30,6 +30,12 @@ const FEEDBACK_SUBMITTER_LABELS = Object.freeze({
   ANONYMOUS: 'Anonymous'
 });
 
+const FEEDBACK_DEVICE_TYPE_LABELS = Object.freeze({
+  MOBILE: 'Mobile',
+  TABLET: 'Tablet',
+  DESKTOP: 'Desktop'
+});
+
 const pad = (value, length = 2) => String(value).padStart(length, '0');
 
 const isValidTimeZone = (timeZone) => {
@@ -166,14 +172,12 @@ const readClientContext = (row) =>
     ? row.client_context_json
     : {};
 
-const formatViewport = (viewport) => {
-  if (!viewport || !Number.isFinite(viewport.width) || !Number.isFinite(viewport.height)) {
+const formatPixelSize = (width, height, devicePixelRatio) => {
+  if (!Number.isFinite(width) || !Number.isFinite(height)) {
     return null;
   }
-  const size = `${Math.round(viewport.width)}x${Math.round(viewport.height)}`;
-  return Number.isFinite(viewport.device_pixel_ratio)
-    ? `${size} @${viewport.device_pixel_ratio}x`
-    : size;
+  const size = `${Math.round(width)}x${Math.round(height)}`;
+  return Number.isFinite(devicePixelRatio) ? `${size} @${devicePixelRatio}x` : size;
 };
 
 /** Column order is the export contract: identity, what, who, where, device. */
@@ -225,11 +229,30 @@ const FEEDBACK_EXPORT_COLUMNS = Object.freeze([
   { key: 'route_name', header: 'Route Name', width: 20, value: (row) => row.route_name },
   { key: 'page_url', header: 'Page URL', width: 40, wrap: true, value: (row) => row.page_url },
   { key: 'platform', header: 'Platform', width: 12, value: (row) => row.client_platform },
+  {
+    key: 'device_type',
+    header: 'Device Type',
+    width: 14,
+    value: (row) => FEEDBACK_DEVICE_TYPE_LABELS[row.device_type] || row.device_type
+  },
   { key: 'app_version', header: 'App Version', width: 14, value: (row) => row.app_version },
   { key: 'app_environment', header: 'Environment', width: 14, value: (row) => row.app_environment },
   { key: 'locale', header: 'Locale', width: 10, value: (row) => row.locale },
   { key: 'timezone', header: 'Time Zone', width: 20, value: (row) => row.timezone },
-  { key: 'viewport', header: 'Viewport', width: 18, value: (row) => formatViewport(readClientContext(row).viewport) },
+  {
+    key: 'viewport',
+    header: 'Viewport (px)',
+    width: 18,
+    value: (row) =>
+      formatPixelSize(row.viewport_width, row.viewport_height, readClientContext(row).device_pixel_ratio)
+  },
+  {
+    key: 'display',
+    header: 'Display (px)',
+    width: 18,
+    value: (row) => formatPixelSize(row.screen_width, row.screen_height)
+  },
+  { key: 'orientation', header: 'Orientation', width: 12, value: (row) => readClientContext(row).orientation },
   { key: 'breakpoint', header: 'Breakpoint', width: 12, value: (row) => readClientContext(row).breakpoint },
   { key: 'theme_mode', header: 'Theme', width: 10, value: (row) => readClientContext(row).theme_mode },
   { key: 'text_scale', header: 'Text Scale', width: 10, value: (row) => readClientContext(row).text_scale },
@@ -325,6 +348,7 @@ const renderFeedbackWorkbook = async ({
     { detail: 'Records', value: rows.length },
     { detail: 'Category', value: FEEDBACK_CATEGORY_LABELS[filters.category] || 'All' },
     { detail: 'Submitted By', value: FEEDBACK_SUBMITTER_LABELS[filters.submitter_type] || 'All' },
+    { detail: 'Device Type', value: FEEDBACK_DEVICE_TYPE_LABELS[filters.device_type] || 'All' },
     { detail: 'Submitted From', value: describeFilterDate(filters.from, clock) },
     { detail: 'Submitted To', value: describeFilterDate(filters.to, clock) }
   ]);
@@ -335,6 +359,7 @@ const renderFeedbackWorkbook = async ({
 
 module.exports = {
   FEEDBACK_CATEGORY_LABELS,
+  FEEDBACK_DEVICE_TYPE_LABELS,
   FEEDBACK_EXPORT_COLUMNS,
   FEEDBACK_EXPORT_MIME_TYPE,
   FEEDBACK_SUBMITTER_LABELS,

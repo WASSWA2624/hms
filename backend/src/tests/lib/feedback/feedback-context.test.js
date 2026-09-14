@@ -2,7 +2,9 @@ const {
   REDACTED_VALUE,
   buildFeedbackClientContextJson,
   isSensitiveParam,
+  resolveFeedbackDeviceType,
   sanitizeFeedbackLocation,
+  toFeedbackPixelCount,
   truncateFeedbackText
 } = require('@lib/feedback/feedback-context');
 
@@ -57,7 +59,9 @@ describe('feedback context sanitising', () => {
         session_status: 'authenticated',
         text_scale: 1.2,
         utc_offset_minutes: 180,
+        orientation: 'landscape',
         viewport: { width: 1280, height: 800, device_pixel_ratio: 2 },
+        screen: { width: 1920, height: 1080 },
         route_path: '/home'
       })
     ).toEqual({
@@ -65,10 +69,30 @@ describe('feedback context sanitising', () => {
       theme_mode: 'dark',
       connectivity: 'online',
       session_status: 'authenticated',
+      orientation: 'landscape',
       text_scale: 1.2,
       utc_offset_minutes: 180,
-      viewport: { width: 1280, height: 800, device_pixel_ratio: 2 }
+      device_pixel_ratio: 2
     });
     expect(buildFeedbackClientContextJson({})).toBeNull();
+  });
+
+  it('classifies the window as mobile, tablet, or desktop like the app breakpoints', () => {
+    expect(resolveFeedbackDeviceType({ viewport: { width: 390, height: 844 } })).toBe('MOBILE');
+    expect(resolveFeedbackDeviceType({ viewport: { width: 599, height: 900 } })).toBe('MOBILE');
+    expect(resolveFeedbackDeviceType({ viewport: { width: 600, height: 900 } })).toBe('TABLET');
+    expect(resolveFeedbackDeviceType({ viewport: { width: 1199, height: 900 } })).toBe('TABLET');
+    expect(resolveFeedbackDeviceType({ viewport: { width: 1200, height: 900 } })).toBe('DESKTOP');
+    expect(
+      resolveFeedbackDeviceType({ device_type: 'tablet', viewport: { width: 390, height: 844 } })
+    ).toBe('TABLET');
+    expect(resolveFeedbackDeviceType({ device_type: 'WATCH' })).toBeNull();
+    expect(resolveFeedbackDeviceType({})).toBeNull();
+  });
+
+  it('rounds logical pixel sizes for storage', () => {
+    expect(toFeedbackPixelCount(1180.6)).toBe(1181);
+    expect(toFeedbackPixelCount(undefined)).toBeNull();
+    expect(toFeedbackPixelCount(-1)).toBeNull();
   });
 });

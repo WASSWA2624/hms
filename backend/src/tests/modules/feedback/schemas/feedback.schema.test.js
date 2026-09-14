@@ -21,6 +21,10 @@ describe('feedback schemas', () => {
     expect(
       submitFeedbackSchema.safeParse({ message: 'Valid text', category: 'PRAISE' }).success
     ).toBe(false);
+    expect(
+      submitFeedbackSchema.safeParse({ message: 'Valid text', context: { device_type: 'WATCH' } })
+        .success
+    ).toBe(false);
   });
 
   it('accepts client context with a UTC device time and viewport', () => {
@@ -31,6 +35,9 @@ describe('feedback schemas', () => {
         route_path: '/opd?tab=queue',
         route_name: 'opd',
         platform: 'web',
+        device_type: 'MOBILE',
+        orientation: 'portrait',
+        screen: { width: 390, height: 844 },
         utc_offset_minutes: 180,
         viewport: { width: 1280, height: 800, device_pixel_ratio: 2 },
         client_submitted_at: '2026-09-14T11:35:27.123Z'
@@ -39,6 +46,8 @@ describe('feedback schemas', () => {
 
     expect(parsed.category).toBe('PROBLEM');
     expect(parsed.context.viewport).toEqual({ width: 1280, height: 800, device_pixel_ratio: 2 });
+    expect(parsed.context.device_type).toBe('MOBILE');
+    expect(parsed.context.screen).toEqual({ width: 390, height: 844 });
   });
 
   it('requires explicit confirmation to clear feedback', () => {

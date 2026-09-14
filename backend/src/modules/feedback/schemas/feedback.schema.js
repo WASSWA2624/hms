@@ -12,6 +12,7 @@ const FEEDBACK_CATEGORIES = Object.freeze([
   'IMPROVEMENT'
 ]);
 const FEEDBACK_SUBMITTER_TYPES = Object.freeze(['AUTHENTICATED', 'ANONYMOUS']);
+const FEEDBACK_DEVICE_TYPES = Object.freeze(['MOBILE', 'TABLET', 'DESKTOP']);
 const FEEDBACK_MESSAGE_MIN_LENGTH = 3;
 const FEEDBACK_MESSAGE_MAX_LENGTH = 5000;
 const MAX_UTC_OFFSET_MINUTES = 14 * 60;
@@ -36,6 +37,12 @@ const feedbackViewportSchema = z.object({
   device_pixel_ratio: z.number().positive().max(16).optional().nullable()
 });
 
+// The whole display, which can be larger than the app window.
+const feedbackScreenSizeSchema = z.object({
+  width: z.number().nonnegative().max(100000),
+  height: z.number().nonnegative().max(100000)
+});
+
 /**
  * Screen and device context the client attaches to a submission. All optional:
  * the server resolves identity, tenant, facility, and subscription itself.
@@ -46,6 +53,7 @@ const feedbackClientContextSchema = z.object({
   page_url: optionalContextText(2048),
   screen_title: optionalContextText(255),
   platform: optionalContextText(40),
+  device_type: z.enum(FEEDBACK_DEVICE_TYPES).optional().nullable(),
   app_version: optionalContextText(64),
   app_environment: optionalContextText(40),
   locale: optionalContextText(35),
@@ -62,7 +70,9 @@ const feedbackClientContextSchema = z.object({
   text_scale: z.number().positive().max(10).optional().nullable(),
   connectivity: optionalContextText(16),
   session_status: optionalContextText(24),
+  orientation: optionalContextText(16),
   viewport: feedbackViewportSchema.optional().nullable(),
+  screen: feedbackScreenSizeSchema.optional().nullable(),
   client_submitted_at: z.string().datetime({ offset: true }).optional().nullable()
 });
 
@@ -75,6 +85,7 @@ const submitFeedbackSchema = z.object({
 const feedbackFilterQuerySchema = z.object({
   category: z.enum(FEEDBACK_CATEGORIES).optional(),
   submitter_type: z.enum(FEEDBACK_SUBMITTER_TYPES).optional(),
+  device_type: z.enum(FEEDBACK_DEVICE_TYPES).optional(),
   from: z.string().datetime({ offset: true }).optional(),
   to: z.string().datetime({ offset: true }).optional()
 });
@@ -95,6 +106,7 @@ const clearFeedbackSchema = z.object({
 
 module.exports = {
   FEEDBACK_CATEGORIES,
+  FEEDBACK_DEVICE_TYPES,
   FEEDBACK_MESSAGE_MAX_LENGTH,
   FEEDBACK_MESSAGE_MIN_LENGTH,
   FEEDBACK_SUBMITTER_TYPES,

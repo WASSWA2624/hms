@@ -166,6 +166,10 @@ void main() {
           context: FeedbackContext(
             routePath: '/${'a' * 600}',
             routeName: 'patients',
+            deviceType: FeedbackDeviceType.mobile,
+            orientation: 'portrait',
+            screenWidth: 390,
+            screenHeight: 844,
             utcOffsetMinutes: 180,
             viewportWidth: 390,
             viewportHeight: 844,
@@ -188,6 +192,9 @@ void main() {
       expect((context['route_path']! as String).length, 512);
       expect(context['route_name'], 'patients');
       expect(context['utc_offset_minutes'], 180);
+      expect(context['device_type'], 'MOBILE');
+      expect(context['orientation'], 'portrait');
+      expect(context['screen'], <String, Object?>{'width': 390, 'height': 844});
       expect(context['viewport'], <String, Object?>{
         'width': 390,
         'height': 844,

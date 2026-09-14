@@ -25,6 +25,18 @@ enum FeedbackSubmitterType {
   }
 }
 
+/// Screen size class of the app window feedback came from, so fixes can
+/// target specific layouts. [apiValue] matches the API enum.
+enum FeedbackDeviceType {
+  mobile('MOBILE'),
+  tablet('TABLET'),
+  desktop('DESKTOP');
+
+  const FeedbackDeviceType(this.apiValue);
+
+  final String apiValue;
+}
+
 /// Message bounds enforced by `POST /api/v1/feedback`.
 const int feedbackMessageMinLength = 3;
 const int feedbackMessageMaxLength = 5000;
@@ -39,6 +51,7 @@ final class FeedbackContext {
     this.routeName,
     this.pageUrl,
     this.platform,
+    this.deviceType,
     this.appEnvironment,
     this.locale,
     this.timezone,
@@ -48,9 +61,12 @@ final class FeedbackContext {
     this.textScale,
     this.connectivity,
     this.sessionStatus,
+    this.orientation,
     this.viewportWidth,
     this.viewportHeight,
     this.devicePixelRatio,
+    this.screenWidth,
+    this.screenHeight,
   });
 
   /// Router location with credentials redacted, e.g. `/patients?tab=registry`.
@@ -60,6 +76,9 @@ final class FeedbackContext {
   /// Browser address with credentials redacted; web only.
   final String? pageUrl;
   final String? platform;
+
+  /// Size class of the app window when feedback was opened.
+  final FeedbackDeviceType? deviceType;
   final String? appEnvironment;
   final String? locale;
   final String? timezone;
@@ -69,9 +88,17 @@ final class FeedbackContext {
   final double? textScale;
   final String? connectivity;
   final String? sessionStatus;
+  final String? orientation;
+
+  /// App window size in logical pixels.
   final double? viewportWidth;
   final double? viewportHeight;
   final double? devicePixelRatio;
+
+  /// Whole display size in logical pixels; larger than the viewport when the
+  /// app runs in a resized window.
+  final double? screenWidth;
+  final double? screenHeight;
 }
 
 final class FeedbackSubmission {

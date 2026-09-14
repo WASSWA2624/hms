@@ -57,8 +57,14 @@ const CLIENT_CONTEXT_TEXT_FIELDS = Object.freeze({
   breakpoint: 16,
   theme_mode: 16,
   connectivity: 16,
-  session_status: 24
+  session_status: 24,
+  orientation: 16
 });
+
+// Window widths in logical px, matching `AppBreakpoints.md` and `.xl` in the app.
+const FEEDBACK_TABLET_MIN_WIDTH = 600;
+const FEEDBACK_DESKTOP_MIN_WIDTH = 1200;
+const FEEDBACK_DEVICE_TYPES = Object.freeze(['MOBILE', 'TABLET', 'DESKTOP']);
 
 /**
  * Trim a value and cap its length; blank values become null.
@@ -191,24 +197,52 @@ const buildFeedbackClientContextJson = (context = {}) => {
     snapshot.utc_offset_minutes = context.utc_offset_minutes;
   }
 
-  const viewport = context.viewport;
-  if (viewport && Number.isFinite(viewport.width) && Number.isFinite(viewport.height)) {
-    snapshot.viewport = {
-      width: viewport.width,
-      height: viewport.height,
-      ...(Number.isFinite(viewport.device_pixel_ratio)
-        ? { device_pixel_ratio: viewport.device_pixel_ratio }
-        : {})
-    };
+  // Viewport and display sizes have their own columns; keep the pixel ratio.
+  if (Number.isFinite(context.viewport?.device_pixel_ratio)) {
+    snapshot.device_pixel_ratio = context.viewport.device_pixel_ratio;
   }
 
   return Object.keys(snapshot).length > 0 ? snapshot : null;
 };
 
+/**
+ * Screen size class of the window feedback came from.
+ *
+ * Uses the client's reported class when valid, otherwise derives it from the
+ * viewport width so API clients that send only a viewport are still classified.
+ *
+ * @param {Object} [context] - Validated client context
+ * @returns {'MOBILE'|'TABLET'|'DESKTOP'|null}
+ */
+const resolveFeedbackDeviceType = (context = {}) => {
+  const reported = String(context?.device_type || '').trim().toUpperCase();
+  if (FEEDBACK_DEVICE_TYPES.includes(reported)) {
+    return reported;
+  }
+
+  const width = context?.viewport?.width;
+  if (!Number.isFinite(width) || width <= 0) {
+    return null;
+  }
+  if (width < FEEDBACK_TABLET_MIN_WIDTH) {
+    return 'MOBILE';
+  }
+  return width < FEEDBACK_DESKTOP_MIN_WIDTH ? 'TABLET' : 'DESKTOP';
+};
+
+/**
+ * @param {*} value - Logical pixel size
+ * @returns {number|null} Whole pixels, or null when absent
+ */
+const toFeedbackPixelCount = (value) =>
+  Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
+
 module.exports = {
   REDACTED_VALUE,
   buildFeedbackClientContextJson,
   isSensitiveParam,
+  resolveFeedbackDeviceType,
   sanitizeFeedbackLocation,
+  toFeedbackPixelCount,
   truncateFeedbackText
 };

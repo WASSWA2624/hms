@@ -48,6 +48,11 @@ const FEEDBACK_EXPORT_SELECT = Object.freeze({
   page_url: true,
   screen_title: true,
   client_platform: true,
+  device_type: true,
+  viewport_width: true,
+  viewport_height: true,
+  screen_width: true,
+  screen_height: true,
   app_version: true,
   app_environment: true,
   locale: true,
@@ -98,6 +103,9 @@ const buildActiveFeedbackWhere = (filters = {}) => {
   }
   if (filters.submitter_type) {
     where.submitter_type = filters.submitter_type;
+  }
+  if (filters.device_type) {
+    where.device_type = filters.device_type;
   }
   if (filters.from || filters.to) {
     where.submitted_at = {

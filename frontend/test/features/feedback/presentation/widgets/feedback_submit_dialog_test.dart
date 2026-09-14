@@ -30,8 +30,8 @@ final class _ScriptedFeedbackRepository implements FeedbackRepository {
     if (scriptedFailure != null) {
       return Result<FeedbackReceipt>.failure(scriptedFailure);
     }
-    return Result<FeedbackReceipt>.success(
-      const FeedbackReceipt(
+    return const Result<FeedbackReceipt>.success(
+      FeedbackReceipt(
         referenceId: 'FBK0000002',
         submitterType: FeedbackSubmitterType.authenticated,
       ),
@@ -171,7 +171,7 @@ void main() {
     WidgetTester tester,
   ) async {
     final _ScriptedFeedbackRepository repository = _ScriptedFeedbackRepository(
-      failure: AppFailure.network(),
+      failure: const AppFailure.network(),
     );
     await _openDialog(tester, repository: repository);
 

@@ -98,6 +98,8 @@ Map<String, Object?> feedbackSubmissionPayload(FeedbackSubmission submission) {
   final FeedbackContext context = submission.context;
   final double? viewportWidth = context.viewportWidth;
   final double? viewportHeight = context.viewportHeight;
+  final double? screenWidth = context.screenWidth;
+  final double? screenHeight = context.screenHeight;
   final DateTime submittedAtUtc = DateTime.fromMillisecondsSinceEpoch(
     submission.submittedAt.millisecondsSinceEpoch,
     isUtc: true,
@@ -108,6 +110,7 @@ Map<String, Object?> feedbackSubmissionPayload(FeedbackSubmission submission) {
     'route_name': _capText(context.routeName, 120),
     'page_url': _capText(context.pageUrl, 2048),
     'platform': _capText(context.platform, 40),
+    'device_type': context.deviceType?.apiValue,
     'app_environment': _capText(context.appEnvironment, 40),
     'locale': _capText(context.locale, 35),
     'timezone': _capText(context.timezone, 64),
@@ -117,6 +120,7 @@ Map<String, Object?> feedbackSubmissionPayload(FeedbackSubmission submission) {
     'text_scale': context.textScale,
     'connectivity': _capText(context.connectivity, 16),
     'session_status': _capText(context.sessionStatus, 24),
+    'orientation': _capText(context.orientation, 16),
     if (viewportWidth != null && viewportHeight != null)
       'viewport': <String, Object?>{
         'width': viewportWidth,
@@ -124,6 +128,8 @@ Map<String, Object?> feedbackSubmissionPayload(FeedbackSubmission submission) {
         if (context.devicePixelRatio != null)
           'device_pixel_ratio': context.devicePixelRatio,
       },
+    if (screenWidth != null && screenHeight != null)
+      'screen': <String, Object?>{'width': screenWidth, 'height': screenHeight},
     'client_submitted_at': submittedAtUtc.toIso8601String(),
   }..removeWhere((String _, Object? value) => value == null);
 

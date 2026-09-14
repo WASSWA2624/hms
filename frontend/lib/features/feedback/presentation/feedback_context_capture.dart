@@ -187,6 +187,20 @@ String feedbackPlatformLabel() {
   return kIsWeb ? 'web' : defaultTargetPlatform.name.toLowerCase();
 }
 
+/// Screen size class for a window [width] in logical pixels: phone layouts
+/// below [AppBreakpoints.md], tablet layouts below [AppBreakpoints.xl], and
+/// desktop layouts from there. The API applies the same thresholds when a
+/// client sends only a viewport.
+FeedbackDeviceType feedbackDeviceTypeForWidth(double width) {
+  if (width < AppBreakpoints.md) {
+    return FeedbackDeviceType.mobile;
+  }
+  if (width < AppBreakpoints.xl) {
+    return FeedbackDeviceType.tablet;
+  }
+  return FeedbackDeviceType.desktop;
+}
+
 /// The router's current location, or null before the first navigation.
 Uri? currentFeedbackLocation(GoRouter router) {
   final configuration = router.routerDelegate.currentConfiguration;
@@ -216,12 +230,17 @@ FeedbackContext captureFeedbackContext({
   final DateTime moment = now ?? DateTime.now();
   final Uri? location = currentFeedbackLocation(router);
   final Size viewport = MediaQuery.sizeOf(context);
+  final display = View.maybeOf(context)?.display;
+  final Size? screen = display == null || display.devicePixelRatio <= 0
+      ? null
+      : display.size / display.devicePixelRatio;
 
   return FeedbackContext(
     routePath: location == null ? null : redactFeedbackLocation(location),
     routeName: currentFeedbackRouteName(router),
     pageUrl: kIsWeb ? redactFeedbackLocation(Uri.base) : null,
     platform: feedbackPlatformLabel(),
+    deviceType: feedbackDeviceTypeForWidth(viewport.width),
     appEnvironment: config.environment.name,
     locale: Localizations.maybeLocaleOf(context)?.toLanguageTag(),
     timezone: readClientTimeZoneId() ?? moment.timeZoneName,
@@ -231,8 +250,11 @@ FeedbackContext captureFeedbackContext({
     textScale: MediaQuery.textScalerOf(context).scale(1),
     connectivity: connectivity?.name,
     sessionStatus: session.status.name,
+    orientation: MediaQuery.orientationOf(context).name,
     viewportWidth: viewport.width,
     viewportHeight: viewport.height,
     devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+    screenWidth: screen?.width,
+    screenHeight: screen?.height,
   );
 }
