@@ -32,7 +32,11 @@ export const GlobalStyles = createGlobalStyle`
     transition: background-color ${props => props.theme.transitions.normal},
                 color ${props => props.theme.transitions.normal};
     min-height: 100vh;
+    /* clip, unlike hidden, does not make body a scroll container, so
+       position: sticky keeps working; hidden is the fallback for browsers
+       without clip. */
     overflow-x: hidden;
+    overflow-x: clip;
   }
 
   /* Typography */
