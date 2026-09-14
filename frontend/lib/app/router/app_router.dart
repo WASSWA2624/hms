@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:hosspi_hms/app/router/app_popup_route_tracker.dart';
 import 'package:hosspi_hms/app/router/app_route_icons.dart';
 import 'package:hosspi_hms/app/router/app_routes.dart';
 import 'package:hosspi_hms/app/router/route_guards.dart';
@@ -108,17 +107,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   final RouteRefreshListenable refreshListenable = ref.watch(
     routeRefreshListenableProvider,
   );
-  // App-wide floating controls hide while any navigator shows a popup.
-  final AppPopupRouteTracker popupRouteTracker = ref.watch(
-    appPopupRouteTrackerProvider,
-  );
-  ref.onDispose(popupRouteTracker.reset);
 
   return GoRouter(
     initialLocation: initialLocation,
     overridePlatformDefaultLocation: initialLocation != null,
     refreshListenable: refreshListenable,
-    observers: <NavigatorObserver>[popupRouteTracker.createObserver()],
     redirect: (_, GoRouterState state) {
       final AppRouteGuards guards = AppRouteGuards(
         sessionState: ref.read(sessionStateProvider),
@@ -133,7 +126,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     },
     routes: <RouteBase>[
       ShellRoute(
-        observers: <NavigatorObserver>[popupRouteTracker.createObserver()],
         builder: (_, GoRouterState state, Widget child) {
           return _AppShell(location: state.uri, child: child);
         },
@@ -415,7 +407,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ],
       ),
       ShellRoute(
-        observers: <NavigatorObserver>[popupRouteTracker.createObserver()],
         builder: (_, _, Widget child) => AuthShellLayout(child: child),
         routes: <RouteBase>[
           GoRoute(

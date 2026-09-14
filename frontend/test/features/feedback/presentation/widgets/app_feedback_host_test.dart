@@ -1,10 +1,10 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:hosspi_hms/app/router/app_popup_route_tracker.dart';
 import 'package:hosspi_hms/app/theme/app_theme.dart';
 import 'package:hosspi_hms/core/config/app_config_provider.dart';
 import 'package:hosspi_hms/core/errors/result.dart';
@@ -90,7 +90,7 @@ SessionState _signedInAs(String role) {
   );
 }
 
-Future<void> _pumpHost(
+Future<GoRouter> _pumpHost(
   WidgetTester tester, {
   required SessionState session,
   required _FakeFeedbackRepository repository,
@@ -98,17 +98,20 @@ Future<void> _pumpHost(
   List<_SavedFile>? savedFiles,
 }) async {
   setTestViewport(tester, size);
-  final AppPopupRouteTracker tracker = AppPopupRouteTracker();
-  addTearDown(tracker.dispose);
   final GoRouter router = GoRouter(
     initialLocation: '/patients?tab=registry',
-    observers: <NavigatorObserver>[tracker.createObserver()],
     routes: <RouteBase>[
       GoRoute(
         path: '/patients',
         name: 'patients',
         builder: (_, _) =>
             const Scaffold(body: Center(child: Text('Patients page'))),
+      ),
+      GoRoute(
+        path: '/billing',
+        name: 'billing',
+        builder: (_, _) =>
+            const Scaffold(body: Center(child: Text('Billing page'))),
       ),
     ],
   );
@@ -120,7 +123,6 @@ Future<void> _pumpHost(
         appConfigProvider.overrideWithValue(testAppConfig()),
         initialSessionStateProvider.overrideWithValue(session),
         feedbackRepositoryProvider.overrideWithValue(repository),
-        appPopupRouteTrackerProvider.overrideWithValue(tracker),
         appConnectivityStatusProvider.overrideWith(
           (Ref ref) => Stream<AppConnectivityStatus>.value(
             AppConnectivityStatus.online,
@@ -147,10 +149,18 @@ Future<void> _pumpHost(
     ),
   );
   await tester.pumpAndSettle();
+  return router;
 }
 
+Finder get _launcher => find.byKey(AppFeedbackHost.launcherKey);
+
+Finder get _messageField => find.descendant(
+  of: find.byType(FeedbackSubmitDialog),
+  matching: find.byType(TextFormField),
+);
+
 Future<void> _openLauncher(WidgetTester tester) async {
-  await tester.tap(find.byKey(AppFeedbackHost.launcherKey));
+  await tester.tap(_launcher);
   await tester.pumpAndSettle();
 }
 
@@ -167,26 +177,20 @@ void main() {
 
       expect(find.text('Patients page'), findsOneWidget);
       expect(find.text('Feedback'), findsOneWidget);
+      expect(tester.getSize(_launcher).height, lessThanOrEqualTo(40));
 
       await _openLauncher(tester);
 
       expect(find.byType(FeedbackSubmitDialog), findsOneWidget);
       expect(find.text('GIVE US FEEDBACK'), findsOneWidget);
-      expect(find.textContaining('sent anonymously'), findsOneWidget);
       expect(find.text('Download feedback'), findsNothing);
-      // The floating control steps aside while the dialog owns the screen.
-      expect(
-        find.byKey(AppFeedbackHost.launcherKey).hitTestable(),
-        findsNothing,
-      );
+      // The control stays on top of the open form but does not open another.
+      expect(_launcher.hitTestable(), findsOneWidget);
+      await tester.tap(_launcher);
+      await tester.pumpAndSettle();
+      expect(find.byType(FeedbackSubmitDialog), findsOneWidget);
 
-      await tester.enterText(
-        find.descendant(
-          of: find.byType(FeedbackSubmitDialog),
-          matching: find.byType(TextFormField),
-        ),
-        'The save button does nothing',
-      );
+      await tester.enterText(_messageField, 'The save button does nothing');
       await tester.tap(find.widgetWithText(AppButton, 'Send feedback'));
       await tester.pumpAndSettle();
 
@@ -207,12 +211,38 @@ void main() {
         find.text('Thank you. Your feedback was sent (reference FBK0000001).'),
         findsOneWidget,
       );
-      expect(
-        find.byKey(AppFeedbackHost.launcherKey).hitTestable(),
-        findsOneWidget,
-      );
+      expect(_launcher.hitTestable(), findsOneWidget);
     },
   );
+
+  testWidgets('stays on top of other modal dialogs and opens feedback over them', (
+    WidgetTester tester,
+  ) async {
+    final GoRouter router = await _pumpHost(
+      tester,
+      session: const SessionState.unauthenticated(),
+      repository: _FakeFeedbackRepository(),
+    );
+
+    unawaited(
+      showDialog<void>(
+        context: router.routerDelegate.navigatorKey.currentContext!,
+        builder: (_) => const Dialog.fullscreen(
+          child: Center(child: Text('Register new patient')),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Register new patient'), findsOneWidget);
+    expect(_launcher.hitTestable(), findsOneWidget);
+
+    await _openLauncher(tester);
+
+    expect(find.byType(FeedbackSubmitDialog), findsOneWidget);
+    expect(find.text('Register new patient'), findsOneWidget);
+    expect(_launcher.hitTestable(), findsOneWidget);
+  });
 
   for (final String role in <String>['PLATFORM_OWNER', 'PLATFORM_ADMIN']) {
     testWidgets('$role gets give, download, and clear feedback', (
@@ -229,6 +259,15 @@ void main() {
       expect(find.text('Give us feedback'), findsOneWidget);
       expect(find.text('Download feedback'), findsOneWidget);
       expect(find.text('Clear feedback'), findsOneWidget);
+      // The menu opens beside the control, which stays painted on top.
+      final Rect launcherRect = tester.getRect(_launcher);
+      for (final String item in <String>[
+        'Give us feedback',
+        'Download feedback',
+        'Clear feedback',
+      ]) {
+        expect(tester.getRect(find.text(item)).overlaps(launcherRect), isFalse);
+      }
     });
   }
 
@@ -247,15 +286,8 @@ void main() {
     expect(find.byType(FeedbackSubmitDialog), findsOneWidget);
     expect(find.text('Download feedback'), findsNothing);
     expect(find.text('Clear feedback'), findsNothing);
-    expect(find.textContaining('Your account, facility'), findsOneWidget);
 
-    await tester.enterText(
-      find.descendant(
-        of: find.byType(FeedbackSubmitDialog),
-        matching: find.byType(TextFormField),
-      ),
-      'Please add bulk discharge',
-    );
+    await tester.enterText(_messageField, 'Please add bulk discharge');
     await tester.tap(find.widgetWithText(AppButton, 'Send feedback'));
     await tester.pumpAndSettle();
 
@@ -264,6 +296,59 @@ void main() {
       repository.submissions.single.submission.context.sessionStatus,
       'authenticated',
     );
+  });
+
+  testWidgets('dragging moves the button and keeps its place for the session', (
+    WidgetTester tester,
+  ) async {
+    final GoRouter router = await _pumpHost(
+      tester,
+      session: const SessionState.unauthenticated(),
+      repository: _FakeFeedbackRepository(),
+    );
+    final Offset start = tester.getTopLeft(_launcher);
+
+    await tester.drag(_launcher, const Offset(-400, -300));
+    await tester.pumpAndSettle();
+
+    final Offset moved = tester.getTopLeft(_launcher);
+    expect(
+      moved,
+      offsetMoreOrLessEquals(start + const Offset(-400, -300), epsilon: 1),
+    );
+    // A drag is not a tap.
+    expect(find.byType(FeedbackSubmitDialog), findsNothing);
+
+    router.go('/billing');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Billing page'), findsOneWidget);
+    expect(tester.getTopLeft(_launcher), offsetMoreOrLessEquals(moved));
+
+    await _openLauncher(tester);
+    expect(find.byType(FeedbackSubmitDialog), findsOneWidget);
+  });
+
+  testWidgets('the button stays on screen however far it is dragged', (
+    WidgetTester tester,
+  ) async {
+    await _pumpHost(
+      tester,
+      session: const SessionState.unauthenticated(),
+      repository: _FakeFeedbackRepository(),
+    );
+
+    await tester.drag(_launcher, const Offset(3000, 3000));
+    await tester.pumpAndSettle();
+    Rect rect = tester.getRect(_launcher);
+    expect(rect.right, lessThanOrEqualTo(1280));
+    expect(rect.bottom, lessThanOrEqualTo(900));
+
+    await tester.drag(_launcher, const Offset(-5000, -5000));
+    await tester.pumpAndSettle();
+    rect = tester.getRect(_launcher);
+    expect(rect.left, greaterThanOrEqualTo(0));
+    expect(rect.top, greaterThanOrEqualTo(0));
   });
 
   testWidgets('download saves HOSSPI-FEEDBACK-DDMMYYYY-HHmmss.xlsx', (
@@ -367,29 +452,35 @@ void main() {
     expect(repository.clearCalls, 0);
   });
 
-  testWidgets('shows an icon-only control at phone width', (
+  testWidgets('shows a small icon-only control at phone width', (
     WidgetTester tester,
   ) async {
+    final _FakeFeedbackRepository repository = _FakeFeedbackRepository();
     await _pumpHost(
       tester,
       session: const SessionState.unauthenticated(),
-      repository: _FakeFeedbackRepository(),
+      repository: repository,
       size: const Size(390, 844),
     );
 
-    expect(find.byKey(AppFeedbackHost.launcherKey), findsOneWidget);
+    expect(_launcher, findsOneWidget);
     expect(find.text('Feedback'), findsNothing);
+    final Size launcherSize = tester.getSize(_launcher);
+    expect(launcherSize.width, lessThanOrEqualTo(40));
+    expect(launcherSize.height, lessThanOrEqualTo(40));
     final Icon launcherIcon = tester.widget<Icon>(
-      find.descendant(
-        of: find.byKey(AppFeedbackHost.launcherKey),
-        matching: find.byType(Icon),
-      ),
+      find.descendant(of: _launcher, matching: find.byType(Icon)),
     );
     expect(launcherIcon.semanticLabel, 'Give us feedback');
 
     await _openLauncher(tester);
+    await tester.enterText(_messageField, 'Table is cut off on my phone');
+    await tester.tap(find.widgetWithText(AppButton, 'Send feedback'));
+    await tester.pumpAndSettle();
 
-    expect(find.byType(FeedbackSubmitDialog), findsOneWidget);
-    expect(find.textContaining('your screen size (Mobile)'), findsOneWidget);
+    expect(
+      repository.submissions.single.submission.context.deviceType,
+      FeedbackDeviceType.mobile,
+    );
   });
 }

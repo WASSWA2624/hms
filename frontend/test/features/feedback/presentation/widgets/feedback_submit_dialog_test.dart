@@ -110,15 +110,59 @@ Finder get _messageField => find.descendant(
   matching: find.byType(TextFormField),
 );
 
+Finder _typeOption(String label) =>
+    find.widgetWithText(AppCheckboxField, label);
+
+/// Labels of the checkboxes that render as checked.
+List<String> _checkedTypes(WidgetTester tester) {
+  return tester
+      .widgetList<CheckboxListTile>(
+        find.descendant(
+          of: find.byType(FeedbackSubmitDialog),
+          matching: find.byType(CheckboxListTile),
+        ),
+      )
+      .where((CheckboxListTile tile) => tile.value ?? false)
+      .map((CheckboxListTile tile) => (tile.title! as Text).data!)
+      .toList(growable: false);
+}
+
 void main() {
+  testWidgets(
+    'shows every feedback type as a checkbox with one checked at a time',
+    (WidgetTester tester) async {
+      await _openDialog(tester, repository: _ScriptedFeedbackRepository());
+
+      expect(find.text('Sent with your feedback'), findsNothing);
+      expect(find.byType(AppSelectField<FeedbackCategory>), findsNothing);
+      for (final String label in <String>[
+        'General feedback',
+        'Problem',
+        'Complaint',
+        'Suggestion',
+        'Improvement',
+      ]) {
+        expect(_typeOption(label), findsOneWidget);
+      }
+      expect(_checkedTypes(tester), <String>['General feedback']);
+
+      await tester.tap(_typeOption('Problem'));
+      await tester.pump();
+      expect(_checkedTypes(tester), <String>['Problem']);
+
+      // Tapping the checked type keeps it checked.
+      await tester.tap(_typeOption('Problem'));
+      await tester.pump();
+      expect(_checkedTypes(tester), <String>['Problem']);
+    },
+  );
+
   testWidgets('requires feedback details before sending', (
     WidgetTester tester,
   ) async {
     final _ScriptedFeedbackRepository repository =
         _ScriptedFeedbackRepository();
     await _openDialog(tester, repository: repository);
-
-    expect(find.textContaining('/billing'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(AppButton, 'Send feedback'));
     await tester.pumpAndSettle();
@@ -133,7 +177,7 @@ void main() {
     expect(find.byType(FeedbackSubmitDialog), findsOneWidget);
   });
 
-  testWidgets('sends the chosen category and returns the receipt', (
+  testWidgets('sends the checked type and returns the receipt', (
     WidgetTester tester,
   ) async {
     final _ScriptedFeedbackRepository repository =
@@ -146,11 +190,7 @@ void main() {
       onResult: (FeedbackReceipt? value) => receipt = value,
     );
 
-    final AppSelectField<FeedbackCategory> categoryField = tester
-        .widget<AppSelectField<FeedbackCategory>>(
-          find.byType(AppSelectField<FeedbackCategory>),
-        );
-    categoryField.onChanged?.call(FeedbackCategory.complaint);
+    await tester.tap(_typeOption('Complaint'));
     await tester.pump();
 
     await tester.enterText(_messageField, '  Invoices print twice  ');
@@ -182,7 +222,7 @@ void main() {
     expect(repository.submissions, hasLength(1));
     expect(find.byType(FeedbackSubmitDialog), findsOneWidget);
     expect(find.text('Cannot print invoices'), findsOneWidget);
-    expect(find.byType(AppFormInformationBanner), findsNWidgets(2));
+    expect(find.byType(AppFormInformationBanner), findsOneWidget);
     final AppButton sendButton = tester.widget<AppButton>(
       find.widgetWithText(AppButton, 'Send feedback'),
     );

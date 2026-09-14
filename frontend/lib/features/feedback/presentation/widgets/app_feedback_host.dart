@@ -1,10 +1,10 @@
+import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:hosspi_hms/app/router/app_popup_route_tracker.dart';
 import 'package:hosspi_hms/app/theme/app_theme_extensions.dart';
 import 'package:hosspi_hms/core/config/app_config_provider.dart';
 import 'package:hosspi_hms/core/errors/app_failure.dart';
@@ -17,6 +17,7 @@ import 'package:hosspi_hms/core/security/session_state.dart';
 import 'package:hosspi_hms/features/feedback/data/repositories/feedback_repository_impl.dart';
 import 'package:hosspi_hms/features/feedback/domain/entities/feedback_entities.dart';
 import 'package:hosspi_hms/features/feedback/domain/repositories/feedback_repository.dart';
+import 'package:hosspi_hms/features/feedback/presentation/controllers/feedback_launcher_position_controller.dart';
 import 'package:hosspi_hms/features/feedback/presentation/feedback_access.dart';
 import 'package:hosspi_hms/features/feedback/presentation/feedback_context_capture.dart';
 import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_submit_dialog.dart';
@@ -33,13 +34,14 @@ typedef FeedbackExportSaver =
 
 enum _FeedbackMenuAction { give, download, clear }
 
-/// Floats the feedback control over every screen, sign-in screens included.
+/// Floats the feedback control above everything in the app, sign-in screens
+/// and modal dialogs included.
 ///
-/// Mounted in `MaterialApp.router`'s builder, above the navigators, so any
-/// screen added later gets it without wiring. Because it sits outside the
-/// navigators, dialogs and menus open through the router's root navigator,
-/// and the control steps aside while a popup route or the keyboard is showing
-/// so it never covers their actions or the focused field.
+/// Mounted in `MaterialApp.router`'s builder, above the navigators, so it paints
+/// over every route, dialog, sheet, and menu, and any screen added later gets
+/// it without wiring. The dialogs and menus it opens go through the router's
+/// root navigator. Users can drag the control anywhere on screen; the position
+/// is kept in memory for the session ([feedbackLauncherPositionProvider]).
 ///
 /// Everyone can give feedback. Platform owners and platform admins also get
 /// Download feedback and Clear feedback; the API enforces the same roles.
@@ -64,91 +66,172 @@ class AppFeedbackHost extends ConsumerStatefulWidget {
 
 class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
   final GlobalKey _anchorKey = GlobalKey(debugLabel: 'feedback-launcher');
-  late final AppPopupRouteTracker _popupRouteTracker;
-  bool _hasOpenPopup = false;
+
+  // The control stays tappable above its own menu and form, so ignore taps
+  // while one is open instead of stacking a second.
+  bool _isFlowActive = false;
   bool _isBusy = false;
+  bool _isDragging = false;
+
+  // Layout facts from the last build, used to keep a dragged control on screen.
+  Size _viewSize = Size.zero;
+  EdgeInsets _safePadding = EdgeInsets.zero;
+  double _edgeInset = 0;
+  Size _launcherSize = Size.zero;
 
   BuildContext? get _navigatorContext =>
       widget.router.routerDelegate.navigatorKey.currentContext;
-
-  @override
-  void initState() {
-    super.initState();
-    _popupRouteTracker = ref.read(appPopupRouteTrackerProvider);
-    _hasOpenPopup = _popupRouteTracker.hasOpenPopup.value;
-    _popupRouteTracker.hasOpenPopup.addListener(_handlePopupChanged);
-  }
-
-  @override
-  void dispose() {
-    _popupRouteTracker.hasOpenPopup.removeListener(_handlePopupChanged);
-    super.dispose();
-  }
-
-  void _handlePopupChanged() {
-    if (!mounted) {
-      return;
-    }
-    final bool hasOpenPopup = _popupRouteTracker.hasOpenPopup.value;
-    if (hasOpenPopup == _hasOpenPopup) {
-      return;
-    }
-    // Navigators can report route changes while they build; wait a frame.
-    if (SchedulerBinding.instance.schedulerPhase ==
-        SchedulerPhase.persistentCallbacks) {
-      SchedulerBinding.instance.addPostFrameCallback(
-        (_) => _handlePopupChanged(),
-      );
-      return;
-    }
-    setState(() => _hasOpenPopup = hasOpenPopup);
-  }
 
   @override
   Widget build(BuildContext context) {
     final bool canManage = canManageFeedback(
       ref.watch(appAccessPolicyProvider),
     );
+    final Offset? savedPosition = ref.watch(feedbackLauncherPositionProvider);
     final ThemeData theme = Theme.of(context);
-    final EdgeInsets safePadding = MediaQuery.paddingOf(context);
-    final bool isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
-    final bool isVisible = !_hasOpenPopup && !isKeyboardOpen;
-    final double endInset = Directionality.of(context) == TextDirection.rtl
-        ? safePadding.left
-        : safePadding.right;
+    final TextDirection textDirection = Directionality.of(context);
+    _viewSize = MediaQuery.sizeOf(context);
+    _safePadding = MediaQuery.paddingOf(context);
+    _edgeInset = theme.spacing.sm;
+
+    // The control's width changes with the breakpoint and busy state; track
+    // it so a dragged position is clamped against its real size.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncLauncherSize());
+
+    final Widget launcher = GestureDetector(
+      // Report movement from the touch-down point so the control tracks the
+      // pointer exactly instead of lagging by the drag slop.
+      dragStartBehavior: DragStartBehavior.down,
+      onPanStart: _handleDragStart,
+      onPanUpdate: _handleDragUpdate,
+      onPanEnd: (_) => _endDrag(),
+      onPanCancel: _endDrag,
+      child: KeyedSubtree(
+        key: _anchorKey,
+        child: _FeedbackLauncher(
+          compact: AppBreakpoints.of(context).isMobile,
+          isBusy: _isBusy,
+          isDragging: _isDragging,
+          canManage: canManage,
+          onPressed: _isFlowActive
+              ? null
+              : () => unawaited(
+                  _runExclusive(
+                    canManage ? _openAdminMenu : _openFeedbackDialog,
+                  ),
+                ),
+        ),
+      ),
+    );
+
+    final double endInset = textDirection == TextDirection.rtl
+        ? _safePadding.left
+        : _safePadding.right;
+    final Offset? position = savedPosition == null
+        ? null
+        : _clampPosition(savedPosition);
 
     return Stack(
       fit: StackFit.expand,
       children: <Widget>[
         widget.child,
-        PositionedDirectional(
-          end: endInset + theme.spacing.lg,
-          bottom: safePadding.bottom + theme.spacing.lg,
-          child: IgnorePointer(
-            ignoring: !isVisible,
-            child: ExcludeSemantics(
-              excluding: !isVisible,
-              child: AnimatedOpacity(
-                opacity: isVisible ? 1 : 0,
-                duration: MediaQuery.disableAnimationsOf(context)
-                    ? Duration.zero
-                    : const Duration(milliseconds: 150),
-                child: KeyedSubtree(
-                  key: _anchorKey,
-                  child: _FeedbackLauncher(
-                    compact: AppBreakpoints.of(context).isMobile,
-                    isBusy: _isBusy,
-                    canManage: canManage,
-                    onPressed: canManage
-                        ? _openAdminMenu
-                        : _openFeedbackDialog,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+        // Last child, so it paints above the navigators and everything they
+        // show. Both branches build a `Positioned`, so the first drag moves the
+        // control without remounting it and cancelling the gesture.
+        if (position == null)
+          Positioned.directional(
+            textDirection: textDirection,
+            end: endInset + theme.spacing.lg,
+            bottom: _safePadding.bottom + theme.spacing.lg,
+            child: launcher,
+          )
+        else
+          Positioned(left: position.dx, top: position.dy, child: launcher),
       ],
+    );
+  }
+
+  Future<void> _runExclusive(Future<void> Function() flow) async {
+    if (_isFlowActive) {
+      return;
+    }
+    setState(() => _isFlowActive = true);
+    try {
+      await flow();
+    } finally {
+      if (mounted) {
+        setState(() => _isFlowActive = false);
+      }
+    }
+  }
+
+  void _syncLauncherSize() {
+    if (!mounted) {
+      return;
+    }
+    final RenderObject? renderObject = _anchorKey.currentContext
+        ?.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) {
+      return;
+    }
+    if (renderObject.size != _launcherSize) {
+      setState(() => _launcherSize = renderObject.size);
+    }
+  }
+
+  void _handleDragStart(DragStartDetails details) {
+    final RenderObject? launcher = _anchorKey.currentContext
+        ?.findRenderObject();
+    final RenderObject? host = context.findRenderObject();
+    if (launcher is! RenderBox || host is! RenderBox || !launcher.hasSize) {
+      return;
+    }
+
+    _launcherSize = launcher.size;
+    final Offset origin = host.globalToLocal(
+      launcher.localToGlobal(Offset.zero),
+    );
+    ref
+        .read(feedbackLauncherPositionProvider.notifier)
+        .moveTo(_clampPosition(origin));
+    setState(() => _isDragging = true);
+  }
+
+  void _handleDragUpdate(DragUpdateDetails details) {
+    final Offset? position = ref.read(feedbackLauncherPositionProvider);
+    if (position == null) {
+      return;
+    }
+    ref
+        .read(feedbackLauncherPositionProvider.notifier)
+        .moveTo(_clampPosition(position + details.delta));
+  }
+
+  void _endDrag() {
+    if (mounted && _isDragging) {
+      setState(() => _isDragging = false);
+    }
+  }
+
+  /// Keeps the control fully on screen, clear of system insets.
+  Offset _clampPosition(Offset position) {
+    final double minLeft = _safePadding.left + _edgeInset;
+    final double minTop = _safePadding.top + _edgeInset;
+    final double maxLeft = math.max(
+      minLeft,
+      _viewSize.width - _safePadding.right - _edgeInset - _launcherSize.width,
+    );
+    final double maxTop = math.max(
+      minTop,
+      _viewSize.height -
+          _safePadding.bottom -
+          _edgeInset -
+          _launcherSize.height,
+    );
+
+    return Offset(
+      math.min(math.max(position.dx, minLeft), maxLeft),
+      math.min(math.max(position.dy, minTop), maxTop),
     );
   }
 
@@ -165,15 +248,22 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     }
 
     final AppLocalizations l10n = navigatorContext.l10n;
-    final Offset anchorOrigin = overlay.globalToLocal(
-      anchor.localToGlobal(Offset.zero),
+    final Rect anchorRect =
+        overlay.globalToLocal(anchor.localToGlobal(Offset.zero)) & anchor.size;
+    // The control paints above the menu, so open the menu beside it, toward
+    // the wider side of the screen, rather than over it.
+    final double gap = Theme.of(context).spacing.xs;
+    final bool opensLeftward = anchorRect.center.dx > overlay.size.width / 2;
+    final Rect menuAnchor = Rect.fromLTWH(
+      opensLeftward ? anchorRect.left - gap : anchorRect.right + gap,
+      anchorRect.top,
+      0,
+      anchorRect.height,
     );
+
     final _FeedbackMenuAction? action = await showMenu<_FeedbackMenuAction>(
       context: navigatorContext,
-      position: RelativeRect.fromRect(
-        anchorOrigin & anchor.size,
-        Offset.zero & overlay.size,
-      ),
+      position: RelativeRect.fromRect(menuAnchor, Offset.zero & overlay.size),
       items: <PopupMenuEntry<_FeedbackMenuAction>>[
         PopupMenuItem<_FeedbackMenuAction>(
           value: _FeedbackMenuAction.give,
@@ -382,52 +472,88 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
   }
 }
 
+/// Compact pill with icon and label; icon-only on phones.
 class _FeedbackLauncher extends StatelessWidget {
   const _FeedbackLauncher({
     required this.compact,
     required this.isBusy,
+    required this.isDragging,
     required this.canManage,
     required this.onPressed,
   });
 
-  /// Icon-only on phones, where screen space is tightest.
   final bool compact;
   final bool isBusy;
+  final bool isDragging;
   final bool canManage;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
     final AppLocalizations l10n = context.l10n;
+    final Color foreground = colorScheme.onPrimaryContainer;
+    final double iconSize = theme.appTokens.listIconSize;
     final String semanticLabel = canManage
         ? l10n.feedbackAdminMenuSemanticLabel
         : l10n.feedbackLauncherSemanticLabel;
-    final VoidCallback? handler = isBusy ? null : onPressed;
-    final Widget busyIndicator = SizedBox.square(
-      dimension: 20,
-      child: CircularProgressIndicator(
-        strokeWidth: 2,
-        semanticsLabel: l10n.feedbackWorkingLabel,
-      ),
-    );
 
-    if (compact) {
-      return FloatingActionButton.small(
+    final Widget icon = isBusy
+        ? SizedBox.square(
+            dimension: iconSize,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: foreground,
+              semanticsLabel: l10n.feedbackWorkingLabel,
+            ),
+          )
+        : Icon(
+            Icons.feedback_outlined,
+            size: iconSize,
+            color: foreground,
+            semanticLabel: compact ? semanticLabel : null,
+          );
+
+    return Semantics(
+      hint: l10n.feedbackLauncherMoveHint,
+      child: Material(
         key: AppFeedbackHost.launcherKey,
-        heroTag: null,
-        onPressed: handler,
-        child: isBusy
-            ? busyIndicator
-            : Icon(Icons.feedback_outlined, semanticLabel: semanticLabel),
-      );
-    }
-
-    return FloatingActionButton.extended(
-      key: AppFeedbackHost.launcherKey,
-      heroTag: null,
-      onPressed: handler,
-      icon: isBusy ? busyIndicator : const Icon(Icons.feedback_outlined),
-      label: Text(l10n.feedbackLauncherLabel, semanticsLabel: semanticLabel),
+        color: colorScheme.primaryContainer,
+        elevation: isDragging ? 6 : 2,
+        shape: const StadiumBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: isBusy ? null : onPressed,
+          mouseCursor: isDragging
+              ? SystemMouseCursors.grabbing
+              : SystemMouseCursors.click,
+          child: Padding(
+            padding: compact
+                ? EdgeInsets.all(theme.spacing.sm)
+                : EdgeInsets.symmetric(
+                    horizontal: theme.spacing.md,
+                    vertical: theme.spacing.sm,
+                  ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                icon,
+                if (!compact) ...<Widget>[
+                  SizedBox(width: theme.spacing.xs),
+                  Text(
+                    l10n.feedbackLauncherLabel,
+                    semanticsLabel: semanticLabel,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: foreground,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hosspi_hms/app/theme/app_theme_extensions.dart';
 import 'package:hosspi_hms/core/errors/app_failure.dart';
 import 'package:hosspi_hms/core/errors/result.dart';
+import 'package:hosspi_hms/core/responsive/app_breakpoints.dart';
 import 'package:hosspi_hms/features/feedback/data/repositories/feedback_repository_impl.dart';
 import 'package:hosspi_hms/features/feedback/domain/entities/feedback_entities.dart';
 import 'package:hosspi_hms/l10n/app_localizations.dart';
@@ -16,18 +18,6 @@ String feedbackCategoryLabel(AppLocalizations l10n, FeedbackCategory category) {
     FeedbackCategory.complaint => l10n.feedbackCategoryComplaint,
     FeedbackCategory.suggestion => l10n.feedbackCategorySuggestion,
     FeedbackCategory.improvement => l10n.feedbackCategoryImprovement,
-  };
-}
-
-String feedbackDeviceTypeLabel(
-  AppLocalizations l10n,
-  FeedbackDeviceType? deviceType,
-) {
-  return switch (deviceType) {
-    FeedbackDeviceType.mobile => l10n.feedbackDeviceTypeMobile,
-    FeedbackDeviceType.tablet => l10n.feedbackDeviceTypeTablet,
-    FeedbackDeviceType.desktop => l10n.feedbackDeviceTypeDesktop,
-    null => l10n.feedbackDeviceTypeUnknown,
   };
 }
 
@@ -56,6 +46,7 @@ class _FeedbackSubmitDialogState extends ConsumerState<FeedbackSubmitDialog> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _messageController = TextEditingController();
   FeedbackCategory _category = FeedbackCategory.general;
+  int _categoryRevision = 0;
   bool _isSubmitting = false;
   AppFailure? _failure;
 
@@ -68,11 +59,6 @@ class _FeedbackSubmitDialogState extends ConsumerState<FeedbackSubmitDialog> {
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = context.l10n;
-    final String screen = _screenLabel(widget.feedbackContext);
-    final String device = feedbackDeviceTypeLabel(
-      l10n,
-      widget.feedbackContext.deviceType,
-    );
 
     return AppDialog(
       title: Text(l10n.feedbackDialogTitle),
@@ -85,26 +71,15 @@ class _FeedbackSubmitDialogState extends ConsumerState<FeedbackSubmitDialog> {
         enabled: !_isSubmitting,
         formStatus: appFormFailureStatus(context, _failure),
         children: <Widget>[
-          AppFormInformationBanner(
-            title: l10n.feedbackContextTitle,
-            message: widget.signedIn
-                ? l10n.feedbackContextSignedInMessage(screen, device)
-                : l10n.feedbackContextAnonymousMessage(screen, device),
-          ),
-          AppSelectField<FeedbackCategory>(
+          _FeedbackCategoryField(
             value: _category,
-            labelText: l10n.feedbackCategoryLabel,
-            options: <AppSelectOption<FeedbackCategory>>[
-              for (final FeedbackCategory category in FeedbackCategory.values)
-                AppSelectOption<FeedbackCategory>(
-                  value: category,
-                  label: feedbackCategoryLabel(l10n, category),
-                ),
-            ],
-            onChanged: (FeedbackCategory? value) {
-              if (value != null) {
-                setState(() => _category = value);
-              }
+            revision: _categoryRevision,
+            enabled: !_isSubmitting,
+            onChanged: (FeedbackCategory category) {
+              setState(() {
+                _category = category;
+                _categoryRevision += 1;
+              });
             },
           ),
           AppTextField(
@@ -193,11 +168,75 @@ class _FeedbackSubmitDialogState extends ConsumerState<FeedbackSubmitDialog> {
   }
 }
 
-String _screenLabel(FeedbackContext context) {
-  final String? routePath = context.routePath;
-  final String? path = routePath == null ? null : Uri.tryParse(routePath)?.path;
-  if (path != null && path.isNotEmpty) {
-    return path;
+/// Every feedback type as a checkbox, all visible, exactly one checked.
+class _FeedbackCategoryField extends StatelessWidget {
+  const _FeedbackCategoryField({
+    required this.value,
+    required this.revision,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final FeedbackCategory value;
+
+  /// Changes on every tap. `AppCheckboxField` keeps its own checked state, so
+  /// re-keying rebuilds each box from [value]; otherwise tapping the checked
+  /// type would untick it and leave nothing selected.
+  final int revision;
+  final bool enabled;
+  final ValueChanged<FeedbackCategory> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final AppLocalizations l10n = context.l10n;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        appFieldLabelWidget(
+              context,
+              l10n.feedbackCategoryLabel,
+              isRequired: true,
+            ) ??
+            Text(l10n.feedbackCategoryLabel),
+        SizedBox(height: theme.spacing.xs),
+        LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            // One row of all types on large screens; wraps on smaller ones.
+            final int columns = switch (AppBreakpoints.fromConstraints(
+              constraints,
+            )) {
+              AppBreakpoint.xs => 1,
+              AppBreakpoint.sm => 2,
+              AppBreakpoint.md => 3,
+              _ => FeedbackCategory.values.length,
+            };
+            final double gap = theme.spacing.md;
+            final double itemWidth =
+                (constraints.maxWidth - gap * (columns - 1)) / columns;
+
+            return Wrap(
+              spacing: gap,
+              children: <Widget>[
+                for (final FeedbackCategory category in FeedbackCategory.values)
+                  SizedBox(
+                    width: itemWidth,
+                    child: AppCheckboxField(
+                      key: ValueKey<String>(
+                        'feedback-category-${category.name}-$revision',
+                      ),
+                      title: feedbackCategoryLabel(l10n, category),
+                      value: category == value,
+                      enabled: enabled,
+                      onChanged: (_) => onChanged(category),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
   }
-  return context.routeName ?? '/';
 }

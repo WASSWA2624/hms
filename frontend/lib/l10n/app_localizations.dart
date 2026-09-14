@@ -54409,6 +54409,12 @@ abstract class AppLocalizations {
   /// **'Working on the feedback request'**
   String get feedbackWorkingLabel;
 
+  /// Screen reader hint explaining that the floating feedback button can be dragged to a new position.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag to move'**
+  String get feedbackLauncherMoveHint;
+
   /// Feedback menu action that opens the feedback form.
   ///
   /// In en, this message translates to:
@@ -54432,48 +54438,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Give us feedback'**
   String get feedbackDialogTitle;
-
-  /// Title of the banner explaining which context is attached to feedback automatically.
-  ///
-  /// In en, this message translates to:
-  /// **'Sent with your feedback'**
-  String get feedbackContextTitle;
-
-  /// Banner text in the feedback form for a signed-in user.
-  ///
-  /// In en, this message translates to:
-  /// **'Your account, facility, subscription, this screen ({screen}), and your screen size ({device}) are attached so the team can follow up.'**
-  String feedbackContextSignedInMessage(String screen, String device);
-
-  /// Banner text in the feedback form when nobody is signed in.
-  ///
-  /// In en, this message translates to:
-  /// **'You are not signed in, so this is sent anonymously with this screen ({screen}) and your screen size ({device}).'**
-  String feedbackContextAnonymousMessage(String screen, String device);
-
-  /// Screen size class for phone-width windows, shown in the feedback form.
-  ///
-  /// In en, this message translates to:
-  /// **'Mobile'**
-  String get feedbackDeviceTypeMobile;
-
-  /// Screen size class for tablet-width windows, shown in the feedback form.
-  ///
-  /// In en, this message translates to:
-  /// **'Tablet'**
-  String get feedbackDeviceTypeTablet;
-
-  /// Screen size class for desktop-width windows, shown in the feedback form.
-  ///
-  /// In en, this message translates to:
-  /// **'Desktop'**
-  String get feedbackDeviceTypeDesktop;
-
-  /// Shown in the feedback form when the screen size class could not be detected.
-  ///
-  /// In en, this message translates to:
-  /// **'not detected'**
-  String get feedbackDeviceTypeUnknown;
 
   /// Label for the feedback category field.
   ///

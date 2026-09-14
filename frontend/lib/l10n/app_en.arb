@@ -38374,6 +38374,10 @@
   "@feedbackWorkingLabel": {
     "description": "Screen reader label for the progress indicator on the floating feedback button while feedback is downloading or being counted."
   },
+  "feedbackLauncherMoveHint": "Drag to move",
+  "@feedbackLauncherMoveHint": {
+    "description": "Screen reader hint explaining that the floating feedback button can be dragged to a new position."
+  },
   "feedbackGiveActionLabel": "Give us feedback",
   "@feedbackGiveActionLabel": {
     "description": "Feedback menu action that opens the feedback form."
@@ -38389,54 +38393,6 @@
   "feedbackDialogTitle": "Give us feedback",
   "@feedbackDialogTitle": {
     "description": "Title of the feedback form dialog."
-  },
-  "feedbackContextTitle": "Sent with your feedback",
-  "@feedbackContextTitle": {
-    "description": "Title of the banner explaining which context is attached to feedback automatically."
-  },
-  "feedbackContextSignedInMessage": "Your account, facility, subscription, this screen ({screen}), and your screen size ({device}) are attached so the team can follow up.",
-  "@feedbackContextSignedInMessage": {
-    "description": "Banner text in the feedback form for a signed-in user.",
-    "placeholders": {
-      "screen": {
-        "type": "String",
-        "example": "/patients"
-      },
-      "device": {
-        "type": "String",
-        "example": "Desktop"
-      }
-    }
-  },
-  "feedbackContextAnonymousMessage": "You are not signed in, so this is sent anonymously with this screen ({screen}) and your screen size ({device}).",
-  "@feedbackContextAnonymousMessage": {
-    "description": "Banner text in the feedback form when nobody is signed in.",
-    "placeholders": {
-      "screen": {
-        "type": "String",
-        "example": "/login"
-      },
-      "device": {
-        "type": "String",
-        "example": "Mobile"
-      }
-    }
-  },
-  "feedbackDeviceTypeMobile": "Mobile",
-  "@feedbackDeviceTypeMobile": {
-    "description": "Screen size class for phone-width windows, shown in the feedback form."
-  },
-  "feedbackDeviceTypeTablet": "Tablet",
-  "@feedbackDeviceTypeTablet": {
-    "description": "Screen size class for tablet-width windows, shown in the feedback form."
-  },
-  "feedbackDeviceTypeDesktop": "Desktop",
-  "@feedbackDeviceTypeDesktop": {
-    "description": "Screen size class for desktop-width windows, shown in the feedback form."
-  },
-  "feedbackDeviceTypeUnknown": "not detected",
-  "@feedbackDeviceTypeUnknown": {
-    "description": "Shown in the feedback form when the screen size class could not be detected."
   },
   "feedbackCategoryLabel": "Feedback type",
   "@feedbackCategoryLabel": {
