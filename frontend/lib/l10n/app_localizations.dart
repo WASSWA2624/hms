@@ -54811,6 +54811,18 @@ abstract class AppLocalizations {
   /// **'Fetching stored feedback.'**
   String get feedbackLoadingBody;
 
+  /// Error state title when stored feedback fails to load.
+  ///
+  /// In en, this message translates to:
+  /// **'Feedback could not be loaded'**
+  String get feedbackLoadErrorTitle;
+
+  /// Error state body when stored feedback fails to load.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again. If it keeps failing, check your connection and access.'**
+  String get feedbackLoadErrorBody;
+
   /// Reloads feedback after it failed to load.
   ///
   /// In en, this message translates to:

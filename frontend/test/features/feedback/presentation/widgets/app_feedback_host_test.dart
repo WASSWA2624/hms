@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hosspi_hms/app/theme/app_theme.dart';
+import 'package:hosspi_hms/app/theme/app_theme_extensions.dart';
 import 'package:hosspi_hms/core/config/app_config_provider.dart';
 import 'package:hosspi_hms/core/errors/result.dart';
 import 'package:hosspi_hms/core/network/app_connectivity_status.dart';
@@ -17,10 +19,12 @@ import 'package:hosspi_hms/features/feedback/data/repositories/feedback_reposito
 import 'package:hosspi_hms/features/feedback/domain/entities/feedback_entities.dart';
 import 'package:hosspi_hms/features/feedback/domain/repositories/feedback_repository.dart';
 import 'package:hosspi_hms/features/feedback/presentation/widgets/app_feedback_host.dart';
+import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_delete_dialog.dart';
 import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_submit_dialog.dart';
 import 'package:hosspi_hms/l10n/app_localizations.dart';
 import 'package:hosspi_hms/shared/actions/app_action_dialogs.dart';
 import 'package:hosspi_hms/shared/components/components.dart';
+import 'package:hosspi_hms/shared/data/app_pagination.dart';
 
 import '../../../../helpers/test_harness.dart';
 
@@ -31,12 +35,16 @@ final class _FakeFeedbackRepository implements FeedbackRepository {
       <({FeedbackSubmission submission, bool signedIn})>[];
   final List<int> exportOffsets = <int>[];
   final Uint8List exportBytes = Uint8List.fromList(<int>[80, 75, 3, 4]);
-  FeedbackSummary summary = const FeedbackSummary(
-    total: 3,
-    authenticated: 2,
-    anonymous: 1,
-  );
-  int clearCalls = 0;
+  final List<FeedbackRecord> records = <FeedbackRecord>[
+    for (int index = 1; index <= 3; index += 1)
+      FeedbackRecord(
+        referenceId: 'FBK000000$index',
+        category: FeedbackCategory.suggestion,
+        submitterType: FeedbackSubmitterType.anonymous,
+        messagePreview: 'Stored feedback $index',
+      ),
+  ];
+  final List<Set<String>> deletedIds = <Set<String>>[];
 
   @override
   Future<Result<FeedbackReceipt>> submitFeedback(
@@ -55,8 +63,17 @@ final class _FakeFeedbackRepository implements FeedbackRepository {
   }
 
   @override
-  Future<Result<FeedbackSummary>> fetchFeedbackSummary() async {
-    return Result<FeedbackSummary>.success(summary);
+  Future<Result<AppPage<FeedbackRecord>>> fetchFeedbackPage({
+    required FeedbackFilters filters,
+    required AppPageRequest request,
+  }) async {
+    return Result<AppPage<FeedbackRecord>>.success(
+      AppPage<FeedbackRecord>(
+        items: List<FeedbackRecord>.of(records),
+        request: request,
+        totalItemCount: records.length,
+      ),
+    );
   }
 
   @override
@@ -68,10 +85,27 @@ final class _FakeFeedbackRepository implements FeedbackRepository {
   }
 
   @override
-  Future<Result<FeedbackClearResult>> clearFeedback() async {
-    clearCalls += 1;
-    return Result<FeedbackClearResult>.success(
-      FeedbackClearResult(clearedCount: summary.total),
+  Future<Result<FeedbackDeleteResult>> deleteFeedback({
+    required Set<String> referenceIds,
+  }) async {
+    deletedIds.add(Set<String>.of(referenceIds));
+    final int before = records.length;
+    records.removeWhere(
+      (FeedbackRecord record) => referenceIds.contains(record.referenceId),
+    );
+    return Result<FeedbackDeleteResult>.success(
+      FeedbackDeleteResult(deletedCount: before - records.length),
+    );
+  }
+
+  @override
+  Future<Result<FeedbackDeleteResult>> deleteMatchingFeedback({
+    required FeedbackFilters filters,
+  }) async {
+    final int count = records.length;
+    records.clear();
+    return Result<FeedbackDeleteResult>.success(
+      FeedbackDeleteResult(deletedCount: count),
     );
   }
 }
@@ -164,6 +198,16 @@ Future<void> _openLauncher(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+Future<TestGesture> _addMouse(WidgetTester tester) async {
+  final TestGesture mouse = await tester.createGesture(
+    kind: PointerDeviceKind.mouse,
+  );
+  await mouse.addPointer(location: const Offset(4, 4));
+  addTearDown(mouse.removePointer);
+  await tester.pump();
+  return mouse;
+}
+
 void main() {
   testWidgets(
     'anyone can send feedback from the floating button without signing in',
@@ -176,8 +220,7 @@ void main() {
       );
 
       expect(find.text('Patients page'), findsOneWidget);
-      expect(find.text('Feedback'), findsOneWidget);
-      expect(tester.getSize(_launcher).height, lessThanOrEqualTo(40));
+      expect(_launcher, findsOneWidget);
 
       await _openLauncher(tester);
 
@@ -212,6 +255,51 @@ void main() {
         findsOneWidget,
       );
       expect(_launcher.hitTestable(), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'is a small square icon with a minimal radius and its label on hover',
+    (WidgetTester tester) async {
+      await _pumpHost(
+        tester,
+        session: const SessionState.unauthenticated(),
+        repository: _FakeFeedbackRepository(),
+      );
+
+      final double radius = Theme.of(tester.element(_launcher)).radius.xs;
+      expect(
+        tester.widget<Material>(_launcher).shape,
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
+      );
+      final Size iconOnly = tester.getSize(_launcher);
+      expect(iconOnly.width, lessThanOrEqualTo(32));
+      expect(iconOnly.height, lessThanOrEqualTo(32));
+      expect(find.text('Feedback'), findsNothing);
+      final Rect resting = tester.getRect(_launcher);
+
+      final TestGesture mouse = await _addMouse(tester);
+      await mouse.moveTo(tester.getCenter(_launcher));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Feedback'), findsOneWidget);
+      // At the right edge the label opens leftward, into the screen.
+      expect(tester.getSize(_launcher).width, greaterThan(iconOnly.width));
+      expect(tester.getRect(_launcher).right, moreOrLessEquals(resting.right));
+
+      await mouse.moveTo(const Offset(4, 4));
+      await tester.pumpAndSettle();
+      expect(find.text('Feedback'), findsNothing);
+
+      // On the left half of the screen it opens rightward instead.
+      await tester.drag(_launcher, const Offset(-1000, -400));
+      await tester.pumpAndSettle();
+      final double left = tester.getRect(_launcher).left;
+      await mouse.moveTo(tester.getCenter(_launcher));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Feedback'), findsOneWidget);
+      expect(tester.getRect(_launcher).left, moreOrLessEquals(left));
     },
   );
 
@@ -379,7 +467,7 @@ void main() {
     expect(find.text('Feedback downloaded.'), findsOneWidget);
   });
 
-  testWidgets('clear feedback asks for confirmation first', (
+  testWidgets('clear feedback lets owners pick records to delete permanently', (
     WidgetTester tester,
   ) async {
     final _FakeFeedbackRepository repository = _FakeFeedbackRepository();
@@ -393,22 +481,34 @@ void main() {
     await tester.tap(find.text('Clear feedback'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(AppConfirmActionDialog), findsOneWidget);
-    expect(
-      find.textContaining('This clears 3 stored feedback records'),
-      findsOneWidget,
-    );
-    expect(repository.clearCalls, 0);
+    expect(find.byType(FeedbackDeleteDialog), findsOneWidget);
+    expect(find.text('Stored feedback 2'), findsOneWidget);
+    expect(_launcher.hitTestable(), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(AppButton, 'Clear feedback'));
+    await tester.tap(
+      find.byKey(FeedbackDeleteDialog.rowCheckboxKey('FBK0000002')),
+    );
+    await tester.pump();
+    await tester.tap(find.widgetWithText(AppButton, 'Delete permanently'));
     await tester.pumpAndSettle();
 
-    expect(repository.clearCalls, 1);
-    expect(find.byType(AppConfirmActionDialog), findsNothing);
-    expect(find.text('Cleared 3 feedback records.'), findsOneWidget);
+    expect(find.byType(AppConfirmActionDialog), findsOneWidget);
+    expect(repository.deletedIds, isEmpty);
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AppConfirmActionDialog),
+        matching: find.widgetWithText(AppButton, 'Delete permanently'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.deletedIds.single, <String>{'FBK0000002'});
+    expect(find.byType(FeedbackDeleteDialog), findsNothing);
+    expect(find.text('Deleted 1 feedback record permanently.'), findsOneWidget);
   });
 
-  testWidgets('cancelling the confirmation keeps feedback', (
+  testWidgets('closing Clear feedback keeps feedback', (
     WidgetTester tester,
   ) async {
     final _FakeFeedbackRepository repository = _FakeFeedbackRepository();
@@ -423,41 +523,18 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(
       find.descendant(
-        of: find.byType(AppConfirmActionDialog),
+        of: find.byType(FeedbackDeleteDialog),
         matching: find.widgetWithText(AppButton, 'Close'),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(repository.clearCalls, 0);
-    expect(find.byType(AppConfirmActionDialog), findsNothing);
+    expect(find.byType(FeedbackDeleteDialog), findsNothing);
+    expect(repository.deletedIds, isEmpty);
+    expect(find.textContaining('permanently.'), findsNothing);
   });
 
-  testWidgets('clear reports when there is nothing to clear', (
-    WidgetTester tester,
-  ) async {
-    final _FakeFeedbackRepository repository = _FakeFeedbackRepository()
-      ..summary = const FeedbackSummary(
-        total: 0,
-        authenticated: 0,
-        anonymous: 0,
-      );
-    await _pumpHost(
-      tester,
-      session: _signedInAs('PLATFORM_OWNER'),
-      repository: repository,
-    );
-
-    await _openLauncher(tester);
-    await tester.tap(find.text('Clear feedback'));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(AppConfirmActionDialog), findsNothing);
-    expect(find.text('There is no stored feedback to clear.'), findsOneWidget);
-    expect(repository.clearCalls, 0);
-  });
-
-  testWidgets('shows a small icon-only control at phone width', (
+  testWidgets('shows the same small icon-only control at phone width', (
     WidgetTester tester,
   ) async {
     final _FakeFeedbackRepository repository = _FakeFeedbackRepository();
@@ -471,8 +548,8 @@ void main() {
     expect(_launcher, findsOneWidget);
     expect(find.text('Feedback'), findsNothing);
     final Size launcherSize = tester.getSize(_launcher);
-    expect(launcherSize.width, lessThanOrEqualTo(40));
-    expect(launcherSize.height, lessThanOrEqualTo(40));
+    expect(launcherSize.width, lessThanOrEqualTo(32));
+    expect(launcherSize.height, lessThanOrEqualTo(32));
     final Icon launcherIcon = tester.widget<Icon>(
       find.descendant(of: _launcher, matching: find.byType(Icon)),
     );

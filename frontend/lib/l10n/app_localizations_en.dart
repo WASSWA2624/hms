@@ -30213,5 +30213,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get feedbackLoadingBody => 'Fetching stored feedback.';
 
   @override
+  String get feedbackLoadErrorTitle => 'Feedback could not be loaded';
+
+  @override
+  String get feedbackLoadErrorBody =>
+      'Try again. If it keeps failing, check your connection and access.';
+
+  @override
   String get feedbackRetryAction => 'Try again';
 }

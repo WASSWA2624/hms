@@ -12,7 +12,6 @@ import 'package:hosspi_hms/core/errors/app_failure.dart';
 import 'package:hosspi_hms/core/errors/result.dart';
 import 'package:hosspi_hms/core/network/app_connectivity_status.dart';
 import 'package:hosspi_hms/core/permissions/permission_providers.dart';
-import 'package:hosspi_hms/core/responsive/app_breakpoints.dart';
 import 'package:hosspi_hms/core/security/session_controller.dart';
 import 'package:hosspi_hms/core/security/session_state.dart';
 import 'package:hosspi_hms/features/feedback/data/repositories/feedback_repository_impl.dart';
@@ -21,13 +20,14 @@ import 'package:hosspi_hms/features/feedback/domain/repositories/feedback_reposi
 import 'package:hosspi_hms/features/feedback/presentation/controllers/feedback_launcher_position_controller.dart';
 import 'package:hosspi_hms/features/feedback/presentation/feedback_access.dart';
 import 'package:hosspi_hms/features/feedback/presentation/feedback_context_capture.dart';
+import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_delete_dialog.dart';
 import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_submit_dialog.dart';
 import 'package:hosspi_hms/l10n/app_localizations.dart';
 import 'package:hosspi_hms/l10n/app_localizations_x.dart';
-import 'package:hosspi_hms/shared/actions/app_action_dialogs.dart';
 import 'package:hosspi_hms/shared/components/app_list_table_export_save.dart';
 import 'package:hosspi_hms/shared/components/components.dart';
 import 'package:hosspi_hms/shared/layout/app_workspace_feedback.dart';
+import 'package:hosspi_hms/shared/widgets/app_pointer_interceptor.dart';
 
 /// Saves exported feedback bytes; returns false when the user cancels.
 typedef FeedbackExportSaver =
@@ -35,8 +35,8 @@ typedef FeedbackExportSaver =
 
 enum _FeedbackMenuAction { give, download, clear }
 
-/// Floats the feedback control above everything in the app, sign-in screens
-/// and modal dialogs included.
+/// Floats the feedback control above everything in the app, sign-in screens,
+/// modal dialogs, and print previews included.
 ///
 /// Mounted in `MaterialApp.router`'s builder, above the navigators, so it paints
 /// over every route, dialog, sheet, and menu, and any screen added later gets
@@ -66,6 +66,13 @@ class AppFeedbackHost extends ConsumerStatefulWidget {
 }
 
 class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
+  static const Key _launcherSlotKey = ValueKey<String>(
+    'app-feedback-launcher-slot',
+  );
+  static const Key _interceptorLayerKey = ValueKey<String>(
+    'app-feedback-interceptor-layer',
+  );
+
   final GlobalKey _anchorKey = GlobalKey(debugLabel: 'feedback-launcher');
 
   // The control stays tappable above its own menu and form, so ignore taps
@@ -78,7 +85,8 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
   Size _viewSize = Size.zero;
   EdgeInsets _safePadding = EdgeInsets.zero;
   double _edgeInset = 0;
-  Size _launcherSize = Size.zero;
+  Size _iconOnlySize = Size.zero;
+  bool _labelOpensLeftward = true;
 
   BuildContext? get _navigatorContext =>
       widget.router.routerDelegate.navigatorKey.currentContext;
@@ -94,10 +102,18 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     _viewSize = MediaQuery.sizeOf(context);
     _safePadding = MediaQuery.paddingOf(context);
     _edgeInset = theme.spacing.sm;
+    // The control is an icon until hovered, and its label opens toward the
+    // middle of the screen, so the icon alone decides what stays on screen.
+    _iconOnlySize = Size.square(
+      theme.appTokens.listIconSize + theme.spacing.xs * 2,
+    );
 
-    // The control's width changes with the breakpoint and busy state; track
-    // it so a dragged position is clamped against its real size.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _syncLauncherSize());
+    final Offset? position = savedPosition == null
+        ? null
+        : _clampPosition(savedPosition);
+    _labelOpensLeftward = position == null
+        ? textDirection == TextDirection.ltr
+        : position.dx + _iconOnlySize.width / 2 > _viewSize.width / 2;
 
     final Widget launcher = GestureDetector(
       // Report movement from the touch-down point so the control tracks the
@@ -110,10 +126,10 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
       child: KeyedSubtree(
         key: _anchorKey,
         child: _FeedbackLauncher(
-          compact: AppBreakpoints.of(context).isMobile,
           isBusy: _isBusy,
           isDragging: _isDragging,
           canManage: canManage,
+          labelOpensLeftward: _labelOpensLeftward,
           onPressed: _isFlowActive
               ? null
               : () => unawaited(
@@ -128,26 +144,50 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     final double endInset = textDirection == TextDirection.rtl
         ? _safePadding.left
         : _safePadding.right;
-    final Offset? position = savedPosition == null
-        ? null
-        : _clampPosition(savedPosition);
 
     return Stack(
       fit: StackFit.expand,
       children: <Widget>[
         widget.child,
+        // Over an HTML platform view, such as the print preview iframe, the
+        // browser hands pointer input to the view and Flutter never sees it.
+        // While a feedback menu or dialog is open, or the control is being
+        // dragged, a transparent interceptor covers the screen so input reaches
+        // Flutter everywhere. Flutter's own hit testing skips it, so the menus
+        // and dialogs beneath still get their taps.
+        if (_isFlowActive || _isDragging)
+          const Positioned.fill(
+            key: _interceptorLayerKey,
+            child: IgnorePointer(
+              child: AppPointerInterceptor(child: SizedBox.expand()),
+            ),
+          ),
         // Last child, so it paints above the navigators and everything they
-        // show. Both branches build a `Positioned`, so the first drag moves the
-        // control without remounting it and cancelling the gesture.
+        // show. Every branch builds the same keyed `Positioned`, so dragging
+        // moves the control without remounting it and cancelling the gesture.
         if (position == null)
           Positioned.directional(
+            key: _launcherSlotKey,
             textDirection: textDirection,
             end: endInset + theme.spacing.lg,
             bottom: _safePadding.bottom + theme.spacing.lg,
             child: launcher,
           )
+        else if (_labelOpensLeftward)
+          // Pin the right edge so the label grows leftward, into the screen.
+          Positioned(
+            key: _launcherSlotKey,
+            right: _viewSize.width - position.dx - _iconOnlySize.width,
+            top: position.dy,
+            child: launcher,
+          )
         else
-          Positioned(left: position.dx, top: position.dy, child: launcher),
+          Positioned(
+            key: _launcherSlotKey,
+            left: position.dx,
+            top: position.dy,
+            child: launcher,
+          ),
       ],
     );
   }
@@ -166,20 +206,6 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     }
   }
 
-  void _syncLauncherSize() {
-    if (!mounted) {
-      return;
-    }
-    final RenderObject? renderObject = _anchorKey.currentContext
-        ?.findRenderObject();
-    if (renderObject is! RenderBox || !renderObject.hasSize) {
-      return;
-    }
-    if (renderObject.size != _launcherSize) {
-      setState(() => _launcherSize = renderObject.size);
-    }
-  }
-
   void _handleDragStart(DragStartDetails details) {
     final RenderObject? launcher = _anchorKey.currentContext
         ?.findRenderObject();
@@ -188,9 +214,13 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
       return;
     }
 
-    _launcherSize = launcher.size;
-    final Offset origin = host.globalToLocal(
-      launcher.localToGlobal(Offset.zero),
+    final Rect bounds =
+        host.globalToLocal(launcher.localToGlobal(Offset.zero)) &
+        launcher.size;
+    // Track the icon, not a label that hides while dragging.
+    final Offset origin = Offset(
+      _labelOpensLeftward ? bounds.right - _iconOnlySize.width : bounds.left,
+      bounds.top,
     );
     ref
         .read(feedbackLauncherPositionProvider.notifier)
@@ -220,14 +250,14 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     final double minTop = _safePadding.top + _edgeInset;
     final double maxLeft = math.max(
       minLeft,
-      _viewSize.width - _safePadding.right - _edgeInset - _launcherSize.width,
+      _viewSize.width - _safePadding.right - _edgeInset - _iconOnlySize.width,
     );
     final double maxTop = math.max(
       minTop,
       _viewSize.height -
           _safePadding.bottom -
           _edgeInset -
-          _launcherSize.height,
+          _iconOnlySize.height,
     );
 
     return Offset(
@@ -397,97 +427,63 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     }
   }
 
+  /// Lets the user pick stored feedback and delete it permanently.
   Future<void> _clearFeedback() async {
     final BuildContext? navigatorContext = _navigatorContext;
     if (navigatorContext == null) {
       return;
     }
 
-    final FeedbackRepository repository = ref.read(feedbackRepositoryProvider);
-
-    setState(() => _isBusy = true);
-    final Result<FeedbackSummary> summaryResult;
-    try {
-      summaryResult = await repository.fetchFeedbackSummary();
-    } finally {
-      if (mounted) {
-        setState(() => _isBusy = false);
-      }
-    }
-    if (!navigatorContext.mounted) {
-      return;
-    }
-
-    final FeedbackSummary summary;
-    switch (summaryResult) {
-      case ResultFailure<FeedbackSummary>(failure: final AppFailure failure):
-        showAppFailureSnackBar(navigatorContext, failure);
-        return;
-      case ResultSuccess<FeedbackSummary>(value: final FeedbackSummary value):
-        summary = value;
-    }
-
-    final AppLocalizations l10n = navigatorContext.l10n;
-    if (summary.total == 0) {
-      showAppSuccessSnackBar(
-        navigatorContext,
-        l10n.feedbackNothingToClearMessage,
-      );
-      return;
-    }
-
-    int clearedCount = 0;
-    final bool? cleared = await showAppDialog<bool>(
+    final int? deletedCount = await showFeedbackDeleteDialog(
       context: navigatorContext,
-      builder: (_) => AppConfirmActionDialog(
-        title: l10n.feedbackClearConfirmTitle,
-        body: l10n.feedbackClearConfirmBody(summary.total),
-        submitLabel: l10n.feedbackClearActionLabel,
-        icon: const Icon(AppActionIcons.delete),
-        submitLeadingIcon: AppActionIcons.delete,
-        destructive: true,
-        onConfirm: () async {
-          final Result<FeedbackClearResult> result = await repository
-              .clearFeedback();
-          switch (result) {
-            case ResultSuccess<FeedbackClearResult>(
-              value: final FeedbackClearResult value,
-            ):
-              clearedCount = value.clearedCount;
-              return null;
-            case ResultFailure<FeedbackClearResult>(
-              failure: final AppFailure failure,
-            ):
-              return failure;
-          }
-        },
-      ),
     );
-
-    if (cleared == true && navigatorContext.mounted) {
-      showAppSuccessSnackBar(
-        navigatorContext,
-        l10n.feedbackClearedMessage(clearedCount),
-      );
+    if (deletedCount == null || !navigatorContext.mounted) {
+      return;
     }
+    showAppSuccessSnackBar(
+      navigatorContext,
+      navigatorContext.l10n.feedbackDeletedMessage(deletedCount),
+    );
   }
 }
 
-/// Compact pill with icon and label; icon-only on phones.
-class _FeedbackLauncher extends StatelessWidget {
+/// Small square icon button whose label shows while it is hovered or focused.
+class _FeedbackLauncher extends StatefulWidget {
   const _FeedbackLauncher({
-    required this.compact,
     required this.isBusy,
     required this.isDragging,
     required this.canManage,
+    required this.labelOpensLeftward,
     required this.onPressed,
   });
 
-  final bool compact;
   final bool isBusy;
   final bool isDragging;
   final bool canManage;
+
+  /// Whether the label opens to the left of the icon, into the screen.
+  final bool labelOpensLeftward;
   final VoidCallback? onPressed;
+
+  @override
+  State<_FeedbackLauncher> createState() => _FeedbackLauncherState();
+}
+
+class _FeedbackLauncherState extends State<_FeedbackLauncher> {
+  bool _isHovered = false;
+  bool _isFocused = false;
+
+  void _setHovered(bool hovered) {
+    if (mounted && hovered != _isHovered) {
+      setState(() => _isHovered = hovered);
+    }
+  }
+
+  void _setFocused(bool focused) {
+    if (mounted && focused != _isFocused) {
+      setState(() => _isFocused = focused);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -496,11 +492,12 @@ class _FeedbackLauncher extends StatelessWidget {
     final AppLocalizations l10n = context.l10n;
     final Color foreground = colorScheme.onPrimaryContainer;
     final double iconSize = theme.appTokens.listIconSize;
-    final String semanticLabel = canManage
+    final String semanticLabel = widget.canManage
         ? l10n.feedbackAdminMenuSemanticLabel
         : l10n.feedbackLauncherSemanticLabel;
+    final bool showLabel = (_isHovered || _isFocused) && !widget.isDragging;
 
-    final Widget icon = isBusy
+    final Widget icon = widget.isBusy
         ? SizedBox.square(
             dimension: iconSize,
             child: CircularProgressIndicator(
@@ -513,44 +510,59 @@ class _FeedbackLauncher extends StatelessWidget {
             Icons.feedback_outlined,
             size: iconSize,
             color: foreground,
-            semanticLabel: compact ? semanticLabel : null,
+            semanticLabel: semanticLabel,
           );
 
-    return Semantics(
-      hint: l10n.feedbackLauncherMoveHint,
-      child: Material(
-        key: AppFeedbackHost.launcherKey,
-        color: colorScheme.primaryContainer,
-        elevation: isDragging ? 6 : 2,
-        shape: const StadiumBorder(),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: isBusy ? null : onPressed,
-          mouseCursor: isDragging
-              ? SystemMouseCursors.grabbing
-              : SystemMouseCursors.click,
-          child: Padding(
-            padding: compact
-                ? EdgeInsets.all(theme.spacing.sm)
-                : EdgeInsets.symmetric(
-                    horizontal: theme.spacing.md,
-                    vertical: theme.spacing.sm,
-                  ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                icon,
-                if (!compact) ...<Widget>[
-                  SizedBox(width: theme.spacing.xs),
-                  Text(
-                    l10n.feedbackLauncherLabel,
-                    semanticsLabel: semanticLabel,
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: foreground,
-                    ),
-                  ),
-                ],
-              ],
+    return AppPointerInterceptor(
+      onPointerLeave: () => _setHovered(false),
+      child: Semantics(
+        hint: l10n.feedbackLauncherMoveHint,
+        child: Material(
+          key: AppFeedbackHost.launcherKey,
+          color: colorScheme.primaryContainer,
+          elevation: widget.isDragging ? 6 : 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(theme.radius.xs),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: widget.isBusy ? null : widget.onPressed,
+            onHover: _setHovered,
+            onFocusChange: _setFocused,
+            mouseCursor: widget.isDragging
+                ? SystemMouseCursors.grabbing
+                : SystemMouseCursors.click,
+            child: Padding(
+              padding: EdgeInsets.all(theme.spacing.xs),
+              child: AnimatedSize(
+                duration: const Duration(milliseconds: 120),
+                curve: Curves.easeOut,
+                alignment: widget.labelOpensLeftward
+                    ? Alignment.centerRight
+                    : Alignment.centerLeft,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  // Visual order only: the label sits on the side it opens to.
+                  textDirection: widget.labelOpensLeftward
+                      ? TextDirection.rtl
+                      : TextDirection.ltr,
+                  children: <Widget>[
+                    icon,
+                    if (showLabel) ...<Widget>[
+                      SizedBox(width: theme.spacing.xs),
+                      // The icon already carries the accessible label.
+                      ExcludeSemantics(
+                        child: Text(
+                          l10n.feedbackLauncherLabel,
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: foreground,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
           ),
         ),

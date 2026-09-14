@@ -12,6 +12,7 @@ import 'package:hosspi_hms/features/feedback/domain/repositories/feedback_reposi
 import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_submit_dialog.dart';
 import 'package:hosspi_hms/l10n/app_localizations.dart';
 import 'package:hosspi_hms/shared/components/components.dart';
+import 'package:hosspi_hms/shared/data/app_pagination.dart';
 
 final class _ScriptedFeedbackRepository implements FeedbackRepository {
   _ScriptedFeedbackRepository({this.failure});
@@ -39,7 +40,10 @@ final class _ScriptedFeedbackRepository implements FeedbackRepository {
   }
 
   @override
-  Future<Result<FeedbackSummary>> fetchFeedbackSummary() {
+  Future<Result<AppPage<FeedbackRecord>>> fetchFeedbackPage({
+    required FeedbackFilters filters,
+    required AppPageRequest request,
+  }) {
     throw UnimplementedError();
   }
 
@@ -51,7 +55,16 @@ final class _ScriptedFeedbackRepository implements FeedbackRepository {
   }
 
   @override
-  Future<Result<FeedbackClearResult>> clearFeedback() {
+  Future<Result<FeedbackDeleteResult>> deleteFeedback({
+    required Set<String> referenceIds,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<Result<FeedbackDeleteResult>> deleteMatchingFeedback({
+    required FeedbackFilters filters,
+  }) {
     throw UnimplementedError();
   }
 }
