@@ -44,8 +44,9 @@ enum _FeedbackMenuAction { give, download, clear }
 /// root navigator. Users can drag the control anywhere on screen; the position
 /// is kept in memory for the session ([feedbackLauncherPositionProvider]).
 ///
-/// Everyone can give feedback. Platform owners and platform admins also get
-/// Download feedback and Clear feedback; the API enforces the same roles.
+/// Everyone can give feedback. Platform owners and platform admins get a menu
+/// that also offers Download feedback and Clear feedback; tapping the control
+/// shows or hides it. The API enforces the same roles.
 class AppFeedbackHost extends ConsumerStatefulWidget {
   const AppFeedbackHost({
     required this.router,
@@ -75,11 +76,17 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
 
   final GlobalKey _anchorKey = GlobalKey(debugLabel: 'feedback-launcher');
 
-  // The control stays tappable above its own menu and form, so ignore taps
-  // while one is open instead of stacking a second.
+  // The control stays tappable above its own menu and dialogs. A tap closes
+  // an open menu; while a dialog or download is under way, taps are ignored
+  // instead of stacking a second.
   bool _isFlowActive = false;
   bool _isBusy = false;
   bool _isDragging = false;
+
+  // The open menu, so tapping the control again can close it. Each menu gets
+  // a fresh key because a closing menu can still be animating out when the
+  // next one opens.
+  GlobalKey? _openMenuKey;
 
   // Layout facts from the last build, used to keep a dragged control on screen.
   Size _viewSize = Size.zero;
@@ -130,7 +137,10 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
           isDragging: _isDragging,
           canManage: canManage,
           labelOpensLeftward: _labelOpensLeftward,
-          onPressed: _isFlowActive
+          isMenuOpen: _openMenuKey != null,
+          onPressed: _openMenuKey != null
+              ? _closeMenu
+              : _isFlowActive
               ? null
               : () => unawaited(
                   _runExclusive(
@@ -292,33 +302,46 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
       anchorRect.height,
     );
 
-    final _FeedbackMenuAction? action = await showMenu<_FeedbackMenuAction>(
-      context: navigatorContext,
-      position: RelativeRect.fromRect(menuAnchor, Offset.zero & overlay.size),
-      items: <PopupMenuEntry<_FeedbackMenuAction>>[
-        PopupMenuItem<_FeedbackMenuAction>(
-          value: _FeedbackMenuAction.give,
-          child: AppMenuItemLabel(
-            icon: Icons.feedback_outlined,
-            label: l10n.feedbackGiveActionLabel,
-          ),
+    final GlobalKey menuKey = GlobalKey(debugLabel: 'feedback-menu');
+    setState(() => _openMenuKey = menuKey);
+    final _FeedbackMenuAction? action;
+    try {
+      action = await showMenu<_FeedbackMenuAction>(
+        context: navigatorContext,
+        position: RelativeRect.fromRect(
+          menuAnchor,
+          Offset.zero & overlay.size,
         ),
-        PopupMenuItem<_FeedbackMenuAction>(
-          value: _FeedbackMenuAction.download,
-          child: AppMenuItemLabel(
-            icon: AppActionIcons.download,
-            label: l10n.feedbackDownloadActionLabel,
+        items: <PopupMenuEntry<_FeedbackMenuAction>>[
+          PopupMenuItem<_FeedbackMenuAction>(
+            key: menuKey,
+            value: _FeedbackMenuAction.give,
+            child: AppMenuItemLabel(
+              icon: Icons.feedback_outlined,
+              label: l10n.feedbackGiveActionLabel,
+            ),
           ),
-        ),
-        PopupMenuItem<_FeedbackMenuAction>(
-          value: _FeedbackMenuAction.clear,
-          child: AppMenuItemLabel(
-            icon: AppActionIcons.delete,
-            label: l10n.feedbackClearActionLabel,
+          PopupMenuItem<_FeedbackMenuAction>(
+            value: _FeedbackMenuAction.download,
+            child: AppMenuItemLabel(
+              icon: AppActionIcons.download,
+              label: l10n.feedbackDownloadActionLabel,
+            ),
           ),
-        ),
-      ],
-    );
+          PopupMenuItem<_FeedbackMenuAction>(
+            value: _FeedbackMenuAction.clear,
+            child: AppMenuItemLabel(
+              icon: AppActionIcons.delete,
+              label: l10n.feedbackClearActionLabel,
+            ),
+          ),
+        ],
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _openMenuKey = null);
+      }
+    }
     if (!mounted) {
       return;
     }
@@ -332,6 +355,25 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
         await _clearFeedback();
       case null:
         return;
+    }
+  }
+
+  /// Closes the menu this control opened, with its usual exit animation.
+  void _closeMenu() {
+    final BuildContext? menuContext = _openMenuKey?.currentContext;
+    if (menuContext == null) {
+      return;
+    }
+    final ModalRoute<Object?>? route = ModalRoute.of(menuContext);
+    final NavigatorState? navigator = route?.navigator;
+    if (route == null || navigator == null || !route.isActive) {
+      return;
+    }
+    if (route.isCurrent) {
+      navigator.pop();
+    } else {
+      // Something opened above the menu; take the menu out from under it.
+      navigator.removeRoute(route);
     }
   }
 
@@ -454,12 +496,16 @@ class _FeedbackLauncher extends StatefulWidget {
     required this.isDragging,
     required this.canManage,
     required this.labelOpensLeftward,
+    required this.isMenuOpen,
     required this.onPressed,
   });
 
   final bool isBusy;
   final bool isDragging;
   final bool canManage;
+
+  /// Whether the menu this control toggles is showing.
+  final bool isMenuOpen;
 
   /// Whether the label opens to the left of the icon, into the screen.
   final bool labelOpensLeftward;
@@ -517,6 +563,8 @@ class _FeedbackLauncherState extends State<_FeedbackLauncher> {
       onPointerLeave: () => _setHovered(false),
       child: Semantics(
         hint: l10n.feedbackLauncherMoveHint,
+        // Only owners and admins have a menu to expand.
+        expanded: widget.canManage ? widget.isMenuOpen : null,
         child: Material(
           key: AppFeedbackHost.launcherKey,
           color: colorScheme.primaryContainer,

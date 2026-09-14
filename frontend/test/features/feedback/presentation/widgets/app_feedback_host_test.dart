@@ -359,6 +359,40 @@ void main() {
     });
   }
 
+  testWidgets('tapping the button shows and hides the feedback menu', (
+    WidgetTester tester,
+  ) async {
+    await _pumpHost(
+      tester,
+      session: _signedInAs('PLATFORM_OWNER'),
+      repository: _FakeFeedbackRepository(),
+    );
+
+    await _openLauncher(tester);
+    expect(find.text('Download feedback'), findsOneWidget);
+    expect(_launcher.hitTestable(), findsOneWidget);
+
+    await tester.tap(_launcher);
+    await tester.pumpAndSettle();
+    expect(find.text('Download feedback'), findsNothing);
+
+    await tester.tap(_launcher);
+    await tester.pumpAndSettle();
+    expect(find.text('Download feedback'), findsOneWidget);
+
+    // Hiding and showing again before the exit animation ends is safe too.
+    await tester.tap(_launcher);
+    await tester.pump();
+    await tester.tap(_launcher);
+    await tester.pumpAndSettle();
+    expect(find.text('Download feedback'), findsOneWidget);
+
+    await tester.tap(_launcher);
+    await tester.pumpAndSettle();
+    expect(find.text('Download feedback'), findsNothing);
+    expect(find.byType(FeedbackSubmitDialog), findsNothing);
+  });
+
   testWidgets('other signed-in roles only get the feedback form', (
     WidgetTester tester,
   ) async {
