@@ -37,6 +37,7 @@ const NO_STORE_PREFIXES = Object.freeze([
   '/api/v1/handovers',
   '/api/v1/custody-snapshots',
   '/api/v1/closeout-packs',
+  '/api/v1/feedback',
 ]);
 
 const SAFE_LIST_SYNC_PREFIXES = Object.freeze([

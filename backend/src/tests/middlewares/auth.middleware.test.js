@@ -20,7 +20,12 @@ jest.mock('@repositories/api-key/api-key.repository', () => ({
   touchLastUsed: jest.fn()
 }));
 
-const { authenticate, authorize, denyRoles } = require('@middlewares/auth.middleware');
+const {
+  authenticate,
+  authenticateOptional,
+  authorize,
+  denyRoles
+} = require('@middlewares/auth.middleware');
 const { HttpError } = require('@lib/errors');
 const { verifyToken } = require('@lib/jwt');
 const { verifyApiKey } = require('@lib/crypto');
@@ -430,5 +435,61 @@ describe('auth middleware', () => {
     expect(error).toBeInstanceOf(HttpError);
     expect(error.messageKey).toBe('errors.auth.api_key_not_allowed');
     expect(error.statusCode).toBe(403);
+  });
+
+  describe('authenticateOptional', () => {
+    const buildRequest = (headers = {}) => ({
+      headers,
+      path: '/',
+      originalUrl: '/api/v1/feedback'
+    });
+
+    it('attaches the user for a valid bearer token', () => {
+      verifyToken.mockReturnValueOnce({ userId: 'user-1', tenant_id: 'tenant-1', roles: ['nurse'] });
+      const req = buildRequest({ authorization: 'Bearer good-token' });
+      const next = jest.fn();
+
+      authenticateOptional()(req, {}, next);
+
+      expect(next).toHaveBeenCalledWith();
+      expect(req.user).toEqual(
+        expect.objectContaining({ id: 'user-1', tenant_id: 'tenant-1', roles: ['NURSE'] })
+      );
+    });
+
+    it('continues anonymously without a token', () => {
+      const req = buildRequest();
+      const next = jest.fn();
+
+      authenticateOptional()(req, {}, next);
+
+      expect(next).toHaveBeenCalledWith();
+      expect(req.user).toBeUndefined();
+      expect(verifyToken).not.toHaveBeenCalled();
+    });
+
+    it('continues anonymously when the token is invalid or expired', () => {
+      verifyToken.mockImplementationOnce(() => {
+        throw new Error('jwt expired');
+      });
+      const req = buildRequest({ authorization: 'Bearer expired-token' });
+      const next = jest.fn();
+
+      authenticateOptional()(req, {}, next);
+
+      expect(next).toHaveBeenCalledWith();
+      expect(req.user).toBeUndefined();
+    });
+
+    it('ignores API keys', () => {
+      const req = buildRequest({ 'x-api-key': 'KEY-ABCD1234.secret-part' });
+      const next = jest.fn();
+
+      authenticateOptional()(req, {}, next);
+
+      expect(next).toHaveBeenCalledWith();
+      expect(req.user).toBeUndefined();
+      expect(apiKeyRepository.findAuthCandidates).not.toHaveBeenCalled();
+    });
   });
 });

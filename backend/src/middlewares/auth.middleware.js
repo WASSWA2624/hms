@@ -312,6 +312,39 @@ const authenticate = () => {
 };
 
 /**
+ * Optional JWT authentication for routes that also serve anonymous callers.
+ *
+ * A valid bearer token attaches the user exactly as `authenticate()` does. A
+ * missing, malformed, or expired token leaves `req.user` unset instead of
+ * failing the request. API keys are ignored: they identify integrations, not
+ * people.
+ *
+ * @returns {Function} Express middleware
+ */
+const authenticateOptional = () => {
+  return (req, res, next) => {
+    if (req.user && (req.user.id || req.user.userId || req.user.user_id)) {
+      req.user = normalizeUserContext(req.user);
+      return next();
+    }
+
+    const token = extractToken(req);
+    if (!token) {
+      return next();
+    }
+
+    try {
+      req.user = normalizeUserContext(verifyToken(token));
+    } catch (tokenError) {
+      req.user = undefined;
+      recordSecurityEvent('auth.optional_invalid_token', {
+        'http.route': String(req.originalUrl || req.path || '').split('?')[0]});
+    }
+    return next();
+  };
+};
+
+/**
  * RBAC Authorization Middleware
  * Checks if user has required role or permission
  * 
@@ -435,6 +468,7 @@ const requireAuth = (requiredRole = null, type = 'role') => {
 
 module.exports = {
   authenticate,
+  authenticateOptional,
   authorize,
   denyRoles,
   requireAuth,

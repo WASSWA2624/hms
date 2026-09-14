@@ -58,6 +58,12 @@ const RateLimitConfig = {
     search: {
       windowMs: 60 * 1000, // 1 minute
       max: 60
+    },
+
+    // "Give us feedback" accepts anonymous submissions, so cap them per client.
+    feedback: {
+      windowMs: 60 * 60 * 1000, // 1 hour
+      max: NODE_ENV === 'development' ? 300 : 30
     }
   },
   

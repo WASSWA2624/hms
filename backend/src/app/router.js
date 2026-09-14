@@ -102,6 +102,9 @@ const lazyRoutes = (modulePath) => {
 // Per module-creation.mdc step 7: Use relative paths to mount modules
 apiV1Router.use('/auth', lazyRoutes('../modules/auth/routes/auth.routes'));
 apiV1Router.use('/public', lazyRoutes('../modules/public/routes/public.routes'));
+// "Give us feedback" must work signed out, so these routes authenticate per
+// route. Unmatched /feedback paths fall through to the protected router below.
+apiV1Router.use('/feedback', lazyRoutes('../modules/feedback/routes/app-feedback.routes'));
 
 // Global protection for all non-auth API v1 routes.
 apiV1Router.use(authenticate());

@@ -145,7 +145,8 @@ const getCorsConfig = () => {
     exposedHeaders: [
       'X-RateLimit-Limit',
       'X-RateLimit-Remaining',
-      'X-RateLimit-Reset'
+      'X-RateLimit-Reset',
+      'Content-Disposition'
     ],
     maxAge: 86400 // 24 hours
   };

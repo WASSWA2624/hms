@@ -52,7 +52,15 @@ const MODEL_PREFIX_OVERRIDES = Object.freeze({
   patient_medical_history: 'PMH',
   // Would otherwise derive DOC and collide with `doctor`.
   document_number_sequence: 'DNS',
+  feedback: 'FBK',
 });
+
+/**
+ * Models numbered on one platform-wide counter even when a row carries a
+ * tenant or facility. Feedback is exported across every tenant, so its ids must
+ * not repeat per tenant.
+ */
+const GLOBAL_COUNTER_MODELS = new Set(['feedback']);
 
 /** Models that share a friendly-id counter with another model (same prefix). */
 const FRIENDLY_ID_SEQUENCE_MODEL_ALIASES = Object.freeze({
@@ -83,10 +91,14 @@ const formatFriendlyId = (prefix, sequence, padding = DEFAULT_FRIENDLY_ID_PADDIN
  * `human_id_counter.scope_key` for a plain model row.
  *
  * Narrowest scope wins: a facility-scoped record counts inside its facility, a
- * tenant-scoped one inside its tenant, and anything else globally. `user_role`
- * has an extra role dimension and stays in `src/prisma/client.js`.
+ * tenant-scoped one inside its tenant, and anything else globally.
+ * `GLOBAL_COUNTER_MODELS` always count globally. `user_role` has an extra role
+ * dimension and stays in `src/prisma/client.js`.
  */
 const buildCounterScopeKey = (model, { tenantId, facilityId } = {}, prefix) => {
+  if (GLOBAL_COUNTER_MODELS.has(model)) {
+    return `global:model:${model}:prefix:${prefix}`;
+  }
   if (typeof facilityId === 'string' && facilityId) {
     return `facility:${facilityId}:model:${model}:prefix:${prefix}`;
   }

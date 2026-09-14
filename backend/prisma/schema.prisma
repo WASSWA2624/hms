@@ -51,6 +51,19 @@ enum RegistrationEmailStatus {
   FAILED
 }
 
+enum FeedbackCategory {
+  GENERAL
+  PROBLEM
+  COMPLAINT
+  SUGGESTION
+  IMPROVEMENT
+}
+
+enum FeedbackSubmitterType {
+  AUTHENTICATED
+  ANONYMOUS
+}
+
 enum Gender {
   MALE
   FEMALE
@@ -1157,6 +1170,7 @@ model tenant {
   analytics_events                       analytics_event[]
   registration_follow_ups                registration_follow_up[]
   registration_attempts                  registration_attempt[]
+  feedback_submissions                   feedback[]
   clinical_vital_alert_thresholds        clinical_vital_alert_threshold[]
   clinical_term_favorites                clinical_term_favorite[]
   clinical_term_catalogs                 clinical_term_catalog[]
@@ -1292,6 +1306,7 @@ model facility {
   user_profiles                          user_profile[]
   registration_follow_ups                registration_follow_up[]
   registration_attempts                  registration_attempt[]
+  feedback_submissions                   feedback[]
   clinical_vital_alert_thresholds        clinical_vital_alert_threshold[]
   clinical_term_favorites                clinical_term_favorite[]
   clinical_term_catalogs                 clinical_term_catalog[]
@@ -1656,6 +1671,7 @@ model user {
   purchase_requests             purchase_request[]
   registration_follow_ups       registration_follow_up[]
   registration_attempts         registration_attempt[]
+  feedback_submissions          feedback[]
   configuration_snapshots       configuration_snapshot[]     @relation("configuration_snapshot_created_by")
   billing_approval_requests     billing_approval[]           @relation("billing_approval_requested_by")
   billing_approval_decisions    billing_approval[]           @relation("billing_approval_approved_by")
@@ -7830,6 +7846,70 @@ model audit_log {
   @@index([action])
   @@index([entity])
   @@index([created_at])
+  @@index([deleted_at])
+  @@index([human_friendly_id])
+}
+
+// Application feedback ("Give us feedback") from any screen, signed in or not.
+// The system of record for feedback. Identity, tenant, facility, subscription,
+// and access columns are snapshots taken at submission so exports stay
+// accurate after renames, plan changes, or account removal. Anonymous rows
+// keep only page and technical context. Clearing soft-deletes.
+model feedback {
+  id                         String                @id @default(uuid()) @db.VarChar(36)
+  human_friendly_id          String?               @db.VarChar(32)
+  category                   FeedbackCategory      @default(GENERAL)
+  message                    String                @db.Text
+  submitter_type             FeedbackSubmitterType @default(ANONYMOUS)
+  user_id                    String?               @db.VarChar(36)
+  tenant_id                  String?               @db.VarChar(36)
+  facility_id                String?               @db.VarChar(36)
+  user_human_friendly_id     String?               @db.VarChar(32)
+  user_email                 String?               @db.VarChar(255)
+  user_name                  String?               @db.VarChar(255)
+  user_position_title        String?               @db.VarChar(120)
+  user_roles_json            Json?
+  user_permissions_json      Json?
+  tenant_human_friendly_id   String?               @db.VarChar(32)
+  tenant_name                String?               @db.VarChar(255)
+  facility_human_friendly_id String?               @db.VarChar(32)
+  facility_name              String?               @db.VarChar(255)
+  subscription_plan_code     String?               @db.VarChar(80)
+  subscription_plan_name     String?               @db.VarChar(255)
+  subscription_tier_code     String?               @db.VarChar(40)
+  subscription_status        String?               @db.VarChar(40)
+  // Where it was raised. Stored after credentials are scrubbed from queries.
+  route_path                 String?               @db.VarChar(512)
+  route_name                 String?               @db.VarChar(120)
+  page_url                   String?               @db.Text
+  screen_title               String?               @db.VarChar(255)
+  // Technical context for reproducing the report.
+  client_platform            String?               @db.VarChar(40)
+  app_version                String?               @db.VarChar(64)
+  app_environment            String?               @db.VarChar(40)
+  locale                     String?               @db.VarChar(35)
+  timezone                   String?               @db.VarChar(64)
+  user_agent                 String?               @db.VarChar(512)
+  ip_address                 String?               @db.VarChar(45)
+  client_context_json        Json?
+  client_submitted_at        DateTime?
+  submitted_at               DateTime              @default(now())
+  deleted_by_user_id         String?               @db.VarChar(36)
+  created_at                 DateTime              @default(now())
+  updated_at                 DateTime              @updatedAt
+  deleted_at                 DateTime?
+  version                    Int                   @default(1)
+
+  user     user?     @relation(fields: [user_id], references: [id])
+  tenant   tenant?   @relation(fields: [tenant_id], references: [id])
+  facility facility? @relation(fields: [facility_id], references: [id])
+
+  @@index([tenant_id])
+  @@index([facility_id])
+  @@index([user_id])
+  @@index([category])
+  @@index([submitter_type])
+  @@index([submitted_at])
   @@index([deleted_at])
   @@index([human_friendly_id])
 }
