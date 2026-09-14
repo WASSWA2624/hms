@@ -24,6 +24,12 @@ export default function sitemap() {
       priority: 0.9,
     },
     {
+      url: `${APP_URL}/user-manual`,
+      lastModified,
+      changeFrequency: 'monthly',
+      priority: 0.8,
+    },
+    {
       url: `${APP_URL}/about`,
       lastModified,
       changeFrequency: 'monthly',

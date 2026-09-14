@@ -302,6 +302,44 @@ const ICONS = {
       <path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H20v4H6.5A2.5 2.5 0 0 1 4 19.5z" />
     </>
   ),
+  download: (
+    <>
+      <path d="M12 3.5v12" />
+      <path d="M7 11l5 5 5-5" />
+      <path d="M4.5 20.5h15" />
+    </>
+  ),
+  list: (
+    <>
+      <path d="M9 6h11" />
+      <path d="M9 12h11" />
+      <path d="M9 18h11" />
+      <circle cx="4.5" cy="6" r="1" />
+      <circle cx="4.5" cy="12" r="1" />
+      <circle cx="4.5" cy="18" r="1" />
+    </>
+  ),
+  info: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5.5" />
+      <path d="M12 7.5h.01" />
+    </>
+  ),
+  alert: (
+    <>
+      <path d="M10.3 3.9L2.5 17.5A2 2 0 0 0 4.2 20.5h15.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+      <path d="M12 9v4.5" />
+      <path d="M12 17h.01" />
+    </>
+  ),
+  lightbulb: (
+    <>
+      <path d="M9 18h6" />
+      <path d="M10 21h4" />
+      <path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.3 1.1 2.2h5c0-.9.4-1.6 1.1-2.2A6 6 0 0 0 12 3z" />
+    </>
+  ),
 };
 
 export const ICON_NAMES = Object.keys(ICONS);

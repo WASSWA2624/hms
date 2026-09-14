@@ -1,0 +1,189 @@
+{
+  "auth-forgot": {
+    "src": "/images/user-manual/auth-forgot.jpg",
+    "width": 560,
+    "height": 309,
+    "alt": "The Reset your password screen with the Email field and the Send reset instructions button.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 7.14,
+        "y": 42.39,
+        "w": 87.14,
+        "h": 20.71
+      },
+      {
+        "n": 2,
+        "x": 7.14,
+        "y": 63.75,
+        "w": 85.71,
+        "h": 15.53
+      }
+    ]
+  },
+  "auth-login": {
+    "src": "/images/user-manual/auth-login.jpg",
+    "width": 560,
+    "height": 442,
+    "alt": "The Welcome back sign-in screen with the Email and Phone options, the Email and Password fields and the Sign in button.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 7.14,
+        "y": 30.32,
+        "w": 85.71,
+        "h": 12.67
+      },
+      {
+        "n": 2,
+        "x": 7.14,
+        "y": 43.89,
+        "w": 87.14,
+        "h": 14.48
+      },
+      {
+        "n": 3,
+        "x": 7.14,
+        "y": 57.92,
+        "w": 87.14,
+        "h": 14.48
+      },
+      {
+        "n": 4,
+        "x": 7.14,
+        "y": 74.66,
+        "w": 85.71,
+        "h": 10.86
+      }
+    ]
+  },
+  "auth-register": {
+    "src": "/images/user-manual/auth-register.jpg",
+    "width": 560,
+    "height": 596,
+    "alt": "The Set up your facility registration form with the Administrator name, Email, Password, Facility name, Facility type and Phone fields and the Create account button.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 7.14,
+        "y": 18.46,
+        "w": 87.14,
+        "h": 10.74
+      },
+      {
+        "n": 2,
+        "x": 7.14,
+        "y": 28.86,
+        "w": 87.14,
+        "h": 10.74
+      },
+      {
+        "n": 3,
+        "x": 7.14,
+        "y": 39.26,
+        "w": 87.14,
+        "h": 10.74
+      },
+      {
+        "n": 4,
+        "x": 7.14,
+        "y": 49.66,
+        "w": 87.14,
+        "h": 10.74
+      },
+      {
+        "n": 5,
+        "x": 7.14,
+        "y": 60.07,
+        "w": 87.14,
+        "h": 10.74
+      },
+      {
+        "n": 6,
+        "x": 7.14,
+        "y": 70.47,
+        "w": 85.71,
+        "h": 9.4
+      },
+      {
+        "n": 7,
+        "x": 7.14,
+        "y": 81.21,
+        "w": 85.71,
+        "h": 8.05
+      }
+    ]
+  },
+  "auth-register-guide": {
+    "src": "/images/user-manual/auth-register-guide.jpg",
+    "width": 960,
+    "height": 600,
+    "alt": "The How to register guide listing four stages: create your account, verify your email, wait for account approval and sign in to your workspace.",
+    "markers": []
+  },
+  "auth-reset": {
+    "src": "/images/user-manual/auth-reset.jpg",
+    "width": 560,
+    "height": 350,
+    "alt": "The Choose a new password screen with the Reset code and New password fields and the Reset password button.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 7.14,
+        "y": 31.43,
+        "w": 87.14,
+        "h": 18.29
+      },
+      {
+        "n": 2,
+        "x": 7.14,
+        "y": 49.14,
+        "w": 87.14,
+        "h": 18.29
+      },
+      {
+        "n": 3,
+        "x": 7.14,
+        "y": 68,
+        "w": 85.71,
+        "h": 13.71
+      }
+    ]
+  },
+  "auth-verify": {
+    "src": "/images/user-manual/auth-verify.jpg",
+    "width": 560,
+    "height": 328,
+    "alt": "The Verify your email screen with the Verification code field, the Verify button and the Send new code button.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 7.14,
+        "y": 19.82,
+        "w": 85.71,
+        "h": 8.84
+      },
+      {
+        "n": 2,
+        "x": 7.14,
+        "y": 33.54,
+        "w": 87.14,
+        "h": 19.51
+      },
+      {
+        "n": 3,
+        "x": 7.14,
+        "y": 53.66,
+        "w": 85.71,
+        "h": 14.63
+      },
+      {
+        "n": 4,
+        "x": 7.14,
+        "y": 68.29,
+        "w": 85.71,
+        "h": 12.2
+      }
+    ]
+  }
+}

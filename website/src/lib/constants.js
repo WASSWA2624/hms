@@ -111,6 +111,7 @@ export const SOCIAL_LINKS = {
 export const NAVIGATION_LINKS = [
   { href: '/', labelKey: 'nav.home' },
   { href: '/docs', labelKey: 'nav.docs' },
+  { href: '/user-manual', labelKey: 'nav.userManual' },
   { href: '/about', labelKey: 'nav.about' },
   { href: '/contact', labelKey: 'nav.contact' },
 ];
@@ -119,6 +120,7 @@ export const NAVIGATION_LINKS = [
 export const FOOTER_NAV_LINKS = [
   { href: '/', labelKey: 'nav.home' },
   { href: '/docs', labelKey: 'nav.docs' },
+  { href: '/user-manual', labelKey: 'nav.userManual' },
   { href: '/about', labelKey: 'nav.about' },
   { href: '/contact', labelKey: 'nav.contact' },
 ];
@@ -127,6 +129,7 @@ export const FOOTER_NAV_LINKS = [
 export const NAVIGATION_LINKS_KEYS = {
   HOME: 'nav.home',
   DOCS: 'nav.docs',
+  USER_MANUAL: 'nav.userManual',
   ABOUT: 'nav.about',
   CONTACT: 'nav.contact',
 };

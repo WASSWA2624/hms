@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "manual:pdf": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/build-user-manual-pdf.mjs"
   },
   "dependencies": {
     "next": "16.1.1",
