@@ -30022,33 +30022,196 @@ class AppLocalizationsEn extends AppLocalizations {
   String get feedbackDownloadedMessage => 'Feedback downloaded.';
 
   @override
-  String get feedbackNothingToClearMessage =>
-      'There is no stored feedback to clear.';
+  String get feedbackDeleteDialogTitle => 'Clear feedback';
 
   @override
-  String get feedbackClearConfirmTitle => 'Clear feedback';
+  String get feedbackDeleteDialogBody =>
+      'Select feedback to delete permanently, or narrow the list with search and filters and select every match. Download feedback first if you need a copy.';
 
   @override
-  String feedbackClearConfirmBody(int count) {
+  String get feedbackSearchLabel => 'Search feedback';
+
+  @override
+  String get feedbackSearchHint =>
+      'Search reference, details, email, name, tenant, facility, or screen';
+
+  @override
+  String get feedbackFiltersTitle => 'Filter feedback';
+
+  @override
+  String get feedbackApplyFiltersAction => 'Apply filters';
+
+  @override
+  String get feedbackClearFiltersAction => 'Clear filters';
+
+  @override
+  String get feedbackSubmittedDateLabel => 'Submission date';
+
+  @override
+  String get feedbackSubmittedFromLabel => 'Submitted from';
+
+  @override
+  String get feedbackSubmittedToLabel => 'Submitted to';
+
+  @override
+  String get feedbackInvalidDateMessage => 'Enter a valid date.';
+
+  @override
+  String get feedbackSubmittedByLabel => 'Submitted by';
+
+  @override
+  String get feedbackSubmitterSignedIn => 'Signed-in users';
+
+  @override
+  String get feedbackSubmitterAnonymous => 'Anonymous';
+
+  @override
+  String get feedbackDeviceTypeLabel => 'Device type';
+
+  @override
+  String get feedbackDeviceTypeMobile => 'Mobile';
+
+  @override
+  String get feedbackDeviceTypeTablet => 'Tablet';
+
+  @override
+  String get feedbackDeviceTypeDesktop => 'Desktop';
+
+  @override
+  String get feedbackPlatformLabel => 'Platform';
+
+  @override
+  String get feedbackPlatformWeb => 'Web';
+
+  @override
+  String get feedbackPlatformAndroid => 'Android';
+
+  @override
+  String get feedbackPlatformIos => 'iOS';
+
+  @override
+  String get feedbackPlatformWindows => 'Windows';
+
+  @override
+  String get feedbackPlatformMacos => 'macOS';
+
+  @override
+  String get feedbackPlatformLinux => 'Linux';
+
+  @override
+  String get feedbackFilterAnyLabel => 'Any';
+
+  @override
+  String feedbackSelectRowLabel(String reference) {
+    return 'Select feedback $reference';
+  }
+
+  @override
+  String get feedbackSelectPageLabel => 'Select all feedback on this page';
+
+  @override
+  String get feedbackIdColumnLabel => 'Reference';
+
+  @override
+  String get feedbackSubmittedAtColumnLabel => 'Submitted';
+
+  @override
+  String get feedbackTenantColumnLabel => 'Tenant';
+
+  @override
+  String get feedbackFacilityColumnLabel => 'Facility';
+
+  @override
+  String get feedbackRouteColumnLabel => 'Screen';
+
+  @override
+  String feedbackPageRangeLabel(int first, int last, int total) {
+    return '$first-$last of $total';
+  }
+
+  @override
+  String get feedbackPreviousPageLabel => 'Previous page';
+
+  @override
+  String get feedbackNextPageLabel => 'Next page';
+
+  @override
+  String feedbackSelectedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count records selected',
+      one: '1 record selected',
+      zero: 'No feedback selected',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String feedbackSelectAllMatchingAction(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Select all $count matching records',
+      one: 'Select the matching record',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String feedbackAllMatchingSelected(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'All $count matching records are selected',
+      one: 'The matching record is selected',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get feedbackDeleteSelectedAction => 'Delete permanently';
+
+  @override
+  String get feedbackDeleteConfirmTitle => 'Delete feedback permanently';
+
+  @override
+  String feedbackDeleteConfirmBody(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
       other:
-          'This clears $count stored feedback records from future downloads. Download feedback first if you need a copy.',
-      one:
-          'This clears 1 stored feedback record from future downloads. Download feedback first if you need a copy.',
+          'Delete $count feedback records permanently? This cannot be undone.',
+      one: 'Delete 1 feedback record permanently? This cannot be undone.',
     );
     return '$_temp0';
   }
 
   @override
-  String feedbackClearedMessage(int count) {
+  String feedbackDeletedMessage(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Cleared $count feedback records.',
-      one: 'Cleared 1 feedback record.',
+      other: 'Deleted $count feedback records permanently.',
+      one: 'Deleted 1 feedback record permanently.',
+      zero: 'No feedback was deleted.',
     );
     return '$_temp0';
   }
+
+  @override
+  String get feedbackEmptyTitle => 'No feedback found';
+
+  @override
+  String get feedbackEmptyBody =>
+      'No stored feedback matches the search and filters.';
+
+  @override
+  String get feedbackLoadingTitle => 'Loading feedback';
+
+  @override
+  String get feedbackLoadingBody => 'Fetching stored feedback.';
+
+  @override
+  String get feedbackRetryAction => 'Try again';
 }

@@ -1,10 +1,11 @@
 jest.mock('@repositories/feedback/feedback.repository', () => ({
   createFeedback: jest.fn(),
   createFeedbackEvent: jest.fn(),
+  deleteFeedbackPermanently: jest.fn(),
   findCurrentSubscriptionSnapshot: jest.fn(),
   findFacilitySnapshot: jest.fn(),
   listActiveFeedbackForExport: jest.fn(),
-  softDeleteActiveFeedback: jest.fn(),
+  listActiveFeedbackPage: jest.fn(),
   summarizeActiveFeedback: jest.fn()
 }));
 jest.mock('@repositories/auth/auth.repository', () => ({
@@ -29,9 +30,10 @@ const { resolveTenantModuleEntitlements } = require('@lib/subscriptions/tenant-e
 const { getRoleNames, resolveEffectiveAccess } = require('@lib/authorization/effective-access');
 const { HttpError } = require('@lib/errors');
 const {
-  clearFeedback,
+  deleteFeedback,
   exportFeedback,
   getFeedbackSummary,
+  listFeedback,
   submitFeedback
 } = require('@services/feedback/feedback.service');
 
@@ -276,15 +278,81 @@ describe('feedback service', () => {
       ['TENANT_ADMIN'],
       ['FACILITY_ADMIN'],
       ['DOCTOR']
-    ])('rejects %s for summary, export, and clear', async (role) => {
+    ])('rejects %s for every management action', async (role) => {
       const context = { user: { id: 'user-2', roles: [role] }, user_id: 'user-2' };
 
+      await expect(listFeedback({}, context)).rejects.toBeInstanceOf(HttpError);
       await expect(getFeedbackSummary({}, context)).rejects.toBeInstanceOf(HttpError);
       await expect(exportFeedback({}, context)).rejects.toBeInstanceOf(HttpError);
-      await expect(clearFeedback(context)).rejects.toBeInstanceOf(HttpError);
+      await expect(
+        deleteFeedback({ confirm: true, human_friendly_ids: ['FBK0000001'] }, context)
+      ).rejects.toBeInstanceOf(HttpError);
+      expect(feedbackRepository.listActiveFeedbackPage).not.toHaveBeenCalled();
       expect(feedbackRepository.summarizeActiveFeedback).not.toHaveBeenCalled();
       expect(feedbackRepository.listActiveFeedbackForExport).not.toHaveBeenCalled();
-      expect(feedbackRepository.softDeleteActiveFeedback).not.toHaveBeenCalled();
+      expect(feedbackRepository.deleteFeedbackPermanently).not.toHaveBeenCalled();
+    });
+
+    it('lists a page newest first with short message previews', async () => {
+      feedbackRepository.listActiveFeedbackPage.mockResolvedValue({
+        rows: [
+          {
+            human_friendly_id: 'FBK0000003',
+            category: 'PROBLEM',
+            message: 'x'.repeat(400),
+            submitter_type: 'ANONYMOUS',
+            user_email: null,
+            submitted_at: submittedAt,
+            device_type: 'MOBILE',
+            client_platform: 'web'
+          }
+        ],
+        total: 45
+      });
+
+      const result = await listFeedback(
+        { page: 2, limit: 20, category: ['PROBLEM'], search: 'print' },
+        ownerContext
+      );
+
+      expect(feedbackRepository.listActiveFeedbackPage).toHaveBeenCalledWith({
+        filters: { category: ['PROBLEM'], search: 'print' },
+        skip: 20,
+        take: 20,
+        orderBy: [{ submitted_at: 'desc' }, { id: 'desc' }]
+      });
+      expect(result.pagination).toEqual({
+        page: 2,
+        limit: 20,
+        total: 45,
+        totalPages: 3,
+        hasNextPage: true,
+        hasPreviousPage: true
+      });
+      expect(result.items[0]).toEqual(
+        expect.objectContaining({
+          human_friendly_id: 'FBK0000003',
+          submitter_type: 'ANONYMOUS',
+          device_type: 'MOBILE',
+          client_platform: 'web'
+        })
+      );
+      expect(result.items[0].message_preview).toHaveLength(280);
+      expect(result.items[0]).not.toHaveProperty('message');
+    });
+
+    it('sorts by an allowed column with submission time and id as tie-breakers', async () => {
+      feedbackRepository.listActiveFeedbackPage.mockResolvedValue({ rows: [], total: 0 });
+
+      await listFeedback({ sort_by: 'tenant_name', order: 'asc' }, ownerContext);
+
+      expect(feedbackRepository.listActiveFeedbackPage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skip: 0,
+          take: 20,
+          orderBy: [{ tenant_name: 'asc' }, { submitted_at: 'desc' }, { id: 'desc' }]
+        })
+      );
     });
 
     it('summarizes active feedback for platform admins', async () => {
@@ -295,11 +363,11 @@ describe('feedback service', () => {
       });
 
       const summary = await getFeedbackSummary(
-        { category: 'PROBLEM' },
+        { category: ['PROBLEM'] },
         { user: { id: 'admin-1', roles: ['PLATFORM_ADMIN'] } }
       );
 
-      expect(feedbackRepository.summarizeActiveFeedback).toHaveBeenCalledWith({ category: 'PROBLEM' });
+      expect(feedbackRepository.summarizeActiveFeedback).toHaveBeenCalledWith({ category: ['PROBLEM'] });
       expect(summary).toEqual({
         total: 5,
         authenticated: 3,
@@ -319,11 +387,18 @@ describe('feedback service', () => {
         }
       ]);
 
-      const result = await exportFeedback({ category: 'GENERAL', utc_offset_minutes: 180 }, ownerContext);
+      const result = await exportFeedback(
+        { category: ['GENERAL'], utc_offset_minutes: 180 },
+        ownerContext
+      );
 
-      expect(feedbackRepository.listActiveFeedbackForExport).toHaveBeenCalledWith({ category: 'GENERAL' });
+      expect(feedbackRepository.listActiveFeedbackForExport).toHaveBeenCalledWith({
+        category: ['GENERAL']
+      });
       expect(result.file_name).toMatch(/^HOSSPI-FEEDBACK-\d{8}-\d{6}\.xlsx$/);
-      expect(result.mime_type).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      expect(result.mime_type).toBe(
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
       expect(result.record_count).toBe(1);
 
       const workbook = new ExcelJS.Workbook();
@@ -338,29 +413,55 @@ describe('feedback service', () => {
           entity: 'feedback',
           tenant_id: 'tenant-platform',
           user_id: 'owner-1',
-          diff: { after: { record_count: 1, filters: { category: 'GENERAL' } } }
+          diff: { after: { record_count: 1, filters: { category: ['GENERAL'] } } }
         })
       );
     });
 
-    it('clears feedback by soft delete and audits the count', async () => {
-      feedbackRepository.softDeleteActiveFeedback.mockResolvedValue(4);
+    it('permanently deletes the selected feedback and audits the ids', async () => {
+      feedbackRepository.deleteFeedbackPermanently.mockResolvedValue(2);
 
-      const result = await clearFeedback(ownerContext);
+      const result = await deleteFeedback(
+        { confirm: true, human_friendly_ids: ['fbk0000001', 'FBK0000002', 'FBK0000001'] },
+        ownerContext
+      );
 
-      expect(feedbackRepository.softDeleteActiveFeedback).toHaveBeenCalledWith({
-        deletedByUserId: 'owner-1',
-        deletedAt: expect.any(Date)
+      expect(feedbackRepository.deleteFeedbackPermanently).toHaveBeenCalledWith({
+        humanFriendlyIds: ['FBK0000001', 'FBK0000002']
       });
-      expect(result).toEqual({ cleared_count: 4, cleared_at: expect.any(Date) });
+      expect(result).toEqual({ deleted_count: 2, deleted_at: expect.any(Date) });
       expect(createAuditLog).toHaveBeenCalledWith(
         expect.objectContaining({
           action: 'DELETE',
           entity: 'feedback',
           tenant_id: 'tenant-platform',
-          diff: expect.objectContaining({ before: { active_records: 4 } })
+          diff: expect.objectContaining({
+            before: {
+              human_friendly_ids: ['FBK0000001', 'FBK0000002'],
+              filters: null,
+              matched: 2
+            }
+          })
         })
       );
+    });
+
+    it('permanently deletes every record matching the filters when asked to', async () => {
+      feedbackRepository.deleteFeedbackPermanently.mockResolvedValue(17);
+      const filters = { category: ['PROBLEM'], from: '2026-09-01T00:00:00.000Z' };
+
+      const result = await deleteFeedback({ confirm: true, all_matching: true, filters }, ownerContext);
+
+      expect(feedbackRepository.deleteFeedbackPermanently).toHaveBeenCalledWith({ filters });
+      expect(result.deleted_count).toBe(17);
+    });
+
+    it('refuses a deletion without a target', async () => {
+      await expect(deleteFeedback({ confirm: true }, ownerContext)).rejects.toBeInstanceOf(HttpError);
+      await expect(
+        deleteFeedback({ confirm: true, human_friendly_ids: ['  '] }, ownerContext)
+      ).rejects.toBeInstanceOf(HttpError);
+      expect(feedbackRepository.deleteFeedbackPermanently).not.toHaveBeenCalled();
     });
   });
 });

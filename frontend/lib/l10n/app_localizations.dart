@@ -54529,29 +54529,293 @@ abstract class AppLocalizations {
   /// **'Feedback downloaded.'**
   String get feedbackDownloadedMessage;
 
-  /// Snackbar when Clear feedback is chosen but no feedback is stored.
-  ///
-  /// In en, this message translates to:
-  /// **'There is no stored feedback to clear.'**
-  String get feedbackNothingToClearMessage;
-
-  /// Title of the confirmation dialog before clearing stored feedback.
+  /// Title of the dialog for choosing stored feedback to delete permanently.
   ///
   /// In en, this message translates to:
   /// **'Clear feedback'**
-  String get feedbackClearConfirmTitle;
+  String get feedbackDeleteDialogTitle;
 
-  /// Body of the confirmation dialog before clearing stored feedback.
+  /// Guidance at the top of the Clear feedback dialog.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{This clears 1 stored feedback record from future downloads. Download feedback first if you need a copy.} other{This clears {count} stored feedback records from future downloads. Download feedback first if you need a copy.}}'**
-  String feedbackClearConfirmBody(int count);
+  /// **'Select feedback to delete permanently, or narrow the list with search and filters and select every match. Download feedback first if you need a copy.'**
+  String get feedbackDeleteDialogBody;
 
-  /// Snackbar after stored feedback is cleared.
+  /// Accessible label of the search field in the Clear feedback dialog.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{Cleared 1 feedback record.} other{Cleared {count} feedback records.}}'**
-  String feedbackClearedMessage(int count);
+  /// **'Search feedback'**
+  String get feedbackSearchLabel;
+
+  /// Hint in the search field of the Clear feedback dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Search reference, details, email, name, tenant, facility, or screen'**
+  String get feedbackSearchHint;
+
+  /// Title of the filters dialog for stored feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter feedback'**
+  String get feedbackFiltersTitle;
+
+  /// Button that applies feedback filters.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply filters'**
+  String get feedbackApplyFiltersAction;
+
+  /// Button that resets feedback filters.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear filters'**
+  String get feedbackClearFiltersAction;
+
+  /// Section label for the submission date range filter.
+  ///
+  /// In en, this message translates to:
+  /// **'Submission date'**
+  String get feedbackSubmittedDateLabel;
+
+  /// Start date of the submission date range filter (inclusive).
+  ///
+  /// In en, this message translates to:
+  /// **'Submitted from'**
+  String get feedbackSubmittedFromLabel;
+
+  /// End date of the submission date range filter (inclusive).
+  ///
+  /// In en, this message translates to:
+  /// **'Submitted to'**
+  String get feedbackSubmittedToLabel;
+
+  /// Validation error for a malformed date in the feedback filters.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid date.'**
+  String get feedbackInvalidDateMessage;
+
+  /// Filter and column label for who submitted feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'Submitted by'**
+  String get feedbackSubmittedByLabel;
+
+  /// Filter choice for feedback sent while signed in.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed-in users'**
+  String get feedbackSubmitterSignedIn;
+
+  /// Feedback sent without signing in.
+  ///
+  /// In en, this message translates to:
+  /// **'Anonymous'**
+  String get feedbackSubmitterAnonymous;
+
+  /// Filter and column label for the screen size class feedback came from.
+  ///
+  /// In en, this message translates to:
+  /// **'Device type'**
+  String get feedbackDeviceTypeLabel;
+
+  /// Device type: phone-sized screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Mobile'**
+  String get feedbackDeviceTypeMobile;
+
+  /// Device type: tablet-sized screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Tablet'**
+  String get feedbackDeviceTypeTablet;
+
+  /// Device type: desktop-sized screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Desktop'**
+  String get feedbackDeviceTypeDesktop;
+
+  /// Filter and column label for the platform feedback came from.
+  ///
+  /// In en, this message translates to:
+  /// **'Platform'**
+  String get feedbackPlatformLabel;
+
+  /// Platform: web browser.
+  ///
+  /// In en, this message translates to:
+  /// **'Web'**
+  String get feedbackPlatformWeb;
+
+  /// Platform: Android.
+  ///
+  /// In en, this message translates to:
+  /// **'Android'**
+  String get feedbackPlatformAndroid;
+
+  /// Platform: iOS.
+  ///
+  /// In en, this message translates to:
+  /// **'iOS'**
+  String get feedbackPlatformIos;
+
+  /// Platform: Windows.
+  ///
+  /// In en, this message translates to:
+  /// **'Windows'**
+  String get feedbackPlatformWindows;
+
+  /// Platform: macOS.
+  ///
+  /// In en, this message translates to:
+  /// **'macOS'**
+  String get feedbackPlatformMacos;
+
+  /// Platform: Linux.
+  ///
+  /// In en, this message translates to:
+  /// **'Linux'**
+  String get feedbackPlatformLinux;
+
+  /// Filter choice that does not narrow feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'Any'**
+  String get feedbackFilterAnyLabel;
+
+  /// Accessible label of a feedback row checkbox.
+  ///
+  /// In en, this message translates to:
+  /// **'Select feedback {reference}'**
+  String feedbackSelectRowLabel(String reference);
+
+  /// Accessible label of the header checkbox in the Clear feedback table.
+  ///
+  /// In en, this message translates to:
+  /// **'Select all feedback on this page'**
+  String get feedbackSelectPageLabel;
+
+  /// Column for the feedback reference id.
+  ///
+  /// In en, this message translates to:
+  /// **'Reference'**
+  String get feedbackIdColumnLabel;
+
+  /// Column for when feedback was submitted.
+  ///
+  /// In en, this message translates to:
+  /// **'Submitted'**
+  String get feedbackSubmittedAtColumnLabel;
+
+  /// Column for the submitter's tenant.
+  ///
+  /// In en, this message translates to:
+  /// **'Tenant'**
+  String get feedbackTenantColumnLabel;
+
+  /// Column for the submitter's facility.
+  ///
+  /// In en, this message translates to:
+  /// **'Facility'**
+  String get feedbackFacilityColumnLabel;
+
+  /// Column for the screen feedback was sent from.
+  ///
+  /// In en, this message translates to:
+  /// **'Screen'**
+  String get feedbackRouteColumnLabel;
+
+  /// Pagination status in the Clear feedback table.
+  ///
+  /// In en, this message translates to:
+  /// **'{first}-{last} of {total}'**
+  String feedbackPageRangeLabel(int first, int last, int total);
+
+  /// Button that shows the previous page of feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous page'**
+  String get feedbackPreviousPageLabel;
+
+  /// Button that shows the next page of feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'Next page'**
+  String get feedbackNextPageLabel;
+
+  /// How much feedback is selected for deletion.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No feedback selected} =1{1 record selected} other{{count} records selected}}'**
+  String feedbackSelectedCount(int count);
+
+  /// Action that selects every record matching the search and filters, across pages.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Select the matching record} other{Select all {count} matching records}}'**
+  String feedbackSelectAllMatchingAction(int count);
+
+  /// Selection status when every matching record is selected.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{The matching record is selected} other{All {count} matching records are selected}}'**
+  String feedbackAllMatchingSelected(int count);
+
+  /// Button that permanently deletes the selected feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete permanently'**
+  String get feedbackDeleteSelectedAction;
+
+  /// Title of the confirmation before feedback is deleted permanently.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete feedback permanently'**
+  String get feedbackDeleteConfirmTitle;
+
+  /// Body of the confirmation before feedback is deleted permanently.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Delete 1 feedback record permanently? This cannot be undone.} other{Delete {count} feedback records permanently? This cannot be undone.}}'**
+  String feedbackDeleteConfirmBody(int count);
+
+  /// Snackbar after feedback is deleted permanently.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No feedback was deleted.} =1{Deleted 1 feedback record permanently.} other{Deleted {count} feedback records permanently.}}'**
+  String feedbackDeletedMessage(int count);
+
+  /// Empty state title in the Clear feedback table.
+  ///
+  /// In en, this message translates to:
+  /// **'No feedback found'**
+  String get feedbackEmptyTitle;
+
+  /// Empty state body in the Clear feedback table.
+  ///
+  /// In en, this message translates to:
+  /// **'No stored feedback matches the search and filters.'**
+  String get feedbackEmptyBody;
+
+  /// Loading state title in the Clear feedback table.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading feedback'**
+  String get feedbackLoadingTitle;
+
+  /// Loading state body in the Clear feedback table.
+  ///
+  /// In en, this message translates to:
+  /// **'Fetching stored feedback.'**
+  String get feedbackLoadingBody;
+
+  /// Reloads feedback after it failed to load.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get feedbackRetryAction;
 }
 
 class _AppLocalizationsDelegate

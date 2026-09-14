@@ -4,7 +4,7 @@
 
 const feedbackService = require('@services/feedback/feedback.service');
 const { asyncHandler } = require('@lib/async');
-const { sendSuccess } = require('@lib/response');
+const { sendPaginated, sendSuccess } = require('@lib/response');
 
 const buildFeedbackContext = (req) => ({
   user: req.user || null,
@@ -42,6 +42,11 @@ const submitFeedback = asyncHandler(async (req, res) => {
   sendSuccess(res, 201, 'messages.feedback.submit.success', result);
 });
 
+const listFeedback = asyncHandler(async (req, res) => {
+  const result = await feedbackService.listFeedback(req.query, buildFeedbackContext(req));
+  sendPaginated(res, 'messages.feedback.list.success', result.items, result.pagination);
+});
+
 const getFeedbackSummary = asyncHandler(async (req, res) => {
   const result = await feedbackService.getFeedbackSummary(req.query, buildFeedbackContext(req));
   sendSuccess(res, 200, 'messages.feedback.summary.success', result);
@@ -55,15 +60,16 @@ const exportFeedback = asyncHandler(async (req, res) => {
   res.status(200).send(result.buffer);
 });
 
-const clearFeedback = asyncHandler(async (req, res) => {
-  const result = await feedbackService.clearFeedback(buildFeedbackContext(req));
-  sendSuccess(res, 200, 'messages.feedback.clear.success', result);
+const deleteFeedback = asyncHandler(async (req, res) => {
+  const result = await feedbackService.deleteFeedback(req.body, buildFeedbackContext(req));
+  sendSuccess(res, 200, 'messages.feedback.delete.success', result);
 });
 
 module.exports = {
-  clearFeedback,
+  deleteFeedback,
   exportFeedback,
   getFeedbackSummary,
+  listFeedback,
   submitCsatFeedback,
   submitFeedback,
   submitNpsFeedback

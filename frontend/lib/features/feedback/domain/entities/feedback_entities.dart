@@ -9,6 +9,15 @@ enum FeedbackCategory {
   const FeedbackCategory(this.apiValue);
 
   final String apiValue;
+
+  static FeedbackCategory fromApiValue(Object? value) {
+    for (final FeedbackCategory category in values) {
+      if (category.apiValue == value) {
+        return category;
+      }
+    }
+    return general;
+  }
 }
 
 /// Whether the server identified who submitted the feedback.
@@ -35,7 +44,26 @@ enum FeedbackDeviceType {
   const FeedbackDeviceType(this.apiValue);
 
   final String apiValue;
+
+  static FeedbackDeviceType? fromApiValue(Object? value) {
+    for (final FeedbackDeviceType type in values) {
+      if (type.apiValue == value) {
+        return type;
+      }
+    }
+    return null;
+  }
 }
+
+/// Client platforms the app reports, as stored in `client_platform`.
+const List<String> feedbackPlatforms = <String>[
+  'web',
+  'android',
+  'ios',
+  'windows',
+  'macos',
+  'linux',
+];
 
 /// Message bounds enforced by `POST /api/v1/feedback`.
 const int feedbackMessageMinLength = 3;
@@ -130,23 +158,91 @@ final class FeedbackReceipt {
   final DateTime? submittedAt;
 }
 
-final class FeedbackSummary {
-  const FeedbackSummary({
-    required this.total,
-    required this.authenticated,
-    required this.anonymous,
-    this.latestSubmittedAt,
+/// A stored feedback record as listed for platform owners and admins.
+final class FeedbackRecord {
+  const FeedbackRecord({
+    required this.referenceId,
+    required this.category,
+    required this.submitterType,
+    required this.messagePreview,
+    this.submittedAt,
+    this.userEmail,
+    this.userName,
+    this.tenantName,
+    this.facilityName,
+    this.routePath,
+    this.deviceType,
+    this.platform,
   });
 
-  final int total;
-  final int authenticated;
-  final int anonymous;
-  final DateTime? latestSubmittedAt;
+  /// Human-friendly feedback id (`FBK…`); also the deletion key.
+  final String referenceId;
+  final FeedbackCategory category;
+  final FeedbackSubmitterType submitterType;
+
+  /// The start of the message; the API sends at most a few hundred characters.
+  final String messagePreview;
+  final DateTime? submittedAt;
+  final String? userEmail;
+  final String? userName;
+  final String? tenantName;
+  final String? facilityName;
+  final String? routePath;
+  final FeedbackDeviceType? deviceType;
+  final String? platform;
 }
 
-final class FeedbackClearResult {
-  const FeedbackClearResult({required this.clearedCount, this.clearedAt});
+/// Narrows stored feedback while browsing or deleting it.
+///
+/// Submission dates are local calendar days; [submittedTo] includes the whole
+/// day.
+final class FeedbackFilters {
+  const FeedbackFilters({
+    this.search = '',
+    this.categories = const <FeedbackCategory>{},
+    this.submitterType,
+    this.deviceTypes = const <FeedbackDeviceType>{},
+    this.platforms = const <String>{},
+    this.submittedFrom,
+    this.submittedTo,
+  });
 
-  final int clearedCount;
-  final DateTime? clearedAt;
+  static const FeedbackFilters none = FeedbackFilters();
+
+  final String search;
+  final Set<FeedbackCategory> categories;
+  final FeedbackSubmitterType? submitterType;
+  final Set<FeedbackDeviceType> deviceTypes;
+  final Set<String> platforms;
+  final DateTime? submittedFrom;
+  final DateTime? submittedTo;
+
+  /// Whether a filter other than [search] narrows the list.
+  bool get hasActiveFilters {
+    return categories.isNotEmpty ||
+        submitterType != null ||
+        deviceTypes.isNotEmpty ||
+        platforms.isNotEmpty ||
+        submittedFrom != null ||
+        submittedTo != null;
+  }
+
+  FeedbackFilters withSearch(String value) {
+    return FeedbackFilters(
+      search: value.trim(),
+      categories: categories,
+      submitterType: submitterType,
+      deviceTypes: deviceTypes,
+      platforms: platforms,
+      submittedFrom: submittedFrom,
+      submittedTo: submittedTo,
+    );
+  }
+}
+
+final class FeedbackDeleteResult {
+  const FeedbackDeleteResult({required this.deletedCount, this.deletedAt});
+
+  final int deletedCount;
+  final DateTime? deletedAt;
 }

@@ -28,6 +28,21 @@ const {
   resolveExportClock
 } = require('@lib/feedback/feedback-export');
 
+const FEEDBACK_LIST_DEFAULT_LIMIT = 20;
+const FEEDBACK_MESSAGE_PREVIEW_LENGTH = 280;
+const FEEDBACK_AUDIT_ID_SAMPLE = 200;
+const FEEDBACK_SORTABLE_FIELDS = new Set([
+  'submitted_at',
+  'human_friendly_id',
+  'category',
+  'submitter_type',
+  'device_type',
+  'client_platform',
+  'user_email',
+  'tenant_name',
+  'facility_name'
+]);
+
 const ensureTenant = (context) => {
   if (!context.tenant_id) {
     throw new HttpError('errors.auth.forbidden', 403);
@@ -320,8 +335,69 @@ const ensureFeedbackAdmin = (context = {}) => {
   }
 };
 
+// Newest first by default; submission time and id break ties so paging is stable.
+const buildFeedbackOrderBy = (sortBy, order) => {
+  const direction = order === 'asc' ? 'asc' : 'desc';
+  if (!FEEDBACK_SORTABLE_FIELDS.has(sortBy) || sortBy === 'submitted_at') {
+    return [{ submitted_at: sortBy === 'submitted_at' ? direction : 'desc' }, { id: 'desc' }];
+  }
+  return [{ [sortBy]: direction }, { submitted_at: 'desc' }, { id: 'desc' }];
+};
+
+const toFeedbackListItem = (row) => ({
+  human_friendly_id: row.human_friendly_id,
+  submitted_at: row.submitted_at,
+  category: row.category,
+  submitter_type: row.submitter_type,
+  message_preview: truncateFeedbackText(row.message, FEEDBACK_MESSAGE_PREVIEW_LENGTH),
+  user_email: row.user_email || null,
+  user_name: row.user_name || null,
+  tenant_name: row.tenant_name || null,
+  facility_name: row.facility_name || null,
+  route_path: row.route_path || null,
+  device_type: row.device_type || null,
+  client_platform: row.client_platform || null
+});
+
 /**
- * @param {Object} filters - category, submitter_type, from, to
+ * One page of stored feedback for review and deletion.
+ *
+ * @param {Object} query - Validated page, limit, sort_by, order, and filters
+ * @param {Object} context - Request context
+ * @returns {Promise<{ items: Object[], pagination: Object }>}
+ */
+const listFeedback = async (query = {}, context = {}) => {
+  ensureFeedbackAdmin(context);
+
+  const { page: requestedPage, limit: requestedLimit, sort_by: sortBy, order, ...filters } = query;
+  const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const limit =
+    Number.isInteger(requestedLimit) && requestedLimit > 0
+      ? requestedLimit
+      : FEEDBACK_LIST_DEFAULT_LIMIT;
+
+  const { rows, total } = await feedbackRepository.listActiveFeedbackPage({
+    filters,
+    skip: (page - 1) * limit,
+    take: limit,
+    orderBy: buildFeedbackOrderBy(sortBy, order)
+  });
+
+  return {
+    items: rows.map(toFeedbackListItem),
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+      hasNextPage: page * limit < total,
+      hasPreviousPage: page > 1
+    }
+  };
+};
+
+/**
+ * @param {Object} filters - Validated feedback filters
  * @param {Object} context - Request context
  * @returns {Promise<Object>} total, authenticated, anonymous, latest_submitted_at
  */
@@ -383,19 +459,35 @@ const exportFeedback = async (query = {}, context = {}) => {
 };
 
 /**
- * Clear all stored feedback. Rows are soft-deleted and leave every export.
+ * Permanently delete feedback chosen in "Clear feedback": the listed ids, or
+ * every record matching the filters when `all_matching` is set.
  *
+ * @param {Object} body - Validated body: confirm, human_friendly_ids | all_matching + filters
  * @param {Object} context - Request context
- * @returns {Promise<Object>} cleared_count, cleared_at
+ * @returns {Promise<Object>} deleted_count, deleted_at
  */
-const clearFeedback = async (context = {}) => {
+const deleteFeedback = async (body = {}, context = {}) => {
   ensureFeedbackAdmin(context);
 
-  const clearedAt = new Date();
-  const clearedCount = await feedbackRepository.softDeleteActiveFeedback({
-    deletedByUserId: toIdentifier(context.user_id),
-    deletedAt: clearedAt
-  });
+  const humanFriendlyIds = Array.isArray(body.human_friendly_ids)
+    ? Array.from(
+        new Set(
+          body.human_friendly_ids
+            .map((id) => String(id || '').trim().toUpperCase())
+            .filter(Boolean)
+        )
+      )
+    : [];
+  const deletesAllMatching = body.all_matching === true;
+  if (humanFriendlyIds.length === 0 && !deletesAllMatching) {
+    throw new HttpError('errors.validation.invalid', 400, [{ field: 'human_friendly_ids' }]);
+  }
+
+  const filters = deletesAllMatching ? body.filters || {} : null;
+  const deletedAt = new Date();
+  const deletedCount = await feedbackRepository.deleteFeedbackPermanently(
+    deletesAllMatching ? { filters } : { humanFriendlyIds }
+  );
 
   createAuditLog({
     user_id: context.user_id,
@@ -404,22 +496,32 @@ const clearFeedback = async (context = {}) => {
     entity: 'feedback',
     entity_id: randomUUID(),
     diff: {
-      before: { active_records: clearedCount },
-      after: { active_records: 0, cleared_at: clearedAt.toISOString() }
+      before: {
+        human_friendly_ids: deletesAllMatching
+          ? null
+          : humanFriendlyIds.slice(0, FEEDBACK_AUDIT_ID_SAMPLE),
+        filters,
+        matched: deletedCount
+      },
+      after: {
+        deleted_permanently: true,
+        deleted_at: deletedAt.toISOString()
+      }
     },
     ip_address: context.ip_address
   }).catch(() => {});
 
   return {
-    cleared_count: clearedCount,
-    cleared_at: clearedAt
+    deleted_count: deletedCount,
+    deleted_at: deletedAt
   };
 };
 
 module.exports = {
-  clearFeedback,
+  deleteFeedback,
   exportFeedback,
   getFeedbackSummary,
+  listFeedback,
   submitCsatFeedback,
   submitFeedback,
   submitNpsFeedback

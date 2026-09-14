@@ -7860,7 +7860,7 @@ model audit_log {
 // The system of record for feedback. Identity, tenant, facility, subscription,
 // and access columns are snapshots taken at submission so exports stay
 // accurate after renames, plan changes, or account removal. Anonymous rows
-// keep only page and technical context. Clearing soft-deletes.
+// keep only page and technical context. Deleting from the app is permanent.
 model feedback {
   id                         String                @id @default(uuid()) @db.VarChar(36)
   human_friendly_id          String?               @db.VarChar(32)

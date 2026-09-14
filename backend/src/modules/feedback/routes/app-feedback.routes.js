@@ -3,8 +3,9 @@
  *
  * Mounted ahead of the global authentication chain in `src/app/router.js`:
  * "Give us feedback" must work on sign-in screens and after a session lapses,
- * so every route here declares its own authentication. Download and clear stay
- * with platform owners and platform admins, enforced here and in the service.
+ * so every route here declares its own authentication. Listing, download, and
+ * deletion stay with platform owners and platform admins, enforced here and in
+ * the service.
  */
 
 const express = require('express');
@@ -21,9 +22,10 @@ const { hydrateLiveAccess } = require('@middlewares/live-access.middleware');
 const { validateRequest } = require('@middlewares/validate.middleware');
 const { FEEDBACK_ADMIN_ROLES } = require('@lib/feedback/feedback-access');
 const {
-  clearFeedbackSchema,
+  deleteFeedbackSchema,
   exportFeedbackQuerySchema,
   feedbackFilterQuerySchema,
+  listFeedbackQuerySchema,
   submitFeedbackSchema
 } = require('@validations/feedback/feedback.schema');
 
@@ -56,13 +58,33 @@ router.post(
 );
 
 /**
+ * @description List stored feedback for review and deletion, newest first
+ * @method GET
+ * @route /api/v1/feedback
+ * @authentication Required
+ * @permissions PLATFORM_OWNER, PLATFORM_ADMIN
+ * @urlParams None
+ * @queryParams page, limit, sort_by, order, search, category, submitter_type, device_type, platform, from, to
+ * @bodyParams None
+ * @returns {Object[]} Paginated feedback rows
+ * @throws 401 Unauthorized
+ * @throws 403 Forbidden
+ */
+router.get(
+  '/',
+  ...requireFeedbackAdmin(),
+  validateRequest({ query: listFeedbackQuerySchema }),
+  feedbackController.listFeedback
+);
+
+/**
  * @description Count stored feedback
  * @method GET
  * @route /api/v1/feedback/summary
  * @authentication Required
  * @permissions PLATFORM_OWNER, PLATFORM_ADMIN
  * @urlParams None
- * @queryParams category, submitter_type, from, to
+ * @queryParams search, category, submitter_type, device_type, platform, from, to
  * @bodyParams None
  * @returns {Object} total, authenticated, anonymous, latest_submitted_at
  * @throws 401 Unauthorized
@@ -82,7 +104,7 @@ router.get(
  * @authentication Required
  * @permissions PLATFORM_OWNER, PLATFORM_ADMIN
  * @urlParams None
- * @queryParams category, submitter_type, from, to, utc_offset_minutes
+ * @queryParams search, category, submitter_type, device_type, platform, from, to, utc_offset_minutes
  * @bodyParams None
  * @returns {Buffer} Excel workbook
  * @throws 401 Unauthorized
@@ -96,15 +118,15 @@ router.get(
 );
 
 /**
- * @description Clear stored feedback (soft delete)
+ * @description Permanently delete selected feedback, or every record matching filters
  * @method DELETE
  * @route /api/v1/feedback
  * @authentication Required
  * @permissions PLATFORM_OWNER, PLATFORM_ADMIN
  * @urlParams None
  * @queryParams None
- * @bodyParams confirm (must be true)
- * @returns {Object} cleared_count, cleared_at
+ * @bodyParams confirm (true), human_friendly_ids | all_matching (true) + filters
+ * @returns {Object} deleted_count, deleted_at
  * @throws 400 Validation error
  * @throws 401 Unauthorized
  * @throws 403 Forbidden
@@ -112,8 +134,8 @@ router.get(
 router.delete(
   '/',
   ...requireFeedbackAdmin(),
-  validateRequest({ body: clearFeedbackSchema }),
-  feedbackController.clearFeedback
+  validateRequest({ body: deleteFeedbackSchema }),
+  feedbackController.deleteFeedback
 );
 
 module.exports = router;

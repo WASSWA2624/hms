@@ -9,6 +9,7 @@ import 'package:hosspi_hms/core/network/api_response.dart';
 import 'package:hosspi_hms/core/network/network_providers.dart';
 import 'package:hosspi_hms/features/feedback/domain/entities/feedback_entities.dart';
 import 'package:hosspi_hms/features/feedback/domain/repositories/feedback_repository.dart';
+import 'package:hosspi_hms/shared/data/app_pagination.dart';
 
 final feedbackRepositoryProvider = Provider<FeedbackRepository>((ref) {
   return FeedbackRepositoryImpl(
@@ -48,14 +49,20 @@ final class FeedbackRepositoryImpl implements FeedbackRepository {
   }
 
   @override
-  Future<Result<FeedbackSummary>> fetchFeedbackSummary() {
-    return _apiClient.get<FeedbackSummary>(
-      ApiEndpoints.apiV1(<String>[HmsApiResource.feedback.path, 'summary']),
-      decoder: (Object? data) =>
-          ApiResponseEnvelope.decodeData<FeedbackSummary>(
-            data,
-            decoder: _decodeSummary,
-          ),
+  Future<Result<AppPage<FeedbackRecord>>> fetchFeedbackPage({
+    required FeedbackFilters filters,
+    required AppPageRequest request,
+  }) {
+    return _apiClient.get<AppPage<FeedbackRecord>>(
+      ApiEndpoints.apiV1(
+        <String>[HmsApiResource.feedback.path],
+        queryParameters: <String, String>{
+          'page': '${request.pageIndex + 1}',
+          'limit': '${request.pageSize}',
+          ...feedbackFilterQueryParameters(filters),
+        },
+      ),
+      decoder: (Object? data) => _decodeRecordPage(data, request),
     );
   }
 
@@ -76,15 +83,33 @@ final class FeedbackRepositoryImpl implements FeedbackRepository {
   }
 
   @override
-  Future<Result<FeedbackClearResult>> clearFeedback() {
-    return _apiClient.delete<FeedbackClearResult>(
+  Future<Result<FeedbackDeleteResult>> deleteFeedback({
+    required Set<String> referenceIds,
+  }) {
+    return _delete(<String, Object?>{
+      'human_friendly_ids': referenceIds.toList(growable: false),
+    });
+  }
+
+  @override
+  Future<Result<FeedbackDeleteResult>> deleteMatchingFeedback({
+    required FeedbackFilters filters,
+  }) {
+    return _delete(<String, Object?>{
+      'all_matching': true,
+      'filters': feedbackFilterBody(filters),
+    });
+  }
+
+  Future<Result<FeedbackDeleteResult>> _delete(Map<String, Object?> target) {
+    return _apiClient.delete<FeedbackDeleteResult>(
       ApiEndpoints.collection(HmsApiResource.feedback),
-      // The API requires explicit confirmation before clearing.
-      data: const <String, Object?>{'confirm': true},
+      // The API requires explicit confirmation before deleting.
+      data: <String, Object?>{'confirm': true, ...target},
       decoder: (Object? data) =>
-          ApiResponseEnvelope.decodeData<FeedbackClearResult>(
+          ApiResponseEnvelope.decodeData<FeedbackDeleteResult>(
             data,
-            decoder: _decodeClearResult,
+            decoder: _decodeDeleteResult,
           ),
     );
   }
@@ -140,6 +165,56 @@ Map<String, Object?> feedbackSubmissionPayload(FeedbackSubmission submission) {
   };
 }
 
+/// Filters for `DELETE /api/v1/feedback` with `all_matching`: lists stay lists,
+/// and submission dates become the UTC bounds of whole local days.
+Map<String, Object?> feedbackFilterBody(FeedbackFilters filters) {
+  final String search = filters.search.trim();
+  final FeedbackSubmitterType? submitterType = filters.submitterType;
+  final DateTime? from = filters.submittedFrom;
+  final DateTime? to = filters.submittedTo;
+
+  return <String, Object?>{
+    if (search.isNotEmpty) 'search': search,
+    if (filters.categories.isNotEmpty)
+      'category': _sortedValues(
+        filters.categories.map((FeedbackCategory value) => value.apiValue),
+      ),
+    if (submitterType != null) 'submitter_type': submitterType.apiValue,
+    if (filters.deviceTypes.isNotEmpty)
+      'device_type': _sortedValues(
+        filters.deviceTypes.map((FeedbackDeviceType value) => value.apiValue),
+      ),
+    if (filters.platforms.isNotEmpty)
+      'platform': _sortedValues(filters.platforms),
+    if (from != null)
+      'from': _utcIso(DateTime(from.year, from.month, from.day)),
+    if (to != null)
+      'to': _utcIso(DateTime(to.year, to.month, to.day, 23, 59, 59, 999)),
+  };
+}
+
+/// The same filters as query parameters, with multi-value filters
+/// comma-separated.
+Map<String, String> feedbackFilterQueryParameters(FeedbackFilters filters) {
+  return feedbackFilterBody(filters).map(
+    (String key, Object? value) => MapEntry<String, String>(
+      key,
+      value is List ? value.join(',') : '$value',
+    ),
+  );
+}
+
+List<String> _sortedValues(Iterable<String> values) {
+  return values.toSet().toList()..sort();
+}
+
+String _utcIso(DateTime local) {
+  return DateTime.fromMillisecondsSinceEpoch(
+    local.millisecondsSinceEpoch,
+    isUtc: true,
+  ).toIso8601String();
+}
+
 String? _capText(String? value, int maxLength) {
   final String? text = value?.trim();
   if (text == null || text.isEmpty) {
@@ -151,27 +226,56 @@ String? _capText(String? value, int maxLength) {
 FeedbackReceipt _decodeReceipt(Object? data) {
   final Map<String, Object?> json = _asJsonMap(data);
   return FeedbackReceipt(
-    referenceId: _readText(json['human_friendly_id']),
+    referenceId: _readText(json['human_friendly_id']) ?? _readText(json['id']),
     submitterType: FeedbackSubmitterType.fromApiValue(json['submitter_type']),
     submittedAt: _readDate(json['submitted_at']),
   );
 }
 
-FeedbackSummary _decodeSummary(Object? data) {
-  final Map<String, Object?> json = _asJsonMap(data);
-  return FeedbackSummary(
-    total: _readInt(json['total']),
-    authenticated: _readInt(json['authenticated']),
-    anonymous: _readInt(json['anonymous']),
-    latestSubmittedAt: _readDate(json['latest_submitted_at']),
+AppPage<FeedbackRecord> _decodeRecordPage(
+  Object? data,
+  AppPageRequest request,
+) {
+  final Map<String, Object?> response = _asJsonMap(data);
+  final Object? rows = response['data'];
+  final List<FeedbackRecord> items = rows is List
+      ? rows
+            .map((Object? row) => _decodeRecord(_asJsonMap(row)))
+            .toList(growable: false)
+      : const <FeedbackRecord>[];
+  final Object? pagination = response['pagination'];
+  final Object? total = pagination is Map ? pagination['total'] : null;
+
+  return AppPage<FeedbackRecord>(
+    items: items,
+    request: request,
+    totalItemCount: total == null ? null : _readInt(total),
   );
 }
 
-FeedbackClearResult _decodeClearResult(Object? data) {
+FeedbackRecord _decodeRecord(Map<String, Object?> json) {
+  return FeedbackRecord(
+    referenceId:
+        _readText(json['human_friendly_id']) ?? _readText(json['id']) ?? '',
+    category: FeedbackCategory.fromApiValue(json['category']),
+    submitterType: FeedbackSubmitterType.fromApiValue(json['submitter_type']),
+    messagePreview: _readText(json['message_preview']) ?? '',
+    submittedAt: _readDate(json['submitted_at'])?.toLocal(),
+    userEmail: _readText(json['user_email']),
+    userName: _readText(json['user_name']),
+    tenantName: _readText(json['tenant_name']),
+    facilityName: _readText(json['facility_name']),
+    routePath: _readText(json['route_path']),
+    deviceType: FeedbackDeviceType.fromApiValue(json['device_type']),
+    platform: _readText(json['client_platform']),
+  );
+}
+
+FeedbackDeleteResult _decodeDeleteResult(Object? data) {
   final Map<String, Object?> json = _asJsonMap(data);
-  return FeedbackClearResult(
-    clearedCount: _readInt(json['cleared_count']),
-    clearedAt: _readDate(json['cleared_at']),
+  return FeedbackDeleteResult(
+    deletedCount: _readInt(json['deleted_count']),
+    deletedAt: _readDate(json['deleted_at']),
   );
 }
 

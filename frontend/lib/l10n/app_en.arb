@@ -38470,30 +38470,246 @@
   "@feedbackDownloadedMessage": {
     "description": "Snackbar after the feedback Excel file is saved."
   },
-  "feedbackNothingToClearMessage": "There is no stored feedback to clear.",
-  "@feedbackNothingToClearMessage": {
-    "description": "Snackbar when Clear feedback is chosen but no feedback is stored."
+  "feedbackDeleteDialogTitle": "Clear feedback",
+  "@feedbackDeleteDialogTitle": {
+    "description": "Title of the dialog for choosing stored feedback to delete permanently."
   },
-  "feedbackClearConfirmTitle": "Clear feedback",
-  "@feedbackClearConfirmTitle": {
-    "description": "Title of the confirmation dialog before clearing stored feedback."
+  "feedbackDeleteDialogBody": "Select feedback to delete permanently, or narrow the list with search and filters and select every match. Download feedback first if you need a copy.",
+  "@feedbackDeleteDialogBody": {
+    "description": "Guidance at the top of the Clear feedback dialog."
   },
-  "feedbackClearConfirmBody": "{count, plural, =1{This clears 1 stored feedback record from future downloads. Download feedback first if you need a copy.} other{This clears {count} stored feedback records from future downloads. Download feedback first if you need a copy.}}",
-  "@feedbackClearConfirmBody": {
-    "description": "Body of the confirmation dialog before clearing stored feedback.",
+  "feedbackSearchLabel": "Search feedback",
+  "@feedbackSearchLabel": {
+    "description": "Accessible label of the search field in the Clear feedback dialog."
+  },
+  "feedbackSearchHint": "Search reference, details, email, name, tenant, facility, or screen",
+  "@feedbackSearchHint": {
+    "description": "Hint in the search field of the Clear feedback dialog."
+  },
+  "feedbackFiltersTitle": "Filter feedback",
+  "@feedbackFiltersTitle": {
+    "description": "Title of the filters dialog for stored feedback."
+  },
+  "feedbackApplyFiltersAction": "Apply filters",
+  "@feedbackApplyFiltersAction": {
+    "description": "Button that applies feedback filters."
+  },
+  "feedbackClearFiltersAction": "Clear filters",
+  "@feedbackClearFiltersAction": {
+    "description": "Button that resets feedback filters."
+  },
+  "feedbackSubmittedDateLabel": "Submission date",
+  "@feedbackSubmittedDateLabel": {
+    "description": "Section label for the submission date range filter."
+  },
+  "feedbackSubmittedFromLabel": "Submitted from",
+  "@feedbackSubmittedFromLabel": {
+    "description": "Start date of the submission date range filter (inclusive)."
+  },
+  "feedbackSubmittedToLabel": "Submitted to",
+  "@feedbackSubmittedToLabel": {
+    "description": "End date of the submission date range filter (inclusive)."
+  },
+  "feedbackInvalidDateMessage": "Enter a valid date.",
+  "@feedbackInvalidDateMessage": {
+    "description": "Validation error for a malformed date in the feedback filters."
+  },
+  "feedbackSubmittedByLabel": "Submitted by",
+  "@feedbackSubmittedByLabel": {
+    "description": "Filter and column label for who submitted feedback."
+  },
+  "feedbackSubmitterSignedIn": "Signed-in users",
+  "@feedbackSubmitterSignedIn": {
+    "description": "Filter choice for feedback sent while signed in."
+  },
+  "feedbackSubmitterAnonymous": "Anonymous",
+  "@feedbackSubmitterAnonymous": {
+    "description": "Feedback sent without signing in."
+  },
+  "feedbackDeviceTypeLabel": "Device type",
+  "@feedbackDeviceTypeLabel": {
+    "description": "Filter and column label for the screen size class feedback came from."
+  },
+  "feedbackDeviceTypeMobile": "Mobile",
+  "@feedbackDeviceTypeMobile": {
+    "description": "Device type: phone-sized screen."
+  },
+  "feedbackDeviceTypeTablet": "Tablet",
+  "@feedbackDeviceTypeTablet": {
+    "description": "Device type: tablet-sized screen."
+  },
+  "feedbackDeviceTypeDesktop": "Desktop",
+  "@feedbackDeviceTypeDesktop": {
+    "description": "Device type: desktop-sized screen."
+  },
+  "feedbackPlatformLabel": "Platform",
+  "@feedbackPlatformLabel": {
+    "description": "Filter and column label for the platform feedback came from."
+  },
+  "feedbackPlatformWeb": "Web",
+  "@feedbackPlatformWeb": {
+    "description": "Platform: web browser."
+  },
+  "feedbackPlatformAndroid": "Android",
+  "@feedbackPlatformAndroid": {
+    "description": "Platform: Android."
+  },
+  "feedbackPlatformIos": "iOS",
+  "@feedbackPlatformIos": {
+    "description": "Platform: iOS."
+  },
+  "feedbackPlatformWindows": "Windows",
+  "@feedbackPlatformWindows": {
+    "description": "Platform: Windows."
+  },
+  "feedbackPlatformMacos": "macOS",
+  "@feedbackPlatformMacos": {
+    "description": "Platform: macOS."
+  },
+  "feedbackPlatformLinux": "Linux",
+  "@feedbackPlatformLinux": {
+    "description": "Platform: Linux."
+  },
+  "feedbackFilterAnyLabel": "Any",
+  "@feedbackFilterAnyLabel": {
+    "description": "Filter choice that does not narrow feedback."
+  },
+  "feedbackSelectRowLabel": "Select feedback {reference}",
+  "@feedbackSelectRowLabel": {
+    "description": "Accessible label of a feedback row checkbox.",
+    "placeholders": {
+      "reference": {
+        "type": "String",
+        "example": "FBK0000012"
+      }
+    }
+  },
+  "feedbackSelectPageLabel": "Select all feedback on this page",
+  "@feedbackSelectPageLabel": {
+    "description": "Accessible label of the header checkbox in the Clear feedback table."
+  },
+  "feedbackIdColumnLabel": "Reference",
+  "@feedbackIdColumnLabel": {
+    "description": "Column for the feedback reference id."
+  },
+  "feedbackSubmittedAtColumnLabel": "Submitted",
+  "@feedbackSubmittedAtColumnLabel": {
+    "description": "Column for when feedback was submitted."
+  },
+  "feedbackTenantColumnLabel": "Tenant",
+  "@feedbackTenantColumnLabel": {
+    "description": "Column for the submitter's tenant."
+  },
+  "feedbackFacilityColumnLabel": "Facility",
+  "@feedbackFacilityColumnLabel": {
+    "description": "Column for the submitter's facility."
+  },
+  "feedbackRouteColumnLabel": "Screen",
+  "@feedbackRouteColumnLabel": {
+    "description": "Column for the screen feedback was sent from."
+  },
+  "feedbackPageRangeLabel": "{first}-{last} of {total}",
+  "@feedbackPageRangeLabel": {
+    "description": "Pagination status in the Clear feedback table.",
+    "placeholders": {
+      "first": {
+        "type": "int"
+      },
+      "last": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "feedbackPreviousPageLabel": "Previous page",
+  "@feedbackPreviousPageLabel": {
+    "description": "Button that shows the previous page of feedback."
+  },
+  "feedbackNextPageLabel": "Next page",
+  "@feedbackNextPageLabel": {
+    "description": "Button that shows the next page of feedback."
+  },
+  "feedbackSelectedCount": "{count, plural, =0{No feedback selected} =1{1 record selected} other{{count} records selected}}",
+  "@feedbackSelectedCount": {
+    "description": "How much feedback is selected for deletion.",
     "placeholders": {
       "count": {
         "type": "int"
       }
     }
   },
-  "feedbackClearedMessage": "{count, plural, =1{Cleared 1 feedback record.} other{Cleared {count} feedback records.}}",
-  "@feedbackClearedMessage": {
-    "description": "Snackbar after stored feedback is cleared.",
+  "feedbackSelectAllMatchingAction": "{count, plural, =1{Select the matching record} other{Select all {count} matching records}}",
+  "@feedbackSelectAllMatchingAction": {
+    "description": "Action that selects every record matching the search and filters, across pages.",
     "placeholders": {
       "count": {
         "type": "int"
       }
     }
+  },
+  "feedbackAllMatchingSelected": "{count, plural, =1{The matching record is selected} other{All {count} matching records are selected}}",
+  "@feedbackAllMatchingSelected": {
+    "description": "Selection status when every matching record is selected.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "feedbackDeleteSelectedAction": "Delete permanently",
+  "@feedbackDeleteSelectedAction": {
+    "description": "Button that permanently deletes the selected feedback."
+  },
+  "feedbackDeleteConfirmTitle": "Delete feedback permanently",
+  "@feedbackDeleteConfirmTitle": {
+    "description": "Title of the confirmation before feedback is deleted permanently."
+  },
+  "feedbackDeleteConfirmBody": "{count, plural, =1{Delete 1 feedback record permanently? This cannot be undone.} other{Delete {count} feedback records permanently? This cannot be undone.}}",
+  "@feedbackDeleteConfirmBody": {
+    "description": "Body of the confirmation before feedback is deleted permanently.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "feedbackDeletedMessage": "{count, plural, =0{No feedback was deleted.} =1{Deleted 1 feedback record permanently.} other{Deleted {count} feedback records permanently.}}",
+  "@feedbackDeletedMessage": {
+    "description": "Snackbar after feedback is deleted permanently.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "feedbackEmptyTitle": "No feedback found",
+  "@feedbackEmptyTitle": {
+    "description": "Empty state title in the Clear feedback table."
+  },
+  "feedbackEmptyBody": "No stored feedback matches the search and filters.",
+  "@feedbackEmptyBody": {
+    "description": "Empty state body in the Clear feedback table."
+  },
+  "feedbackLoadingTitle": "Loading feedback",
+  "@feedbackLoadingTitle": {
+    "description": "Loading state title in the Clear feedback table."
+  },
+  "feedbackLoadingBody": "Fetching stored feedback.",
+  "@feedbackLoadingBody": {
+    "description": "Loading state body in the Clear feedback table."
+  },
+  "feedbackLoadErrorTitle": "Feedback could not be loaded",
+  "@feedbackLoadErrorTitle": {
+    "description": "Error state title when stored feedback fails to load."
+  },
+  "feedbackLoadErrorBody": "Try again. If it keeps failing, check your connection and access.",
+  "@feedbackLoadErrorBody": {
+    "description": "Error state body when stored feedback fails to load."
+  },
+  "feedbackRetryAction": "Try again",
+  "@feedbackRetryAction": {
+    "description": "Reloads feedback after it failed to load."
   }
 }

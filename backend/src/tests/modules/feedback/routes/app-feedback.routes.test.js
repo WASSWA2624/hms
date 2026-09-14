@@ -10,9 +10,10 @@ jest.mock('@middlewares/rateLimit.middleware', () => ({
   rateLimit: jest.fn(() => function rateLimit(req, res, next) { next(); })
 }));
 jest.mock('@controllers/feedback/feedback.controller', () => ({
-  clearFeedback: function clearFeedback() {},
+  deleteFeedback: function deleteFeedback() {},
   exportFeedback: function exportFeedback() {},
   getFeedbackSummary: function getFeedbackSummary() {},
+  listFeedback: function listFeedback() {},
   submitFeedback: function submitFeedback() {}
 }));
 
@@ -43,6 +44,7 @@ describe('app-feedback.routes contract', () => {
   it('registers public submission and admin management endpoints', () => {
     expect(getRouteSignatures(subject)).toEqual([
       'DELETE /',
+      'GET /',
       'GET /export',
       'GET /summary',
       'POST /'
@@ -59,9 +61,10 @@ describe('app-feedback.routes contract', () => {
   });
 
   it.each([
+    ['get', '/', 'listFeedback'],
     ['get', '/summary', 'getFeedbackSummary'],
     ['get', '/export', 'exportFeedback'],
-    ['delete', '/', 'clearFeedback']
+    ['delete', '/', 'deleteFeedback']
   ])('requires live platform roles for %s %s', (method, path, handler) => {
     const chain = routeChain(method, path);
 
@@ -70,7 +73,7 @@ describe('app-feedback.routes contract', () => {
   });
 
   it('authorizes management for platform owners and platform admins only', () => {
-    expect(authorizeCalls).toHaveLength(3);
+    expect(authorizeCalls).toHaveLength(4);
     authorizeCalls.forEach((call) => {
       expect(call).toEqual([['PLATFORM_OWNER', 'PLATFORM_ADMIN']]);
     });

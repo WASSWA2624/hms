@@ -6,20 +6,11 @@ import 'package:hosspi_hms/core/errors/result.dart';
 import 'package:hosspi_hms/core/responsive/app_breakpoints.dart';
 import 'package:hosspi_hms/features/feedback/data/repositories/feedback_repository_impl.dart';
 import 'package:hosspi_hms/features/feedback/domain/entities/feedback_entities.dart';
+import 'package:hosspi_hms/features/feedback/presentation/feedback_labels.dart';
 import 'package:hosspi_hms/l10n/app_localizations.dart';
 import 'package:hosspi_hms/l10n/app_localizations_x.dart';
 import 'package:hosspi_hms/shared/components/components.dart';
 import 'package:hosspi_hms/shared/forms/forms.dart';
-
-String feedbackCategoryLabel(AppLocalizations l10n, FeedbackCategory category) {
-  return switch (category) {
-    FeedbackCategory.general => l10n.feedbackCategoryGeneral,
-    FeedbackCategory.problem => l10n.feedbackCategoryProblem,
-    FeedbackCategory.complaint => l10n.feedbackCategoryComplaint,
-    FeedbackCategory.suggestion => l10n.feedbackCategorySuggestion,
-    FeedbackCategory.improvement => l10n.feedbackCategoryImprovement,
-  };
-}
 
 /// "Give us feedback" form. Pops a [FeedbackReceipt] once the feedback is saved.
 ///

@@ -13,6 +13,17 @@ const FEEDBACK_JSON_FIELDS = Object.freeze([
   'user_permissions_json',
   'client_context_json'
 ]);
+// Columns a free-text search looks in.
+const FEEDBACK_SEARCH_FIELDS = Object.freeze([
+  'human_friendly_id',
+  'message',
+  'user_email',
+  'user_name',
+  'tenant_name',
+  'facility_name',
+  'route_path',
+  'screen_title'
+]);
 
 const FEEDBACK_RECEIPT_SELECT = Object.freeze({
   id: true,
@@ -20,6 +31,21 @@ const FEEDBACK_RECEIPT_SELECT = Object.freeze({
   category: true,
   submitter_type: true,
   tenant_id: true,
+  submitted_at: true
+});
+
+const FEEDBACK_LIST_SELECT = Object.freeze({
+  human_friendly_id: true,
+  category: true,
+  message: true,
+  submitter_type: true,
+  user_email: true,
+  user_name: true,
+  tenant_name: true,
+  facility_name: true,
+  route_path: true,
+  device_type: true,
+  client_platform: true,
   submitted_at: true
 });
 
@@ -90,30 +116,50 @@ const createFeedbackEvent = async (tenantId, userId, eventName, payloadJson) => 
   }
 };
 
+const toFilterValues = (value) =>
+  (Array.isArray(value) ? value : value ? [value] : []).filter(Boolean);
+
 /**
- * Active (not cleared) feedback matching optional filters.
+ * Stored feedback matching optional filters. Rows soft-deleted by the first
+ * release stay excluded.
  *
- * @param {Object} [filters]
+ * @param {Object} [filters] - search, category, submitter_type, device_type, platform, from, to
  * @returns {Object} Prisma where clause
  */
 const buildActiveFeedbackWhere = (filters = {}) => {
-  const where = { deleted_at: null };
-  if (filters.category) {
-    where.category = filters.category;
+  const conditions = [{ deleted_at: null }];
+
+  const categories = toFilterValues(filters.category);
+  if (categories.length > 0) {
+    conditions.push({ category: { in: categories } });
   }
   if (filters.submitter_type) {
-    where.submitter_type = filters.submitter_type;
+    conditions.push({ submitter_type: filters.submitter_type });
   }
-  if (filters.device_type) {
-    where.device_type = filters.device_type;
+  const deviceTypes = toFilterValues(filters.device_type);
+  if (deviceTypes.length > 0) {
+    conditions.push({ device_type: { in: deviceTypes } });
+  }
+  const platforms = toFilterValues(filters.platform);
+  if (platforms.length > 0) {
+    conditions.push({ client_platform: { in: platforms } });
   }
   if (filters.from || filters.to) {
-    where.submitted_at = {
-      ...(filters.from ? { gte: new Date(filters.from) } : {}),
-      ...(filters.to ? { lte: new Date(filters.to) } : {})
-    };
+    conditions.push({
+      submitted_at: {
+        ...(filters.from ? { gte: new Date(filters.from) } : {}),
+        ...(filters.to ? { lte: new Date(filters.to) } : {})
+      }
+    });
   }
-  return where;
+  const search = String(filters.search || '').trim();
+  if (search) {
+    conditions.push({
+      OR: FEEDBACK_SEARCH_FIELDS.map((field) => ({ [field]: { contains: search } }))
+    });
+  }
+
+  return conditions.length === 1 ? conditions[0] : { AND: conditions };
 };
 
 /**
@@ -135,6 +181,36 @@ const createFeedback = async (data) => {
       data: record,
       select: FEEDBACK_RECEIPT_SELECT
     });
+  } catch (error) {
+    throw toRepositoryError(error);
+  }
+};
+
+/**
+ * One page of feedback for review, with the total matching count.
+ *
+ * @param {Object} options
+ * @param {Object} [options.filters]
+ * @param {number} options.skip
+ * @param {number} options.take
+ * @param {Object[]} options.orderBy
+ * @returns {Promise<{ rows: Object[], total: number }>}
+ */
+const listActiveFeedbackPage = async ({ filters = {}, skip = 0, take = 20, orderBy } = {}) => {
+  const where = buildActiveFeedbackWhere(filters);
+
+  try {
+    const [rows, total] = await Promise.all([
+      prisma.feedback.findMany({
+        where,
+        orderBy,
+        skip,
+        take,
+        select: FEEDBACK_LIST_SELECT
+      }),
+      prisma.feedback.count({ where })
+    ]);
+    return { rows, total };
   } catch (error) {
     throw toRepositoryError(error);
   }
@@ -200,23 +276,21 @@ const summarizeActiveFeedback = async (filters = {}) => {
 };
 
 /**
- * Soft-delete every active feedback row.
+ * Permanently delete feedback: exactly the listed records, or every match for
+ * the filters. Rows are removed, not soft-deleted.
  *
  * @param {Object} options
- * @param {string|null} options.deletedByUserId
- * @param {Date} options.deletedAt
- * @returns {Promise<number>} Rows cleared
+ * @param {string[]} [options.humanFriendlyIds] - Delete exactly these records
+ * @param {Object} [options.filters] - Otherwise delete every matching record
+ * @returns {Promise<number>} Rows deleted
  */
-const softDeleteActiveFeedback = async ({ deletedByUserId = null, deletedAt = new Date() } = {}) => {
+const deleteFeedbackPermanently = async ({ humanFriendlyIds, filters } = {}) => {
+  const where = Array.isArray(humanFriendlyIds)
+    ? { AND: [buildActiveFeedbackWhere(), { human_friendly_id: { in: humanFriendlyIds } }] }
+    : buildActiveFeedbackWhere(filters);
+
   try {
-    const result = await prisma.feedback.updateMany({
-      where: { deleted_at: null },
-      data: {
-        deleted_at: deletedAt,
-        deleted_by_user_id: deletedByUserId,
-        version: { increment: 1 }
-      }
-    });
+    const result = await prisma.feedback.deleteMany({ where });
     return result?.count || 0;
   } catch (error) {
     throw toRepositoryError(error);
@@ -285,9 +359,10 @@ module.exports = {
   buildActiveFeedbackWhere,
   createFeedback,
   createFeedbackEvent,
+  deleteFeedbackPermanently,
   findCurrentSubscriptionSnapshot,
   findFacilitySnapshot,
   listActiveFeedbackForExport,
-  softDeleteActiveFeedback,
+  listActiveFeedbackPage,
   summarizeActiveFeedback
 };

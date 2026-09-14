@@ -3,6 +3,7 @@
  */
 
 const { z } = require('zod');
+const { paginationQuerySchema, searchQuerySchema } = require('@lib/validation/zod');
 
 const FEEDBACK_CATEGORIES = Object.freeze([
   'GENERAL',
@@ -13,8 +14,20 @@ const FEEDBACK_CATEGORIES = Object.freeze([
 ]);
 const FEEDBACK_SUBMITTER_TYPES = Object.freeze(['AUTHENTICATED', 'ANONYMOUS']);
 const FEEDBACK_DEVICE_TYPES = Object.freeze(['MOBILE', 'TABLET', 'DESKTOP']);
+const FEEDBACK_SORT_FIELDS = Object.freeze([
+  'submitted_at',
+  'human_friendly_id',
+  'category',
+  'submitter_type',
+  'device_type',
+  'client_platform',
+  'user_email',
+  'tenant_name',
+  'facility_name'
+]);
 const FEEDBACK_MESSAGE_MIN_LENGTH = 3;
 const FEEDBACK_MESSAGE_MAX_LENGTH = 5000;
+const FEEDBACK_DELETE_MAX_IDS = 1000;
 const MAX_UTC_OFFSET_MINUTES = 14 * 60;
 
 const submitNpsSchema = z.object({
@@ -82,15 +95,52 @@ const submitFeedbackSchema = z.object({
   context: feedbackClientContextSchema.optional().nullable()
 });
 
-const feedbackFilterQuerySchema = z.object({
-  category: z.enum(FEEDBACK_CATEGORIES).optional(),
+// Multi-value filters arrive as `A,B` in a query string or `['A', 'B']` in JSON.
+const toFilterList = (value, normalize) => {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+  const list = (Array.isArray(value) ? value : String(value).split(','))
+    .map((entry) => normalize(String(entry ?? '').trim()))
+    .filter(Boolean);
+  return list.length > 0 ? Array.from(new Set(list)) : undefined;
+};
+
+const enumFilterList = (values) =>
+  z.preprocess(
+    (value) => toFilterList(value, (entry) => entry.toUpperCase()),
+    z.array(z.enum(values)).optional()
+  );
+
+const textFilterList = (maxLength) =>
+  z.preprocess(
+    (value) => toFilterList(value, (entry) => entry.toLowerCase()),
+    z.array(z.string().max(maxLength)).max(20).optional()
+  );
+
+/**
+ * Filters shared by listing, counting, exporting, and deleting feedback.
+ * `from` and `to` bound `submitted_at` and are inclusive.
+ */
+const feedbackFiltersSchema = z.object({
+  search: searchQuerySchema().optional(),
+  category: enumFilterList(FEEDBACK_CATEGORIES),
   submitter_type: z.enum(FEEDBACK_SUBMITTER_TYPES).optional(),
-  device_type: z.enum(FEEDBACK_DEVICE_TYPES).optional(),
+  device_type: enumFilterList(FEEDBACK_DEVICE_TYPES),
+  platform: textFilterList(40),
   from: z.string().datetime({ offset: true }).optional(),
   to: z.string().datetime({ offset: true }).optional()
 });
 
-const exportFeedbackQuerySchema = feedbackFilterQuerySchema.extend({
+const feedbackFilterQuerySchema = feedbackFiltersSchema;
+
+const listFeedbackQuerySchema = feedbackFiltersSchema.extend({
+  ...paginationQuerySchema.shape,
+  sort_by: z.enum(FEEDBACK_SORT_FIELDS).optional(),
+  order: z.enum(['asc', 'desc']).optional()
+});
+
+const exportFeedbackQuerySchema = feedbackFiltersSchema.extend({
   utc_offset_minutes: z.coerce
     .number()
     .int()
@@ -99,20 +149,40 @@ const exportFeedbackQuerySchema = feedbackFilterQuerySchema.extend({
     .optional()
 });
 
-// An explicit flag, so a stray DELETE cannot wipe feedback.
-const clearFeedbackSchema = z.object({
-  confirm: z.literal(true)
-});
+/**
+ * Permanent deletion of either the listed feedback ids or, with `all_matching`,
+ * every record matching `filters`. `confirm` must be true so a stray DELETE
+ * cannot remove feedback.
+ */
+const deleteFeedbackSchema = z
+  .object({
+    confirm: z.literal(true),
+    human_friendly_ids: z
+      .array(z.string().trim().min(1).max(32))
+      .min(1)
+      .max(FEEDBACK_DELETE_MAX_IDS)
+      .optional(),
+    all_matching: z.literal(true).optional(),
+    filters: feedbackFiltersSchema.optional()
+  })
+  .refine((body) => Boolean(body.human_friendly_ids) !== Boolean(body.all_matching), {
+    message: 'Provide either human_friendly_ids or all_matching',
+    path: ['human_friendly_ids']
+  });
 
 module.exports = {
   FEEDBACK_CATEGORIES,
+  FEEDBACK_DELETE_MAX_IDS,
   FEEDBACK_DEVICE_TYPES,
   FEEDBACK_MESSAGE_MAX_LENGTH,
   FEEDBACK_MESSAGE_MIN_LENGTH,
+  FEEDBACK_SORT_FIELDS,
   FEEDBACK_SUBMITTER_TYPES,
-  clearFeedbackSchema,
+  deleteFeedbackSchema,
   exportFeedbackQuerySchema,
   feedbackFilterQuerySchema,
+  feedbackFiltersSchema,
+  listFeedbackQuerySchema,
   submitCsatSchema,
   submitFeedbackSchema,
   submitNpsSchema
