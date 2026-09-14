@@ -2,16 +2,17 @@
  * POST /api/demo - Demo request from the landing page
  *
  * Takes a phone number and an email address, nothing else: the whole point is
- * that a visitor can ask for a demo in two fields. Emails the request to
- * CONTACT_EMAIL, and delivers it over WhatsApp too when the Cloud API is
- * configured. The response always carries a wa.me deep link so the browser can
+ * that a visitor can ask for a demo in two fields. Emails the request to every
+ * address in DEMO_REQUEST_EMAILS, and delivers it over WhatsApp to every number
+ * in DEMO_REQUEST_WHATSAPP too when the Cloud API is configured. The response
+ * always carries a wa.me deep link to the company number so the browser can
  * open a pre-filled WhatsApp message when server-side delivery is not set up.
  *
  * @file src/app/api/demo/route.js
  */
 
 import { NextResponse } from 'next/server';
-import { CONTACT_EMAIL, COMPANY_WHATSAPP } from '@/lib/constants';
+import { COMPANY_WHATSAPP, DEMO_REQUEST_EMAILS, DEMO_REQUEST_WHATSAPP } from '@/lib/constants';
 import { createTransporter, fromAddress } from '@/lib/mailer';
 import { formatTimestamp } from '@/lib/datetime';
 import { sendWhatsAppText } from '@/lib/whatsapp';
@@ -88,7 +89,7 @@ export async function POST(request) {
     try {
       await transporter.sendMail({
         from: fromAddress(),
-        to: CONTACT_EMAIL,
+        to: DEMO_REQUEST_EMAILS,
         replyTo: email,
         subject: `Demo request - ${email}`,
         text,
@@ -111,16 +112,28 @@ export async function POST(request) {
     console.log('Demo request (email not configured):', { phone, email, facility, submittedAt });
   }
 
-  const whatsapp = await sendWhatsAppText(COMPANY_WHATSAPP, text);
-  if (!whatsapp.sent && whatsapp.reason !== 'not-configured') {
-    console.error('Demo request WhatsApp failed:', whatsapp.reason);
+  const deliveries = await Promise.all(
+    DEMO_REQUEST_WHATSAPP.map(async (number) => ({
+      number,
+      ...(await sendWhatsAppText(number, text)),
+    }))
+  );
+  for (const { number, sent, reason } of deliveries) {
+    if (!sent && reason !== 'not-configured') {
+      console.error(`Demo request WhatsApp to ${number} failed:`, reason);
+    }
   }
+  // The deep link only reaches the company number, so its delivery alone
+  // decides whether the browser still needs to open it.
+  const whatsappSent = deliveries.some(
+    ({ number, sent }) => sent && number === COMPANY_WHATSAPP
+  );
 
   return NextResponse.json(
     {
       message: 'Demo request received',
       emailed,
-      whatsappSent: whatsapp.sent,
+      whatsappSent,
       // Always returned: the client opens this when the server could not send
       // the WhatsApp message itself, so the request still lands either way.
       whatsappUrl: `https://wa.me/${COMPANY_WHATSAPP}?text=${encodeURIComponent(text)}`,

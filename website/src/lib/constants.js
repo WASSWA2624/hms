@@ -89,6 +89,17 @@ export const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 export const CONTACT_EMAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'wasswawilson0002@gmail.com';
 export const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'wasswawilson0002@gmail.com';
 
+// Everyone a demo request is delivered to. The wa.me fallback can only reach
+// one number, so it stays on COMPANY_WHATSAPP; the other numbers here are
+// messaged only when the WhatsApp Cloud API is configured.
+export const DEMO_REQUEST_EMAILS = [
+  CONTACT_EMAIL,
+  'walubodenis@gmail.com',
+  'florencenabasirye@gmail.com',
+];
+// Digits only, like COMPANY_WHATSAPP.
+export const DEMO_REQUEST_WHATSAPP = [COMPANY_WHATSAPP, '256777602339'];
+
 // Social Media Links
 export const SOCIAL_LINKS = {
   whatsapp: `https://wa.me/${COMPANY_WHATSAPP}`,
