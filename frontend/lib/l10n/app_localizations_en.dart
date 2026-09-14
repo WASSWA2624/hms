@@ -27056,6 +27056,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get accessAdminPasswordLabel => 'Password';
 
   @override
+  String get accessAdminNewPasswordLabel => 'New password';
+
+  @override
+  String get accessAdminNewPasswordHint =>
+      'Optional. Leave blank to keep the current password. A new one needs at least 8 characters with an uppercase letter, a lowercase letter, a number, and a symbol, and signs the user out everywhere.';
+
+  @override
   String get accessAdminCreatePasswordOptionalLabel => 'Password (optional)';
 
   @override
@@ -27308,12 +27315,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String accessAdminPermanentDeleteUserWarningBody(String name) {
-    return 'WARNING: Permanently deleting staff \"$name\" erases the account, its profile, roles, and direct permissions forever. Staff with audit, clinical, or operational history cannot be purged and stay deleted. This cannot be recovered.';
+    return 'WARNING: Permanently deleting staff \"$name\" erases the account, its profile, roles, and direct permissions forever. Records they created, such as clinical notes and audit entries, are kept but no longer show their personal details. This cannot be recovered.';
   }
 
   @override
   String accessAdminPermanentDeleteUserConfirmationBody(String name) {
-    return 'Final confirmation: permanently delete staff \"$name\" and erase the account\'s profile, roles, and direct permissions? This action is irreversible.';
+    return 'Final confirmation: permanently delete staff \"$name\" and erase the account\'s profile, roles, and direct permissions? Records they created are kept without their personal details. This action is irreversible.';
   }
 
   @override
@@ -29905,10 +29912,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get accessAdminUserStatusPendingLabel => 'Pending';
 
   @override
-  String get accessAdminResetCredentialsAction => 'Reset credentials';
+  String get accessAdminResetCredentialsAction => 'Send password reset email';
 
   @override
-  String get accessAdminResetCredentialsConfirmTitle => 'Reset credentials';
+  String get accessAdminResetCredentialsConfirmTitle =>
+      'Send password reset email';
 
   @override
   String accessAdminResetCredentialsConfirmBody(String name) {

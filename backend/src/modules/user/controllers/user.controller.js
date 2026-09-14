@@ -183,6 +183,22 @@ const resetUserCredentials = asyncHandler(async (req, res) => {
   sendSuccess(res, 200, 'messages.user.reset_credentials.success', result);
 });
 
+/**
+ * Set a user's password directly, without emailing a reset link
+ * PUT /api/v1/users/:id/password
+ *
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ */
+const setUserPassword = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const result = await userService.setUserPassword(id, req.body.password, req.user, {
+    ipAddress: req.ip});
+
+  sendSuccess(res, 200, 'messages.user.password_set.success', result);
+});
+
 module.exports = {
   listUsers,
   getUserById,
@@ -191,4 +207,5 @@ module.exports = {
   deleteUser,
   restoreUser,
   permanentDeleteUser,
-  resetUserCredentials};
+  resetUserCredentials,
+  setUserPassword};

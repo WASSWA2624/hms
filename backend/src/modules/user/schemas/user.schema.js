@@ -115,8 +115,9 @@ const staffProfileSchema = z
       .nullable()})
   .optional();
 
-// Credentials never change through a profile edit: the single-use reset flow
-// is the only path, so the password policy and session revocation always apply.
+// Credentials never change through a profile edit. PUT /users/:id/password sets
+// one directly and reset-credentials emails a link; both apply the password
+// policy and end every session.
 const credentialsFieldSchema = z
   .never({ message: 'errors.user.password_change_requires_reset' })
   .optional();
@@ -160,6 +161,13 @@ const updateUserSchema = z.object({
   password_hash: credentialsFieldSchema,
   confirm_similar: optionalBooleanSchema});
 
+/**
+ * Set password body validation
+ * Used for PUT /users/:id/password
+ */
+const setUserPasswordSchema = z.object({
+  password: applyPasswordPolicy(z.string().trim())});
+
 // ==================== URL Params ====================
 
 /**
@@ -192,6 +200,7 @@ module.exports = {
   USER_FIELD_LIMITS,
   createUserSchema,
   updateUserSchema,
+  setUserPasswordSchema,
   userIdParamsSchema,
   listUsersQuerySchema
 };

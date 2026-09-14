@@ -34672,6 +34672,14 @@
   "@accessAdminPasswordLabel": {
     "description": "Access admin password field label."
   },
+  "accessAdminNewPasswordLabel": "New password",
+  "@accessAdminNewPasswordLabel": {
+    "description": "Optional field in the edit staff dialog where an admin sets a new password directly, without emailing a reset link."
+  },
+  "accessAdminNewPasswordHint": "Optional. Leave blank to keep the current password. A new one needs at least 8 characters with an uppercase letter, a lowercase letter, a number, and a symbol, and signs the user out everywhere.",
+  "@accessAdminNewPasswordHint": {
+    "description": "Helper text under the new password field when editing staff; mirrors the API password policy."
+  },
   "accessAdminCreatePasswordOptionalLabel": "Password (optional)",
   "@accessAdminCreatePasswordOptionalLabel": {
     "description": "Access admin create-user password field label when password may be auto-generated."
@@ -34966,14 +34974,14 @@
       "name": { "type": "String" }
     }
   },
-  "accessAdminPermanentDeleteUserWarningBody": "WARNING: Permanently deleting staff \"{name}\" erases the account, its profile, roles, and direct permissions forever. Staff with audit, clinical, or operational history cannot be purged and stay deleted. This cannot be recovered.",
+  "accessAdminPermanentDeleteUserWarningBody": "WARNING: Permanently deleting staff \"{name}\" erases the account, its profile, roles, and direct permissions forever. Records they created, such as clinical notes and audit entries, are kept but no longer show their personal details. This cannot be recovered.",
   "@accessAdminPermanentDeleteUserWarningBody": {
     "description": "Warning before permanently deleting a soft-deleted user.",
     "placeholders": {
       "name": { "type": "String" }
     }
   },
-  "accessAdminPermanentDeleteUserConfirmationBody": "Final confirmation: permanently delete staff \"{name}\" and erase the account's profile, roles, and direct permissions? This action is irreversible.",
+  "accessAdminPermanentDeleteUserConfirmationBody": "Final confirmation: permanently delete staff \"{name}\" and erase the account's profile, roles, and direct permissions? Records they created are kept without their personal details. This action is irreversible.",
   "@accessAdminPermanentDeleteUserConfirmationBody": {
     "description": "Final confirmation body for permanent user delete.",
     "placeholders": {
@@ -38307,11 +38315,11 @@
   "@accessAdminUserStatusPendingLabel": {
     "description": "Account status option: awaiting activation."
   },
-  "accessAdminResetCredentialsAction": "Reset credentials",
+  "accessAdminResetCredentialsAction": "Send password reset email",
   "@accessAdminResetCredentialsAction": {
-    "description": "Action that emails a user a single-use link to choose a new password."
+    "description": "Action that emails a user a single-use link to choose a new password. Distinct from setting a new password directly in Edit staff."
   },
-  "accessAdminResetCredentialsConfirmTitle": "Reset credentials",
+  "accessAdminResetCredentialsConfirmTitle": "Send password reset email",
   "@accessAdminResetCredentialsConfirmTitle": {
     "description": "Title of the confirmation dialog before issuing a credential reset."
   },

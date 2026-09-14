@@ -291,7 +291,7 @@ void main() {
     expect(emailErrorOnField, findsNothing);
   });
 
-  testWidgets('edit has no password or roles and never sends a password', (
+  testWidgets('edit has no roles and keeps the password unless one is entered', (
     WidgetTester tester,
   ) async {
     AccessAdminUserDraft? sentDraft;
@@ -324,6 +324,14 @@ void main() {
       ),
       findsNothing,
     );
+    expect(
+      find.byWidgetPredicate(
+        (Widget widget) =>
+            widget is AppTextField &&
+            widget.labelText == l10n.accessAdminNewPasswordLabel,
+      ),
+      findsOneWidget,
+    );
     expect(find.byType(AppRoleAssignmentPicker), findsNothing);
 
     await _save(tester);
@@ -332,5 +340,50 @@ void main() {
     expect(sentDraft!.password, isNull);
     expect(sentDraft!.roleIds, isEmpty);
     expect(sentDraft!.email, 'grace.nakato@example.com');
+  });
+
+  testWidgets('edit sends a new password only once it meets the policy', (
+    WidgetTester tester,
+  ) async {
+    AccessAdminUserDraft? sentDraft;
+    await openDialog(
+      tester,
+      mode: UserMutationMode.edit,
+      initialUser: const AccessAdminItem(
+        id: 'USR-0042',
+        resource: AccessAdminResource.users,
+        displayId: 'USR-0042',
+        title: 'Grace Nakato',
+        email: 'grace.nakato@example.com',
+        firstName: 'Grace',
+        lastName: 'Nakato',
+        positionTitle: 'Charge Nurse',
+        status: 'ACTIVE',
+        tenantId: 'tenant-1',
+      ),
+      onSubmit: (AccessAdminUserDraft draft, List<String> roleIds) async {
+        sentDraft = draft;
+        return null;
+      },
+    );
+
+    await tester.enterText(
+      _textInput(l10n.accessAdminNewPasswordLabel),
+      'weakpassword1!',
+    );
+    await tester.pumpAndSettle();
+    await _save(tester);
+
+    expect(find.text(l10n.validationPasswordUppercaseMessage), findsOneWidget);
+    expect(sentDraft, isNull);
+
+    await tester.enterText(
+      _textInput(l10n.accessAdminNewPasswordLabel),
+      _strongPassword,
+    );
+    await tester.pumpAndSettle();
+    await _save(tester);
+
+    expect(sentDraft?.password, _strongPassword);
   });
 }

@@ -67,6 +67,16 @@ Future<bool?> showUserMutationDialog({
       .session
       ?.user
       ?.facilityId;
+  // Admins set another account's password here. Their own changes through
+  // account settings, which asks for the current password.
+  final String sessionUserId =
+      ref.read(sessionStateProvider).session?.user?.id?.trim() ?? '';
+  final bool editsOwnAccount =
+      !isCreate &&
+      sessionUserId.isNotEmpty &&
+      (sessionUserId == initialUser?.id.trim() ||
+          sessionUserId == initialUser?.mutationId.trim());
+  final bool showNewPasswordField = !isCreate && !editsOwnAccount;
 
   final TextEditingController emailController = TextEditingController(
     text: initialUser?.email,
@@ -706,17 +716,19 @@ Future<bool?> showUserMutationDialog({
                           ),
                         ),
                       ),
-                      // Credentials are chosen once at creation. Afterwards they
-                      // change only through Reset credentials, which enforces the
-                      // password policy and ends every session.
-                      if (isCreate)
+                      // Create chooses the first password. Edit may set a new
+                      // one directly; blank keeps the current password. The API
+                      // enforces the policy and ends every session either way.
+                      if (isCreate || showNewPasswordField)
                         _UserMutationReasonedField(
                           reason: detailsDisabledReason,
                           child: AppTextField(
                             controller: passwordController,
                             enabled: fieldsEnabled,
-                            labelText: l10n.accessAdminPasswordLabel,
-                            isRequired: true,
+                            labelText: isCreate
+                                ? l10n.accessAdminPasswordLabel
+                                : l10n.accessAdminNewPasswordLabel,
+                            isRequired: isCreate,
                             obscureText: true,
                             enableObscureTextToggle: true,
                             showObscuredTextLabel: l10n.authShowPasswordLabel,
@@ -726,13 +738,20 @@ Future<bool?> showUserMutationDialog({
                             autofillHints: const <String>[
                               AutofillHints.newPassword,
                             ],
-                            helperText: l10n.accessAdminPasswordPolicyHint,
+                            helperText: isCreate
+                                ? l10n.accessAdminPasswordPolicyHint
+                                : l10n.accessAdminNewPasswordHint,
                             errorText: serverErrorFor('password'),
                             onChanged: (_) => markEdited(setState, 'password'),
-                            validator: AppPasswordPolicy.validator(
-                              requiredMessage: l10n.validationRequired,
-                              messageFor: passwordRuleMessage,
-                            ),
+                            validator: (String? value) {
+                              if (!isCreate && (value ?? '').trim().isEmpty) {
+                                return null;
+                              }
+                              return AppPasswordPolicy.validator(
+                                requiredMessage: l10n.validationRequired,
+                                messageFor: passwordRuleMessage,
+                              )(value);
+                            },
                           ),
                         ),
                     ],
@@ -870,7 +889,12 @@ Future<bool?> showUserMutationDialog({
               ? null
               : phoneController.text.trim(),
           positionTitle: titleController.text.trim(),
-          password: isCreate ? passwordController.text.trim() : null,
+          password: isCreate
+              ? passwordController.text.trim()
+              : (showNewPasswordField &&
+                        passwordController.text.trim().isNotEmpty
+                    ? passwordController.text.trim()
+                    : null),
           status: status,
           roleIds: roleIds,
         ),

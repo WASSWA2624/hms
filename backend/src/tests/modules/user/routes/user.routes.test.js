@@ -15,6 +15,13 @@ describe('user.routes contract', () => {
     expect(layer?.route?.methods?.post).toBe(true);
   });
 
+  it('registers the set password route', () => {
+    const layer = subject.stack.find(
+      (entry) => entry.route?.path === '/:id/password'
+    );
+    expect(layer?.route?.methods?.put).toBe(true);
+  });
+
   it('registers the permanent delete route', () => {
     const layer = subject.stack.find(
       (entry) => entry.route?.path === '/:id/permanent'

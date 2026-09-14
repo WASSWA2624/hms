@@ -4,6 +4,7 @@ const { resolveIdentifierForFilter } = require('@lib/billing/identifiers');
 const { ROLES } = require('@config/roles');
 const { buildRoleScopeWhere } = require('@lib/authorization/assignable-access');
 const { DEMO_USER_EMAILS, isDemoUser } = require('@config/demo-users');
+const { notPurgedWhere } = require('@lib/user/purged-account');
 const tenantFacilityRepository = require('@repositories/tenant-facility-workspace/tenant-facility-workspace.repository');
 
 const DEMO_EMAIL_SUFFIX = '@hosspi.com';
@@ -204,6 +205,11 @@ const findUsers = async ({ scope = {}, filters = {}, skip = 0, take = 20, orderB
         ? { email: { in: [...DEMO_USER_EMAILS] } }
         : {}),
     };
+
+    if (includeDeleted) {
+      // Purged accounts stay only as the authors of old records; they never list.
+      where.AND = [...(Array.isArray(where.AND) ? where.AND : []), notPurgedWhere()];
+    }
 
     if (filters.role_id) {
       const roleId = await resolveIdentifierForFilter({

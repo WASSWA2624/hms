@@ -17,6 +17,7 @@ const { PERMISSIONS } = require('@config/permissions');
 const {
   createUserSchema,
   updateUserSchema,
+  setUserPasswordSchema,
   userIdParamsSchema,
   listUsersQuerySchema
 } = require('@validations/user/user.schema');
@@ -85,12 +86,12 @@ router.post(
  * @urlParams {string} id - User ID (UUID or friendly ID)
  * @queryParams None
  * @bodyParams None
- * @returns {void} 204 No Content
+ * @returns {void} 204 No Content. A user that records still reference keeps an anonymized row as their author.
  * @throws 400 User is not soft-deleted
  * @throws 401 Unauthorized
  * @throws 403 Demo, out-of-scope, or protected platform account
- * @throws 404 User not found
- * @throws 409 User has audit, clinical, or operational history
+ * @throws 404 User not found or already purged
+ * @throws 409 A reference the schema scan could not detach
  */
 router.delete(
   '/:id/permanent',
@@ -121,6 +122,29 @@ router.post(
   authenticate(),
   authorize(USER_WRITE_SCOPES, 'permission'),
   userController.resetUserCredentials
+);
+
+/**
+ * @description Set a user's password directly, without emailing a reset link
+ * @method PUT
+ * @route /api/v1/users/:id/password
+ * @authentication Required (JWT)
+ * @permissions hr:write, tenant:admin, facility:admin, platform:admin, platform:owner
+ * @urlParams {string} id - User ID (UUID or friendly ID)
+ * @queryParams None
+ * @bodyParams {string} password - New password; must meet the password policy
+ * @returns {Object} User identifier and sessions_revoked; never the password or its hash
+ * @throws 400 Password fails the policy, or the target is the caller's own account
+ * @throws 401 Unauthorized
+ * @throws 403 Demo, out-of-scope, or protected platform account
+ * @throws 404 User not found
+ */
+router.put(
+  '/:id/password',
+  validateRequest({ params: userIdParamsSchema, body: setUserPasswordSchema }),
+  authenticate(),
+  authorize(USER_WRITE_SCOPES, 'permission'),
+  userController.setUserPassword
 );
 
 

@@ -674,6 +674,120 @@ Future<AccessAdminItem?> openAccessAdminEditUserDialog(
   AccessAdminItem? updatedUser;
   AccessAdminItem? existingUserToOpen;
 
+  Future<AppFailure?> saveDetails(AccessAdminUserDraft draft) async {
+    var similarityAccepted = draft.confirmSimilar;
+    var pending = draft.copyWith(confirmSimilar: similarityAccepted);
+
+    // Edit mirrors create: always open review before persisting (including
+    // zero matches). Peers exclude the user being edited.
+    if (!pending.confirmSimilar) {
+      if (!context.mounted) {
+        return const AppFailure.cancelled();
+      }
+      final AppFailure? reviewFailure = await _reviewUserSimilarity(
+        context,
+        ref,
+        pending: pending,
+        excludeUserId: excludeUserId,
+        isEdit: true,
+        onAccepted: () => similarityAccepted = true,
+        onUseExisting: (AccessAdminItem existing) {
+          existingUserToOpen = existing;
+        },
+      );
+      if (reviewFailure != null) {
+        return reviewFailure;
+      }
+      if (existingUserToOpen != null) {
+        return null;
+      }
+      pending = pending.copyWith(confirmSimilar: similarityAccepted);
+    }
+
+    final Result<AccessAdminItem> result = await ref
+        .read(accessAdminWorkspaceControllerProvider.notifier)
+        .updateUserReviewed(excludeUserId, pending);
+    AppFailure? failure = result.when(
+      success: (AccessAdminItem updated) {
+        updatedUser ??= updated;
+        return null;
+      },
+      failure: (AppFailure value) => value,
+    );
+
+    if (failure != null &&
+        failure.category == AppFailureCategory.conflict) {
+      if (!context.mounted) {
+        return const AppFailure.cancelled();
+      }
+
+      if (!_isUserSimilarityConflict(failure)) {
+        return failure;
+      }
+
+      final bool isExactContactConflict =
+          _isUserDuplicateContactConflict(failure);
+      final bool alreadyConfirmed = pending.confirmSimilar;
+      if (alreadyConfirmed && !isExactContactConflict) {
+        return failure;
+      }
+
+      similarityAccepted = false;
+      final AppFailure? reviewFailure = await _reviewUserSimilarity(
+        context,
+        ref,
+        pending: pending.copyWith(confirmSimilar: false),
+        backendFailure: failure,
+        excludeUserId: excludeUserId,
+        isEdit: true,
+        forceReviewMatches: true,
+        conflictEntries: failure is ConflictFailure
+            ? failure.conflictEntries
+            : const <Map<String, Object?>>[],
+        onAccepted: () => similarityAccepted = true,
+        onUseExisting: (AccessAdminItem existing) {
+          existingUserToOpen = existing;
+        },
+      );
+      if (reviewFailure != null) {
+        return reviewFailure;
+      }
+      if (existingUserToOpen != null) {
+        return null;
+      }
+      if (!similarityAccepted || isExactContactConflict) {
+        return const AppFailure.cancelled();
+      }
+
+      final Result<AccessAdminItem> retry = await ref
+          .read(accessAdminWorkspaceControllerProvider.notifier)
+          .updateUserReviewed(
+            excludeUserId,
+            pending.copyWith(confirmSimilar: true),
+          );
+      final AppFailure? retryFailure = retry.when(
+        success: (AccessAdminItem updated) {
+          updatedUser ??= updated;
+          return null;
+        },
+        failure: (AppFailure value) => value,
+      );
+      if (retryFailure != null &&
+          retryFailure.category == AppFailureCategory.conflict) {
+        return const AppFailure.cancelled();
+      }
+      if (retryFailure != null) {
+        return retryFailure;
+      }
+      failure = null;
+    }
+
+    if (failure != null) {
+      return failure;
+    }
+    return null;
+  }
+
   final bool? saved = await showUserMutationDialog(
     context: context,
     ref: ref,
@@ -682,117 +796,27 @@ Future<AccessAdminItem?> openAccessAdminEditUserDialog(
     initialUser: baseline,
     initialDetail: detail,
     onSubmit: (AccessAdminUserDraft draft, List<String> roleIds) async {
-      var similarityAccepted = draft.confirmSimilar;
-      var pending = draft.copyWith(confirmSimilar: similarityAccepted);
-
-      // Edit mirrors create: always open review before persisting (including
-      // zero matches). Peers exclude the user being edited.
-      if (!pending.confirmSimilar) {
-        if (!context.mounted) {
-          return const AppFailure.cancelled();
-        }
-        final AppFailure? reviewFailure = await _reviewUserSimilarity(
-          context,
-          ref,
-          pending: pending,
-          excludeUserId: excludeUserId,
-          isEdit: true,
-          onAccepted: () => similarityAccepted = true,
-          onUseExisting: (AccessAdminItem existing) {
-            existingUserToOpen = existing;
-          },
+      final String? newPassword = draft.password;
+      // A password-only change has no details to review or update.
+      if (newPassword == null || _userDetailsChanged(baseline, draft)) {
+        final AppFailure? detailsFailure = await saveDetails(
+          draft.copyWith(clearPassword: true),
         );
-        if (reviewFailure != null) {
-          return reviewFailure;
+        if (detailsFailure != null || existingUserToOpen != null) {
+          return detailsFailure;
         }
-        if (existingUserToOpen != null) {
-          return null;
-        }
-        pending = pending.copyWith(confirmSimilar: similarityAccepted);
       }
-
-      final Result<AccessAdminItem> result = await ref
+      if (newPassword == null) {
+        return null;
+      }
+      final Result<void> passwordResult = await ref
           .read(accessAdminWorkspaceControllerProvider.notifier)
-          .updateUserReviewed(excludeUserId, pending);
-      AppFailure? failure = result.when(
-        success: (AccessAdminItem updated) {
-          updatedUser ??= updated;
-          return null;
-        },
+          .setUserPassword(excludeUserId, newPassword);
+      final AppFailure? passwordFailure = passwordResult.when(
+        success: (_) => null,
         failure: (AppFailure value) => value,
       );
-
-      if (failure != null &&
-          failure.category == AppFailureCategory.conflict) {
-        if (!context.mounted) {
-          return const AppFailure.cancelled();
-        }
-
-        if (!_isUserSimilarityConflict(failure)) {
-          return failure;
-        }
-
-        final bool isExactContactConflict =
-            _isUserDuplicateContactConflict(failure);
-        final bool alreadyConfirmed = pending.confirmSimilar;
-        if (alreadyConfirmed && !isExactContactConflict) {
-          return failure;
-        }
-
-        similarityAccepted = false;
-        final AppFailure? reviewFailure = await _reviewUserSimilarity(
-          context,
-          ref,
-          pending: pending.copyWith(confirmSimilar: false),
-          backendFailure: failure,
-          excludeUserId: excludeUserId,
-          isEdit: true,
-          forceReviewMatches: true,
-          conflictEntries: failure is ConflictFailure
-              ? failure.conflictEntries
-              : const <Map<String, Object?>>[],
-          onAccepted: () => similarityAccepted = true,
-          onUseExisting: (AccessAdminItem existing) {
-            existingUserToOpen = existing;
-          },
-        );
-        if (reviewFailure != null) {
-          return reviewFailure;
-        }
-        if (existingUserToOpen != null) {
-          return null;
-        }
-        if (!similarityAccepted || isExactContactConflict) {
-          return const AppFailure.cancelled();
-        }
-
-        final Result<AccessAdminItem> retry = await ref
-            .read(accessAdminWorkspaceControllerProvider.notifier)
-            .updateUserReviewed(
-              excludeUserId,
-              pending.copyWith(confirmSimilar: true),
-            );
-        final AppFailure? retryFailure = retry.when(
-          success: (AccessAdminItem updated) {
-            updatedUser ??= updated;
-            return null;
-          },
-          failure: (AppFailure value) => value,
-        );
-        if (retryFailure != null &&
-            retryFailure.category == AppFailureCategory.conflict) {
-          return const AppFailure.cancelled();
-        }
-        if (retryFailure != null) {
-          return retryFailure;
-        }
-        failure = null;
-      }
-
-      if (failure != null) {
-        return failure;
-      }
-      return null;
+      return passwordFailure;
     },
   );
 
@@ -803,6 +827,20 @@ Future<AccessAdminItem?> openAccessAdminEditUserDialog(
     return updatedUser ?? baseline;
   }
   return null;
+}
+
+/// Whether an edit changes anything the profile update sends. Phones compare by
+/// digits because the field formats them.
+bool _userDetailsChanged(AccessAdminItem baseline, AccessAdminUserDraft draft) {
+  String text(String? value) => (value ?? '').trim();
+  String digits(String? value) => text(value).replaceAll(RegExp(r'\D'), '');
+  return text(draft.firstName) != text(baseline.firstName) ||
+      text(draft.lastName) != text(baseline.lastName) ||
+      text(draft.email).toLowerCase() != text(baseline.email).toLowerCase() ||
+      digits(draft.phone) != digits(baseline.phone) ||
+      text(draft.positionTitle) != text(baseline.positionTitle) ||
+      text(draft.status).toUpperCase() != text(baseline.status).toUpperCase() ||
+      text(draft.facilityId) != text(baseline.facilityId);
 }
 
 Future<AccessAdminItem?> openAccessAdminCreateRoleDialog(

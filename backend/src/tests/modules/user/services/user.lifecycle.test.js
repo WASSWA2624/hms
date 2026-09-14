@@ -599,4 +599,86 @@ describe('User lifecycle', () => {
       expect(issuePasswordReset).not.toHaveBeenCalled();
     });
   });
+
+  describe('setUserPassword', () => {
+    const NEW_PASSWORD = 'NewStrong123!';
+
+    beforeEach(() => {
+      userRepository.setPassword.mockResolvedValue(undefined);
+    });
+
+    it('stores a hash of the new password and audits without the secret', async () => {
+      hashPassword.mockResolvedValue('$2b$10$adminsetpasswordhash');
+
+      const result = await userService.setUserPassword(USER_ID, NEW_PASSWORD, tenantAdmin, {
+        ipAddress: IP});
+
+      expect(result).toEqual({ user_id: 'USR-0042', sessions_revoked: true });
+      expect(hashPassword).toHaveBeenCalledWith(NEW_PASSWORD);
+      expect(userRepository.setPassword).toHaveBeenCalledWith(USER_ID, '$2b$10$adminsetpasswordhash');
+
+      await flushAudit();
+      const audit = createAuditLog.mock.calls[0][0];
+      expect(audit).toEqual(
+        expect.objectContaining({
+          action: 'USER_PASSWORD_SET',
+          entity: 'user',
+          entity_id: USER_ID,
+          user_id: tenantAdmin.id,
+          tenant_id: TENANT_ID,
+          ip_address: IP,
+          details: { sessions_revoked: true }})
+      );
+      expect(JSON.stringify({ result, audit })).not.toMatch(/NewStrong123!|\$2b\$/);
+    });
+
+    it("refuses the actor's own account", async () => {
+      await expect(
+        userService.setUserPassword(USER_ID, NEW_PASSWORD, { ...tenantAdmin, id: USER_ID }, {
+          ipAddress: IP})
+      ).rejects.toMatchObject({
+        messageKey: 'errors.user.set_password_self',
+        statusCode: 400,
+        errors: [expect.objectContaining({ field: 'password' })]});
+      expect(userRepository.setPassword).not.toHaveBeenCalled();
+    });
+
+    it('refuses demo accounts', async () => {
+      assertDemoUserNotMutable.mockImplementation(() => {
+        throw new HttpError('errors.user.demo_protected', 403, [{ field: 'user_id' }]);
+      });
+
+      await expect(
+        userService.setUserPassword(USER_ID, NEW_PASSWORD, tenantAdmin, { ipAddress: IP })
+      ).rejects.toMatchObject({ messageKey: 'errors.user.demo_protected', statusCode: 403 });
+      expect(userRepository.setPassword).not.toHaveBeenCalled();
+    });
+
+    it('refuses accounts outside the actor tenant', async () => {
+      userRepository.findById.mockResolvedValue(persistedUser({ tenant_id: OTHER_TENANT_ID }));
+
+      await expect(
+        userService.setUserPassword(USER_ID, NEW_PASSWORD, tenantAdmin, { ipAddress: IP })
+      ).rejects.toMatchObject({ messageKey: 'errors.auth.scope_mismatch', statusCode: 403 });
+      expect(userRepository.setPassword).not.toHaveBeenCalled();
+    });
+
+    it('refuses platform admin accounts for actors who cannot manage them', async () => {
+      prisma.user_role.findMany.mockResolvedValue([{ role: { name: 'PLATFORM_ADMIN' } }]);
+
+      await expect(
+        userService.setUserPassword(USER_ID, NEW_PASSWORD, tenantAdmin, { ipAddress: IP })
+      ).rejects.toMatchObject({ messageKey: 'errors.auth.insufficient_permissions', statusCode: 403 });
+      expect(userRepository.setPassword).not.toHaveBeenCalled();
+    });
+
+    it('returns not found for an unknown user', async () => {
+      userRepository.findById.mockResolvedValue(null);
+
+      await expect(
+        userService.setUserPassword(USER_ID, NEW_PASSWORD, tenantAdmin, { ipAddress: IP })
+      ).rejects.toMatchObject({ messageKey: 'errors.user.not_found', statusCode: 404 });
+      expect(userRepository.setPassword).not.toHaveBeenCalled();
+    });
+  });
 });

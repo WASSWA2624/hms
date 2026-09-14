@@ -234,6 +234,12 @@ final class AccessAdminWorkspaceController
     );
   }
 
+  /// Sets a new password directly. Nothing the list shows changes, so it does
+  /// not refresh.
+  Future<Result<void>> setUserPassword(String userId, String password) {
+    return _repository.setUserPassword(userId, password);
+  }
+
   /// Issues a single-use credential reset, then refreshes the list so it
   /// reflects the account as the API now reports it.
   Future<Result<AccessAdminCredentialResetResult>> resetUserCredentials(

@@ -49674,6 +49674,18 @@ abstract class AppLocalizations {
   /// **'Password'**
   String get accessAdminPasswordLabel;
 
+  /// Optional field in the edit staff dialog where an admin sets a new password directly, without emailing a reset link.
+  ///
+  /// In en, this message translates to:
+  /// **'New password'**
+  String get accessAdminNewPasswordLabel;
+
+  /// Helper text under the new password field when editing staff; mirrors the API password policy.
+  ///
+  /// In en, this message translates to:
+  /// **'Optional. Leave blank to keep the current password. A new one needs at least 8 characters with an uppercase letter, a lowercase letter, a number, and a symbol, and signs the user out everywhere.'**
+  String get accessAdminNewPasswordHint;
+
   /// Access admin create-user password field label when password may be auto-generated.
   ///
   /// In en, this message translates to:
@@ -50073,13 +50085,13 @@ abstract class AppLocalizations {
   /// Warning before permanently deleting a soft-deleted user.
   ///
   /// In en, this message translates to:
-  /// **'WARNING: Permanently deleting staff \"{name}\" erases the account, its profile, roles, and direct permissions forever. Staff with audit, clinical, or operational history cannot be purged and stay deleted. This cannot be recovered.'**
+  /// **'WARNING: Permanently deleting staff \"{name}\" erases the account, its profile, roles, and direct permissions forever. Records they created, such as clinical notes and audit entries, are kept but no longer show their personal details. This cannot be recovered.'**
   String accessAdminPermanentDeleteUserWarningBody(String name);
 
   /// Final confirmation body for permanent user delete.
   ///
   /// In en, this message translates to:
-  /// **'Final confirmation: permanently delete staff \"{name}\" and erase the account\'s profile, roles, and direct permissions? This action is irreversible.'**
+  /// **'Final confirmation: permanently delete staff \"{name}\" and erase the account\'s profile, roles, and direct permissions? Records they created are kept without their personal details. This action is irreversible.'**
   String accessAdminPermanentDeleteUserConfirmationBody(String name);
 
   /// Access admin tenant context required title.
@@ -54331,16 +54343,16 @@ abstract class AppLocalizations {
   /// **'Pending'**
   String get accessAdminUserStatusPendingLabel;
 
-  /// Action that emails a user a single-use link to choose a new password.
+  /// Action that emails a user a single-use link to choose a new password. Distinct from setting a new password directly in Edit staff.
   ///
   /// In en, this message translates to:
-  /// **'Reset credentials'**
+  /// **'Send password reset email'**
   String get accessAdminResetCredentialsAction;
 
   /// Title of the confirmation dialog before issuing a credential reset.
   ///
   /// In en, this message translates to:
-  /// **'Reset credentials'**
+  /// **'Send password reset email'**
   String get accessAdminResetCredentialsConfirmTitle;
 
   /// Confirmation body before issuing a credential reset.

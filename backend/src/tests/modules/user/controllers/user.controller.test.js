@@ -413,4 +413,36 @@ describe('User Controller', () => {
       await expect(userController.resetUserCredentials(req, res)).rejects.toThrow(error);
     });
   });
+
+  describe('setUserPassword', () => {
+    const userId = '550e8400-e29b-41d4-a716-446655440000';
+
+    it('passes the new password and actor and returns the summary', async () => {
+      const summary = { user_id: 'USR-0001', sessions_revoked: true };
+      req.params = { id: userId };
+      req.body = { password: 'NewStrong123!' };
+      userService.setUserPassword.mockResolvedValue(summary);
+
+      await userController.setUserPassword(req, res);
+
+      expect(userService.setUserPassword).toHaveBeenCalledWith(userId, 'NewStrong123!', req.user, {
+        ipAddress: '127.0.0.1'
+      });
+      expect(sendSuccess).toHaveBeenCalledWith(
+        res,
+        200,
+        'messages.user.password_set.success',
+        summary
+      );
+    });
+
+    it('should handle service errors', async () => {
+      req.params = { id: userId };
+      req.body = { password: 'NewStrong123!' };
+      const error = new Error('Service error');
+      userService.setUserPassword.mockRejectedValue(error);
+
+      await expect(userController.setUserPassword(req, res)).rejects.toThrow(error);
+    });
+  });
 });

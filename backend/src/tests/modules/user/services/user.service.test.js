@@ -812,9 +812,13 @@ describe('User Service', () => {
       deleted_at: new Date('2026-09-01T00:00:00.000Z')
     };
 
-    it('should purge a soft-deleted user and audit it as irreversible', async () => {
+    it('should purge a soft-deleted user and audit it by identifiers only', async () => {
       userRepository.findById.mockResolvedValue(deletedUser);
-      userRepository.permanentDelete.mockResolvedValue({ removed_access_rows: 3 });
+      userRepository.permanentDelete.mockResolvedValue({
+        removed_access_rows: 3,
+        anonymized: true,
+        history_tables: ['audit_log']
+      });
       createAuditLog.mockResolvedValue(true);
 
       await userService.permanentDeleteUser(userId, 'deleter-id', '127.0.0.1');
@@ -823,16 +827,29 @@ describe('User Service', () => {
       expect(userRepository.findById).toHaveBeenCalledWith(userId, undefined, {
         includeDeleted: true
       });
-      expect(userRepository.permanentDelete).toHaveBeenCalledWith(userId);
+      expect(userRepository.permanentDelete).toHaveBeenCalledWith(userId, {
+        unusablePasswordHash: '$2b$10$hashedpasswordplaceholder'
+      });
       expect(createAuditLog).toHaveBeenCalledWith(
         expect.objectContaining({
           action: 'USER_PERMANENTLY_DELETED',
           entity: 'user',
           entity_id: userId,
-          diff: expect.objectContaining({ irreversible: true, removed_access_rows: 3 })
+          diff: expect.objectContaining({
+            irreversible: true,
+            anonymized: true,
+            history_tables: ['audit_log'],
+            removed_access_rows: 3
+          })
         })
       );
-      expect(createAuditLog.mock.calls[0][0].diff.before).not.toHaveProperty('password_hash');
+      // The purge erased the email; the audit trail must not keep it.
+      expect(createAuditLog.mock.calls[0][0].diff.before).toEqual({
+        id: userId,
+        human_friendly_id: null,
+        tenant_id: deletedUser.tenant_id,
+        facility_id: null
+      });
       expect(publishCrudRealtimeEvent).toHaveBeenCalledWith(
         expect.objectContaining({ event: 'user.permanently_deleted' })
       );
@@ -861,7 +878,22 @@ describe('User Service', () => {
       });
     });
 
-    it('should propagate the history block from the repository', async () => {
+    it('should treat an already purged account as not found', async () => {
+      userRepository.findById.mockResolvedValue({
+        ...deletedUser,
+        email: `deleted-user-${userId}@purged.invalid`
+      });
+
+      await expect(
+        userService.permanentDeleteUser(userId, 'deleter-id', '127.0.0.1')
+      ).rejects.toMatchObject({
+        messageKey: 'errors.user.not_found',
+        statusCode: 404
+      });
+      expect(userRepository.permanentDelete).not.toHaveBeenCalled();
+    });
+
+    it('should propagate a repository failure', async () => {
       userRepository.findById.mockResolvedValue(deletedUser);
       userRepository.permanentDelete.mockRejectedValue(
         new HttpError('errors.user.permanent_delete_has_history', 409)

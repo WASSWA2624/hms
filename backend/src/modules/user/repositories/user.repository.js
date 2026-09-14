@@ -14,6 +14,12 @@ const {
   deleteReferencingRows,
   listForeignKeyReferences
 } = require('@lib/database/foreign-key-references');
+const {
+  PURGED_ACCOUNT_NAME,
+  isPurgedAccount,
+  notPurgedWhere,
+  purgedEmailFor
+} = require('@lib/user/purged-account');
 const { runWithoutTenantGuard } = require('../../../prisma/tenant-guard');
 
 /**
@@ -287,6 +293,9 @@ const buildWhereClause = (filters = {}, { includeDeleted = false } = {}) => {
   const where = { ...filters };
   if (!includeDeleted) {
     where.deleted_at = null;
+  } else {
+    // Purged accounts are deleted too, but gone for good: they never list.
+    where.AND = [...[].concat(where.AND ?? []), notPurgedWhere()];
   }
   return where;
 };
@@ -603,13 +612,15 @@ const restore = async (id) => {
         where: userWhereById(id, { includeDeleted: true }),
         select: {
           id: true,
+          email: true,
           tenant_id: true,
           facility_id: true,
           deleted_at: true,
         },
       });
 
-      if (!existing || !existing.deleted_at) {
+      // A purged account is deleted for good; nothing is left to restore.
+      if (!existing || !existing.deleted_at || isPurgedAccount(existing)) {
         throw Object.assign(new Error('Record not found'), { code: 'P2025' });
       }
 
@@ -702,20 +713,20 @@ const PROFILE_OWNED_TABLES = Object.freeze(new Set(['address', 'contact']));
  * Tables outside `ignoredTables` with rows pointing at `ids`. Foreign keys come
  * from the live schema, so a newly added relation is checked automatically.
  */
-const findBlockingReferences = async (tx, table, ids, ignoredTables) => {
+const findHistoryReferences = async (tx, table, ids, ignoredTables) => {
   if (ids.length === 0) {
     return [];
   }
-  const blocking = [];
+  const history = [];
   for (const reference of await listForeignKeyReferences(tx, table)) {
     if (ignoredTables.has(reference.table)) {
       continue;
     }
     if ((await countReferencingRows(tx, reference, ids)) > 0) {
-      blocking.push(reference.table);
+      history.push(reference.table);
     }
   }
-  return blocking;
+  return history;
 };
 
 const deleteOwnedReferences = async (tx, table, ids, ownedTables) => {
@@ -732,26 +743,32 @@ const deleteOwnedReferences = async (tx, table, ids, ownedTables) => {
 };
 
 /**
- * Permanently delete a soft-deleted user with the rows that only grant it access.
+ * Permanently delete a soft-deleted user.
  *
- * Anything else pointing at the account (audit trails, clinical and operational
- * records, HR history) would lose its author — most of those foreign keys are
- * ON DELETE SET NULL — so its presence blocks the purge instead.
+ * Rows that exist only to give the account access go with it. With nothing else
+ * pointing at the account, its row is deleted too. When audit, clinical, or
+ * operational records still reference it, deleting the row would strip those
+ * records of their author (most of those foreign keys are ON DELETE SET NULL,
+ * the rest RESTRICT), so the row stays as that author and nothing more: email,
+ * phone, and name are erased, the password can never match, and the account
+ * never lists or restores again.
  *
  * @param {string} id - User ID
- * @returns {Promise<{ removed_access_rows: number }>}
+ * @param {Object} options
+ * @param {string} options.unusablePasswordHash - Stored on a row that has to stay
+ * @returns {Promise<{ removed_access_rows: number, anonymized: boolean, history_tables: string[] }>}
  */
-const permanentDelete = async (id) => {
+const permanentDelete = async (id, { unusablePasswordHash } = {}) => {
   try {
     // Hard-delete must see soft-deleted rows; tenant-guard would otherwise force
     // deleted_at: null and the purge would 404.
     return await runWithoutTenantGuard(async () => {
       const existing = await prisma.user.findFirst({
         where: userWhereById(id, { includeDeleted: true }),
-        select: { id: true, deleted_at: true }
+        select: { id: true, email: true, deleted_at: true }
       });
 
-      if (!existing) {
+      if (!existing || isPurgedAccount(existing)) {
         throw Object.assign(new Error('Record not found'), { code: 'P2025' });
       }
       if (!existing.deleted_at) {
@@ -766,30 +783,66 @@ const permanentDelete = async (id) => {
           await tx.staff_profile.findMany({ where: { user_id: id }, select: { id: true } })
         ).map((row) => row.id);
 
-        const blocking = [
-          ...(await findBlockingReferences(
-            tx,
-            'user',
-            [id],
-            new Set([...USER_OWNED_TABLES, ...USER_DETACHABLE_TABLES])
-          )),
-          ...(await findBlockingReferences(tx, 'user_profile', profileIds, PROFILE_OWNED_TABLES)),
-          ...(await findBlockingReferences(tx, 'staff_profile', staffProfileIds, PROFILE_OWNED_TABLES))
-        ];
-        if (blocking.length > 0) {
-          throw new HttpError('errors.user.permanent_delete_has_history', 409, [
-            { field: 'id', reason: 'has_history', tables: [...new Set(blocking)].sort() }
-          ]);
-        }
+        const userHistory = await findHistoryReferences(
+          tx,
+          'user',
+          [id],
+          new Set([...USER_OWNED_TABLES, ...USER_DETACHABLE_TABLES])
+        );
+        const profileHistory =
+          await findHistoryReferences(tx, 'user_profile', profileIds, PROFILE_OWNED_TABLES);
+        const staffProfileHistory =
+          await findHistoryReferences(tx, 'staff_profile', staffProfileIds, PROFILE_OWNED_TABLES);
+
+        // A profile that records point at stays; its personal details go below.
+        const ownedTables = new Set(USER_OWNED_TABLES);
+        if (profileHistory.length > 0) ownedTables.delete('user_profile');
+        if (staffProfileHistory.length > 0) ownedTables.delete('staff_profile');
 
         // Profile details first: they point at the profiles removed after them.
         const removedAccessRows =
           (await deleteOwnedReferences(tx, 'user_profile', profileIds, PROFILE_OWNED_TABLES)) +
           (await deleteOwnedReferences(tx, 'staff_profile', staffProfileIds, PROFILE_OWNED_TABLES)) +
-          (await deleteOwnedReferences(tx, 'user', [id], USER_OWNED_TABLES));
+          (await deleteOwnedReferences(tx, 'user', [id], ownedTables));
 
-        await tx.user.delete({ where: { id } });
-        return { removed_access_rows: removedAccessRows };
+        const historyTables = [
+          ...new Set([...userHistory, ...profileHistory, ...staffProfileHistory])
+        ].sort();
+
+        if (historyTables.length === 0) {
+          await tx.user.delete({ where: { id } });
+          return { removed_access_rows: removedAccessRows, anonymized: false, history_tables: [] };
+        }
+
+        if (!unusablePasswordHash) {
+          throw new Error('permanentDelete needs unusablePasswordHash to keep the account row');
+        }
+        if (profileHistory.length > 0) {
+          await tx.user_profile.updateMany({
+            where: { user_id: id },
+            data: {
+              first_name: PURGED_ACCOUNT_NAME,
+              middle_name: null,
+              last_name: null,
+              gender: null,
+              date_of_birth: null
+            }
+          });
+        }
+        await tx.user.update({
+          where: { id },
+          data: {
+            email: purgedEmailFor(id),
+            phone: null,
+            password_hash: unusablePasswordHash,
+            status: 'INACTIVE'
+          }
+        });
+        return {
+          removed_access_rows: removedAccessRows,
+          anonymized: true,
+          history_tables: historyTables
+        };
       }, { timeout: 30000 });
     });
   } catch (error) {
@@ -807,6 +860,39 @@ const permanentDelete = async (id) => {
   }
 };
 
+/**
+ * Replace an account's password. Its sessions end and any reset link already
+ * emailed stops working, in the same transaction.
+ *
+ * @param {string} id - User ID
+ * @param {string} passwordHash - Hash of the new password
+ * @returns {Promise<void>}
+ */
+const setPassword = async (id, passwordHash) => {
+  try {
+    await prisma.$transaction(async (tx) => {
+      const changedAt = new Date();
+      await tx.user.update({
+        where: { id },
+        data: { password_hash: passwordHash }
+      });
+      await tx.user_session.updateMany({
+        where: { user_id: id, revoked_at: null, deleted_at: null },
+        data: { revoked_at: changedAt }
+      });
+      await tx.verification_token.updateMany({
+        where: { user_id: id, type: 'PASSWORD_RESET', deleted_at: null },
+        data: { deleted_at: changedAt }
+      });
+    });
+  } catch (error) {
+    if (error.code === 'P2025') {
+      throw new HttpError('errors.user.not_found', 404);
+    }
+    throw new HttpError('errors.database.unexpected', 500, [{ originalError: error.message }]);
+  }
+};
+
 module.exports = {
   findById,
   findMany,
@@ -816,6 +902,7 @@ module.exports = {
   softDelete,
   restore,
   permanentDelete,
+  setPassword,
   findActiveByTenantEmail,
   findActiveByTenantPhone,
   findDeletedByTenantEmail,

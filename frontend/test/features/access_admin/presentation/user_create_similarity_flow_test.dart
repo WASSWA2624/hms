@@ -186,7 +186,7 @@ void main() {
     );
   });
 
-  test('create assigns roles with the account; edit omits roles and credentials', () {
+  test('create assigns roles with the account; edit omits roles and sets passwords apart', () {
     expect(
       mutationDialogSource.contains('AppRoleAssignmentPicker('),
       isTrue,
@@ -200,11 +200,9 @@ void main() {
     );
     expect(mutationDialogSource.contains('roleIds: roleIds'), isTrue);
     expect(
-      mutationDialogSource.contains(
-        'password: isCreate ? passwordController.text.trim() : null',
-      ),
+      mutationDialogSource.contains('showNewPasswordField'),
       isTrue,
-      reason: 'Edit never sends a password; resets go through the reset flow',
+      reason: 'Edit sends a password only when an admin enters a new one',
     );
     expect(
       mutationDialogSource.contains('permissionIds:'),
@@ -219,6 +217,11 @@ void main() {
       repositorySource.indexOf('Future<Result<void>> syncUserDirectPermissions('),
     );
     expect(updateSource.contains("'password'"), isFalse);
+    expect(
+      repositorySource.contains('Future<Result<void>> setUserPassword('),
+      isTrue,
+      reason: 'A new password goes to its own endpoint, never the profile update',
+    );
   });
 
   test('edit user mirrors create similarity flow excluding self', () {

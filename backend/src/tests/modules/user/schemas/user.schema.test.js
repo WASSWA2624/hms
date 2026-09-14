@@ -10,6 +10,7 @@ const {
   USER_FIELD_LIMITS,
   createUserSchema,
   updateUserSchema,
+  setUserPasswordSchema,
   userIdParamsSchema,
   listUsersQuerySchema
 } = require('@validations/user/user.schema');
@@ -394,7 +395,7 @@ describe('User Schemas', () => {
     });
 
     it.each(['password', 'password_hash'])(
-      'should reject %p so credentials only change through a reset',
+      'should reject %p so credentials never change through a profile edit',
       (field) => {
         const result = updateUserSchema.safeParse({ [field]: 'StrongPass123!' });
         expect(result.success).toBe(false);
@@ -406,6 +407,31 @@ describe('User Schemas', () => {
         );
       }
     );
+  });
+
+  describe('setUserPasswordSchema', () => {
+    it('should accept a password that meets the policy', () => {
+      const result = setUserPasswordSchema.safeParse({ password: 'NewStrong123!' });
+      expect(result.success).toBe(true);
+    });
+
+    it('should require a password', () => {
+      expect(setUserPasswordSchema.safeParse({}).success).toBe(false);
+    });
+
+    it.each([
+      ['NewStrong!', 'errors.validation.password.number'],
+      ['newstrong123!', 'errors.validation.password.uppercase'],
+      ['NewStrong123', 'errors.validation.password.special']
+    ])('should enforce the password policy for %p', (password, messageKey) => {
+      const result = setUserPasswordSchema.safeParse({ password });
+      expect(result.success).toBe(false);
+      expect(result.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ path: ['password'], message: messageKey })
+        ])
+      );
+    });
   });
 
   describe('userIdParamsSchema', () => {

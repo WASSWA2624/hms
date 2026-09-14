@@ -29,6 +29,7 @@ const {
 } = require('@lib/billing/identifiers');
 const { resolveModelIdByIdentifier } = require('@lib/identifiers/resolve-entity-id');
 const { checkUserDuplicates } = require('@lib/user/user-similarity');
+const { isPurgedAccount } = require('@lib/user/purged-account');
 const {
   assertPermissionNamesIncludeRequiredReads,
 } = require('@lib/authorization/permission-read-dependency');
@@ -1098,8 +1099,10 @@ const restoreUser = async (id, userId, ipAddress, actor = {}) => {
  * Permanently delete a soft-deleted user
  * Per prisma.mdc: Mutations must create audit logs
  *
- * Only accounts without audit, clinical, or operational history can be purged;
- * the repository refuses otherwise so no record loses its author.
+ * History never blocks it: an account that records still reference is kept
+ * only as their author, with every personal detail erased (see the repository).
+ * The audit entry names the account by identifiers alone, so it keeps nothing
+ * the purge erased.
  *
  * @param {string} id - User ID
  * @param {string} userId - User ID for audit
@@ -1114,7 +1117,7 @@ const permanentDeleteUser = async (id, userId, ipAddress, actor = {}) => {
       includeDeleted: true
     });
 
-    if (!before) {
+    if (!before || isPurgedAccount(before)) {
       throw new HttpError('errors.user.not_found', 404);
     }
     if (!before.deleted_at) {
@@ -1125,8 +1128,13 @@ const permanentDeleteUser = async (id, userId, ipAddress, actor = {}) => {
     await assertActorCanMutateTargetAccount(resolvedUserId, actor);
     assertActorWithinTenant(before.tenant_id, actor);
 
-    const { removed_access_rows: removedAccessRows } =
-      await userRepository.permanentDelete(resolvedUserId);
+    // Stored only if the row has to stay: a hash of random bytes nobody holds.
+    const unusablePasswordHash = await hashPassword(crypto.randomBytes(32).toString('hex'));
+    const {
+      removed_access_rows: removedAccessRows,
+      anonymized,
+      history_tables: historyTables
+    } = await userRepository.permanentDelete(resolvedUserId, { unusablePasswordHash });
 
     createAuditLog({
       user_id: userId,
@@ -1134,8 +1142,15 @@ const permanentDeleteUser = async (id, userId, ipAddress, actor = {}) => {
       entity: 'user',
       entity_id: resolvedUserId,
       diff: {
-        before: toPublicUser(before),
+        before: {
+          id: before.id,
+          human_friendly_id: before.human_friendly_id ?? null,
+          tenant_id: before.tenant_id,
+          facility_id: before.facility_id ?? null
+        },
         irreversible: true,
+        anonymized,
+        history_tables: historyTables,
         removed_access_rows: removedAccessRows
       },
       ip_address: ipAddress
@@ -1219,6 +1234,61 @@ const resetUserCredentials = async (id, actor = {}, { ipAddress = null, requestC
   }
 };
 
+/**
+ * Set another account's password directly, without emailing a reset link.
+ *
+ * The route schema enforces the password policy. Every session for the account
+ * ends and any reset link already emailed stops working. The password and its
+ * hash never reach the response or the audit trail. An actor's own password
+ * changes through the change-password flow, which asks for the current one.
+ *
+ * @param {string} id - Target user identifier
+ * @param {string} password - New password, already policy-checked
+ * @param {Object} actor - Authenticated actor (req.user)
+ * @param {Object} [options]
+ * @param {string} [options.ipAddress] - Actor IP for audit
+ * @returns {Promise<Object>} Public user identifier and sessions_revoked
+ */
+const setUserPassword = async (id, password, actor = {}, { ipAddress = null } = {}) => {
+  try {
+    const resolvedUserId = await resolveUserId(id);
+    const target = await userRepository.findById(resolvedUserId);
+
+    if (!target) {
+      throw new HttpError('errors.user.not_found', 404);
+    }
+
+    assertDemoUserNotMutable(target, 'set_password');
+    await assertActorCanMutateTargetAccount(resolvedUserId, actor);
+    assertActorWithinTenant(target.tenant_id, actor);
+
+    if (text(actorUserId(actor)) === text(resolvedUserId)) {
+      throw fieldError('errors.user.set_password_self', 400, 'password');
+    }
+
+    await userRepository.setPassword(resolvedUserId, await hashPassword(password));
+
+    createAuditLog({
+      user_id: actorUserId(actor),
+      tenant_id: target.tenant_id,
+      facility_id: target.facility_id || null,
+      action: 'USER_PASSWORD_SET',
+      entity: 'user',
+      entity_id: target.id,
+      ip_address: ipAddress,
+      details: { sessions_revoked: true }
+    }).catch(() => {});
+
+    return {
+      user_id: resolvePublicIdentifier(target.human_friendly_id, target.id) || target.id,
+      sessions_revoked: true
+    };
+  } catch (error) {
+    if (error instanceof HttpError) throw error;
+    throw new HttpError('errors.server.unexpected', 500, [{ originalError: error.message }]);
+  }
+};
+
 module.exports = {
   listUsers,
   getUserById,
@@ -1227,4 +1297,5 @@ module.exports = {
   deleteUser,
   restoreUser,
   permanentDeleteUser,
-  resetUserCredentials};
+  resetUserCredentials,
+  setUserPassword};

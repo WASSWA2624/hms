@@ -246,7 +246,7 @@ final class AccessAdminRepositoryImpl implements AccessAdminRepository {
           }),
           // Sent even when null so choosing every facility clears it; the API
           // ignores an unchanged facility. Credentials are never part of an
-          // edit and change only through resetUserCredentials.
+          // edit: they change through setUserPassword or resetUserCredentials.
           'facility_id': draft.facilityId,
         },
         decoder: (_) {},
@@ -310,6 +310,17 @@ final class AccessAdminRepositoryImpl implements AccessAdminRepository {
         data: <String, Object?>{'status': status},
         decoder: (_) {},
       ),
+    );
+  }
+
+  @override
+  Future<Result<void>> setUserPassword(String userId, String password) {
+    return _apiClient.put<void>(
+      ApiEndpoints.nested(HmsApiResource.users, userId, const <String>[
+        'password',
+      ]),
+      data: <String, Object?>{'password': password},
+      decoder: (_) {},
     );
   }
 

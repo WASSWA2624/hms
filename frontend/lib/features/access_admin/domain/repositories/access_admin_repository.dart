@@ -45,6 +45,10 @@ abstract interface class AccessAdminRepository {
 
   Future<Result<void>> setUserStatus(String userId, String status);
 
+  /// Sets a new password directly. Every session for the account ends and any
+  /// reset link already emailed stops working.
+  Future<Result<void>> setUserPassword(String userId, String password);
+
   /// Emails the user a single-use link to choose a new password.
   Future<Result<AccessAdminCredentialResetResult>> resetUserCredentials(
     String userId,
