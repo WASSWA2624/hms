@@ -340,6 +340,25 @@ const ICONS = {
       <path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.3 1.1 2.2h5c0-.9.4-1.6 1.1-2.2A6 6 0 0 0 12 3z" />
     </>
   ),
+  chevronDown: (
+    <>
+      <path d="M6 9.5l6 6 6-6" />
+    </>
+  ),
+  panelClose: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M9 4v16" />
+      <path d="M16 9.5L13.5 12l2.5 2.5" />
+    </>
+  ),
+  panelOpen: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M9 4v16" />
+      <path d="M13.5 9.5L16 12l-2.5 2.5" />
+    </>
+  ),
 };
 
 export const ICON_NAMES = Object.keys(ICONS);
