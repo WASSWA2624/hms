@@ -29940,4 +29940,125 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get accessAdminResetCredentialsUnknownDestination =>
       'the user\'s email address';
+
+  @override
+  String get feedbackLauncherLabel => 'Feedback';
+
+  @override
+  String get feedbackLauncherSemanticLabel => 'Give us feedback';
+
+  @override
+  String get feedbackAdminMenuSemanticLabel => 'Feedback options';
+
+  @override
+  String get feedbackWorkingLabel => 'Working on the feedback request';
+
+  @override
+  String get feedbackGiveActionLabel => 'Give us feedback';
+
+  @override
+  String get feedbackDownloadActionLabel => 'Download feedback';
+
+  @override
+  String get feedbackClearActionLabel => 'Clear feedback';
+
+  @override
+  String get feedbackDialogTitle => 'Give us feedback';
+
+  @override
+  String get feedbackContextTitle => 'Sent with your feedback';
+
+  @override
+  String feedbackContextSignedInMessage(String screen) {
+    return 'Your account, facility, subscription, and this screen ($screen) are attached so the team can follow up.';
+  }
+
+  @override
+  String feedbackContextAnonymousMessage(String screen) {
+    return 'You are not signed in, so this is sent anonymously with details of this screen ($screen).';
+  }
+
+  @override
+  String get feedbackCategoryLabel => 'Feedback type';
+
+  @override
+  String get feedbackCategoryGeneral => 'General feedback';
+
+  @override
+  String get feedbackCategoryProblem => 'Problem';
+
+  @override
+  String get feedbackCategoryComplaint => 'Complaint';
+
+  @override
+  String get feedbackCategorySuggestion => 'Suggestion';
+
+  @override
+  String get feedbackCategoryImprovement => 'Improvement';
+
+  @override
+  String get feedbackMessageLabel => 'Details';
+
+  @override
+  String get feedbackMessageHint =>
+      'Describe the problem, complaint, suggestion, or improvement.';
+
+  @override
+  String get feedbackMessageRequired => 'Enter your feedback.';
+
+  @override
+  String feedbackMessageTooShort(int count) {
+    return 'Enter at least $count characters.';
+  }
+
+  @override
+  String feedbackMessageTooLong(int count) {
+    return 'Keep your feedback to $count characters or fewer.';
+  }
+
+  @override
+  String get feedbackSubmitActionLabel => 'Send feedback';
+
+  @override
+  String feedbackSubmittedMessage(String reference) {
+    return 'Thank you. Your feedback was sent (reference $reference).';
+  }
+
+  @override
+  String get feedbackSubmittedPlainMessage =>
+      'Thank you. Your feedback was sent.';
+
+  @override
+  String get feedbackDownloadedMessage => 'Feedback downloaded.';
+
+  @override
+  String get feedbackNothingToClearMessage =>
+      'There is no stored feedback to clear.';
+
+  @override
+  String get feedbackClearConfirmTitle => 'Clear feedback';
+
+  @override
+  String feedbackClearConfirmBody(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'This clears $count stored feedback records from future downloads. Download feedback first if you need a copy.',
+      one:
+          'This clears 1 stored feedback record from future downloads. Download feedback first if you need a copy.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String feedbackClearedMessage(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Cleared $count feedback records.',
+      one: 'Cleared 1 feedback record.',
+    );
+    return '$_temp0';
+  }
 }

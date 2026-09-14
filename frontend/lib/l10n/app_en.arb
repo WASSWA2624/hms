@@ -38357,5 +38357,163 @@
   "accessAdminResetCredentialsUnknownDestination": "the user's email address",
   "@accessAdminResetCredentialsUnknownDestination": {
     "description": "Fallback destination in reset messages when the API returns no masked email."
+  },
+  "feedbackLauncherLabel": "Feedback",
+  "@feedbackLauncherLabel": {
+    "description": "Label on the floating feedback button shown on every screen at tablet and desktop widths."
+  },
+  "feedbackLauncherSemanticLabel": "Give us feedback",
+  "@feedbackLauncherSemanticLabel": {
+    "description": "Screen reader label for the floating feedback button."
+  },
+  "feedbackAdminMenuSemanticLabel": "Feedback options",
+  "@feedbackAdminMenuSemanticLabel": {
+    "description": "Screen reader label for the floating feedback button when it opens the platform admin feedback menu."
+  },
+  "feedbackWorkingLabel": "Working on the feedback request",
+  "@feedbackWorkingLabel": {
+    "description": "Screen reader label for the progress indicator on the floating feedback button while feedback is downloading or being counted."
+  },
+  "feedbackGiveActionLabel": "Give us feedback",
+  "@feedbackGiveActionLabel": {
+    "description": "Feedback menu action that opens the feedback form."
+  },
+  "feedbackDownloadActionLabel": "Download feedback",
+  "@feedbackDownloadActionLabel": {
+    "description": "Feedback menu action that downloads stored feedback as an Excel file. Platform owners and platform admins only."
+  },
+  "feedbackClearActionLabel": "Clear feedback",
+  "@feedbackClearActionLabel": {
+    "description": "Feedback menu action and confirmation button that clears stored feedback. Platform owners and platform admins only."
+  },
+  "feedbackDialogTitle": "Give us feedback",
+  "@feedbackDialogTitle": {
+    "description": "Title of the feedback form dialog."
+  },
+  "feedbackContextTitle": "Sent with your feedback",
+  "@feedbackContextTitle": {
+    "description": "Title of the banner explaining which context is attached to feedback automatically."
+  },
+  "feedbackContextSignedInMessage": "Your account, facility, subscription, and this screen ({screen}) are attached so the team can follow up.",
+  "@feedbackContextSignedInMessage": {
+    "description": "Banner text in the feedback form for a signed-in user.",
+    "placeholders": {
+      "screen": {
+        "type": "String",
+        "example": "/patients"
+      }
+    }
+  },
+  "feedbackContextAnonymousMessage": "You are not signed in, so this is sent anonymously with details of this screen ({screen}).",
+  "@feedbackContextAnonymousMessage": {
+    "description": "Banner text in the feedback form when nobody is signed in.",
+    "placeholders": {
+      "screen": {
+        "type": "String",
+        "example": "/login"
+      }
+    }
+  },
+  "feedbackCategoryLabel": "Feedback type",
+  "@feedbackCategoryLabel": {
+    "description": "Label for the feedback category field."
+  },
+  "feedbackCategoryGeneral": "General feedback",
+  "@feedbackCategoryGeneral": {
+    "description": "Feedback category option for feedback that is not a problem, complaint, suggestion, or improvement."
+  },
+  "feedbackCategoryProblem": "Problem",
+  "@feedbackCategoryProblem": {
+    "description": "Feedback category option for something that is not working."
+  },
+  "feedbackCategoryComplaint": "Complaint",
+  "@feedbackCategoryComplaint": {
+    "description": "Feedback category option for a complaint."
+  },
+  "feedbackCategorySuggestion": "Suggestion",
+  "@feedbackCategorySuggestion": {
+    "description": "Feedback category option for a new idea."
+  },
+  "feedbackCategoryImprovement": "Improvement",
+  "@feedbackCategoryImprovement": {
+    "description": "Feedback category option for an area that could work better."
+  },
+  "feedbackMessageLabel": "Details",
+  "@feedbackMessageLabel": {
+    "description": "Label for the feedback details field."
+  },
+  "feedbackMessageHint": "Describe the problem, complaint, suggestion, or improvement.",
+  "@feedbackMessageHint": {
+    "description": "Hint inside the feedback details field."
+  },
+  "feedbackMessageRequired": "Enter your feedback.",
+  "@feedbackMessageRequired": {
+    "description": "Validation error when the feedback details field is empty."
+  },
+  "feedbackMessageTooShort": "Enter at least {count} characters.",
+  "@feedbackMessageTooShort": {
+    "description": "Validation error when feedback details are too short.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "feedbackMessageTooLong": "Keep your feedback to {count} characters or fewer.",
+  "@feedbackMessageTooLong": {
+    "description": "Validation error when feedback details are too long.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "feedbackSubmitActionLabel": "Send feedback",
+  "@feedbackSubmitActionLabel": {
+    "description": "Primary button that submits the feedback form."
+  },
+  "feedbackSubmittedMessage": "Thank you. Your feedback was sent (reference {reference}).",
+  "@feedbackSubmittedMessage": {
+    "description": "Snackbar after feedback is saved, quoting its reference id.",
+    "placeholders": {
+      "reference": {
+        "type": "String",
+        "example": "FBK0000012"
+      }
+    }
+  },
+  "feedbackSubmittedPlainMessage": "Thank you. Your feedback was sent.",
+  "@feedbackSubmittedPlainMessage": {
+    "description": "Snackbar after feedback is saved when no reference id was returned."
+  },
+  "feedbackDownloadedMessage": "Feedback downloaded.",
+  "@feedbackDownloadedMessage": {
+    "description": "Snackbar after the feedback Excel file is saved."
+  },
+  "feedbackNothingToClearMessage": "There is no stored feedback to clear.",
+  "@feedbackNothingToClearMessage": {
+    "description": "Snackbar when Clear feedback is chosen but no feedback is stored."
+  },
+  "feedbackClearConfirmTitle": "Clear feedback",
+  "@feedbackClearConfirmTitle": {
+    "description": "Title of the confirmation dialog before clearing stored feedback."
+  },
+  "feedbackClearConfirmBody": "{count, plural, =1{This clears 1 stored feedback record from future downloads. Download feedback first if you need a copy.} other{This clears {count} stored feedback records from future downloads. Download feedback first if you need a copy.}}",
+  "@feedbackClearConfirmBody": {
+    "description": "Body of the confirmation dialog before clearing stored feedback.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "feedbackClearedMessage": "{count, plural, =1{Cleared 1 feedback record.} other{Cleared {count} feedback records.}}",
+  "@feedbackClearedMessage": {
+    "description": "Snackbar after stored feedback is cleared.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   }
 }

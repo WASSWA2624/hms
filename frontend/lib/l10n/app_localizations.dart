@@ -54384,6 +54384,186 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'the user\'s email address'**
   String get accessAdminResetCredentialsUnknownDestination;
+
+  /// Label on the floating feedback button shown on every screen at tablet and desktop widths.
+  ///
+  /// In en, this message translates to:
+  /// **'Feedback'**
+  String get feedbackLauncherLabel;
+
+  /// Screen reader label for the floating feedback button.
+  ///
+  /// In en, this message translates to:
+  /// **'Give us feedback'**
+  String get feedbackLauncherSemanticLabel;
+
+  /// Screen reader label for the floating feedback button when it opens the platform admin feedback menu.
+  ///
+  /// In en, this message translates to:
+  /// **'Feedback options'**
+  String get feedbackAdminMenuSemanticLabel;
+
+  /// Screen reader label for the progress indicator on the floating feedback button while feedback is downloading or being counted.
+  ///
+  /// In en, this message translates to:
+  /// **'Working on the feedback request'**
+  String get feedbackWorkingLabel;
+
+  /// Feedback menu action that opens the feedback form.
+  ///
+  /// In en, this message translates to:
+  /// **'Give us feedback'**
+  String get feedbackGiveActionLabel;
+
+  /// Feedback menu action that downloads stored feedback as an Excel file. Platform owners and platform admins only.
+  ///
+  /// In en, this message translates to:
+  /// **'Download feedback'**
+  String get feedbackDownloadActionLabel;
+
+  /// Feedback menu action and confirmation button that clears stored feedback. Platform owners and platform admins only.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear feedback'**
+  String get feedbackClearActionLabel;
+
+  /// Title of the feedback form dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Give us feedback'**
+  String get feedbackDialogTitle;
+
+  /// Title of the banner explaining which context is attached to feedback automatically.
+  ///
+  /// In en, this message translates to:
+  /// **'Sent with your feedback'**
+  String get feedbackContextTitle;
+
+  /// Banner text in the feedback form for a signed-in user.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account, facility, subscription, and this screen ({screen}) are attached so the team can follow up.'**
+  String feedbackContextSignedInMessage(String screen);
+
+  /// Banner text in the feedback form when nobody is signed in.
+  ///
+  /// In en, this message translates to:
+  /// **'You are not signed in, so this is sent anonymously with details of this screen ({screen}).'**
+  String feedbackContextAnonymousMessage(String screen);
+
+  /// Label for the feedback category field.
+  ///
+  /// In en, this message translates to:
+  /// **'Feedback type'**
+  String get feedbackCategoryLabel;
+
+  /// Feedback category option for feedback that is not a problem, complaint, suggestion, or improvement.
+  ///
+  /// In en, this message translates to:
+  /// **'General feedback'**
+  String get feedbackCategoryGeneral;
+
+  /// Feedback category option for something that is not working.
+  ///
+  /// In en, this message translates to:
+  /// **'Problem'**
+  String get feedbackCategoryProblem;
+
+  /// Feedback category option for a complaint.
+  ///
+  /// In en, this message translates to:
+  /// **'Complaint'**
+  String get feedbackCategoryComplaint;
+
+  /// Feedback category option for a new idea.
+  ///
+  /// In en, this message translates to:
+  /// **'Suggestion'**
+  String get feedbackCategorySuggestion;
+
+  /// Feedback category option for an area that could work better.
+  ///
+  /// In en, this message translates to:
+  /// **'Improvement'**
+  String get feedbackCategoryImprovement;
+
+  /// Label for the feedback details field.
+  ///
+  /// In en, this message translates to:
+  /// **'Details'**
+  String get feedbackMessageLabel;
+
+  /// Hint inside the feedback details field.
+  ///
+  /// In en, this message translates to:
+  /// **'Describe the problem, complaint, suggestion, or improvement.'**
+  String get feedbackMessageHint;
+
+  /// Validation error when the feedback details field is empty.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter your feedback.'**
+  String get feedbackMessageRequired;
+
+  /// Validation error when feedback details are too short.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter at least {count} characters.'**
+  String feedbackMessageTooShort(int count);
+
+  /// Validation error when feedback details are too long.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep your feedback to {count} characters or fewer.'**
+  String feedbackMessageTooLong(int count);
+
+  /// Primary button that submits the feedback form.
+  ///
+  /// In en, this message translates to:
+  /// **'Send feedback'**
+  String get feedbackSubmitActionLabel;
+
+  /// Snackbar after feedback is saved, quoting its reference id.
+  ///
+  /// In en, this message translates to:
+  /// **'Thank you. Your feedback was sent (reference {reference}).'**
+  String feedbackSubmittedMessage(String reference);
+
+  /// Snackbar after feedback is saved when no reference id was returned.
+  ///
+  /// In en, this message translates to:
+  /// **'Thank you. Your feedback was sent.'**
+  String get feedbackSubmittedPlainMessage;
+
+  /// Snackbar after the feedback Excel file is saved.
+  ///
+  /// In en, this message translates to:
+  /// **'Feedback downloaded.'**
+  String get feedbackDownloadedMessage;
+
+  /// Snackbar when Clear feedback is chosen but no feedback is stored.
+  ///
+  /// In en, this message translates to:
+  /// **'There is no stored feedback to clear.'**
+  String get feedbackNothingToClearMessage;
+
+  /// Title of the confirmation dialog before clearing stored feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear feedback'**
+  String get feedbackClearConfirmTitle;
+
+  /// Body of the confirmation dialog before clearing stored feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{This clears 1 stored feedback record from future downloads. Download feedback first if you need a copy.} other{This clears {count} stored feedback records from future downloads. Download feedback first if you need a copy.}}'**
+  String feedbackClearConfirmBody(int count);
+
+  /// Snackbar after stored feedback is cleared.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Cleared 1 feedback record.} other{Cleared {count} feedback records.}}'**
+  String feedbackClearedMessage(int count);
 }
 
 class _AppLocalizationsDelegate

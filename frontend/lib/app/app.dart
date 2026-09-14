@@ -8,6 +8,7 @@ import 'package:hosspi_hms/app/router/app_router.dart';
 import 'package:hosspi_hms/app/startup/session_bootstrap.dart';
 import 'package:hosspi_hms/app/theme/app_theme.dart';
 import 'package:hosspi_hms/app/theme/app_theme_mode_controller.dart';
+import 'package:hosspi_hms/features/feedback/presentation/widgets/app_feedback_host.dart';
 import 'package:hosspi_hms/l10n/app_localizations.dart';
 import 'package:hosspi_hms/l10n/app_localizations_x.dart';
 
@@ -35,7 +36,11 @@ class HosspiHmsApp extends ConsumerWidget {
           if (child == null) {
             return const SizedBox.shrink();
           }
-          return _AccessibilityMediaQueryWrapper(child: child);
+          return _AccessibilityMediaQueryWrapper(
+            // Above the navigators, so every screen — sign-in included — and
+            // any screen added later gets the feedback control.
+            child: AppFeedbackHost(router: router, child: child),
+          );
         },
       ),
     );
