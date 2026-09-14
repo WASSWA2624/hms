@@ -29,6 +29,7 @@ import 'package:hosspi_hms/shared/data/app_pagination.dart';
 import '../../../../helpers/test_harness.dart';
 
 typedef _SavedFile = ({Uint8List bytes, String fileName});
+typedef _MenuLayout = ({String name, Size size, Offset? moveTo});
 
 final class _FakeFeedbackRepository implements FeedbackRepository {
   final List<({FeedbackSubmission submission, bool signedIn})> submissions =
@@ -196,6 +197,18 @@ Finder get _messageField => find.descendant(
 Future<void> _openLauncher(WidgetTester tester) async {
   await tester.tap(_launcher);
   await tester.pumpAndSettle();
+}
+
+/// The surface of the open feedback menu.
+Rect _menuRect(WidgetTester tester) {
+  return tester.getRect(
+    find
+        .ancestor(
+          of: find.text('Give us feedback'),
+          matching: find.byType(Material),
+        )
+        .first,
+  );
 }
 
 Future<TestGesture> _addMouse(WidgetTester tester) async {
@@ -391,6 +404,112 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Download feedback'), findsNothing);
     expect(find.byType(FeedbackSubmitDialog), findsNothing);
+  });
+
+  for (final _MenuLayout layout in const <_MenuLayout>[
+    (name: 'desktop, default corner', size: Size(1280, 900), moveTo: null),
+    (
+      name: 'desktop, screen centre',
+      size: Size(1280, 900),
+      moveTo: Offset(640, 450),
+    ),
+    (
+      name: 'desktop, top-left corner',
+      size: Size(1280, 900),
+      moveTo: Offset.zero,
+    ),
+    (name: 'phone, default corner', size: Size(390, 844), moveTo: null),
+    (
+      name: 'phone, screen centre',
+      size: Size(390, 844),
+      moveTo: Offset(195, 422),
+    ),
+    (
+      name: 'narrow phone, left of centre',
+      size: Size(320, 640),
+      moveTo: Offset(150, 320),
+    ),
+    (
+      name: 'narrow phone, right of centre',
+      size: Size(320, 640),
+      moveTo: Offset(172, 320),
+    ),
+  ]) {
+    testWidgets('the button never covers its menu: ${layout.name}', (
+      WidgetTester tester,
+    ) async {
+      await _pumpHost(
+        tester,
+        session: _signedInAs('PLATFORM_ADMIN'),
+        repository: _FakeFeedbackRepository(),
+        size: layout.size,
+      );
+      final Offset? moveTo = layout.moveTo;
+      if (moveTo != null) {
+        await tester.drag(_launcher, moveTo - tester.getCenter(_launcher));
+        await tester.pumpAndSettle();
+      }
+
+      // Open it while hovered, so the label is showing as the menu opens.
+      final TestGesture mouse = await _addMouse(tester);
+      await mouse.moveTo(tester.getCenter(_launcher));
+      await tester.pumpAndSettle();
+      expect(find.text('Feedback'), findsOneWidget);
+      await tester.tap(_launcher);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Download feedback'), findsOneWidget);
+      expect(find.text('Feedback'), findsNothing);
+      final Rect menu = _menuRect(tester);
+      final Rect button = tester.getRect(_launcher);
+      expect(
+        menu.overlaps(button),
+        isFalse,
+        reason: 'menu $menu overlaps button $button',
+      );
+      expect(menu.left, greaterThanOrEqualTo(0));
+      expect(menu.right, lessThanOrEqualTo(layout.size.width));
+    });
+  }
+
+  testWidgets('dragging the button closes its menu at once', (
+    WidgetTester tester,
+  ) async {
+    await _pumpHost(
+      tester,
+      session: _signedInAs('PLATFORM_OWNER'),
+      repository: _FakeFeedbackRepository(),
+    );
+    await _openLauncher(tester);
+    expect(find.text('Download feedback'), findsOneWidget);
+
+    await tester.drag(_launcher, const Offset(-500, -300));
+    await tester.pump();
+
+    // Gone within a frame: no exit animation for the button to pass over.
+    expect(find.text('Download feedback'), findsNothing);
+    await tester.pumpAndSettle();
+    await _openLauncher(tester);
+    expect(find.text('Download feedback'), findsOneWidget);
+  });
+
+  testWidgets('resizing the window closes the menu', (
+    WidgetTester tester,
+  ) async {
+    await _pumpHost(
+      tester,
+      session: _signedInAs('PLATFORM_OWNER'),
+      repository: _FakeFeedbackRepository(),
+    );
+    await _openLauncher(tester);
+    expect(find.text('Download feedback'), findsOneWidget);
+
+    tester.view.physicalSize = const Size(900, 700);
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Download feedback'), findsNothing);
+    expect(_launcher.hitTestable(), findsOneWidget);
   });
 
   testWidgets('other signed-in roles only get the feedback form', (

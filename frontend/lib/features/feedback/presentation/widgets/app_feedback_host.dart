@@ -35,6 +35,67 @@ typedef FeedbackExportSaver =
 
 enum _FeedbackMenuAction { give, download, clear }
 
+typedef _FeedbackMenuPlacement = ({
+  RelativeRect position,
+  BoxConstraints constraints,
+});
+
+/// Material's popup menu keeps this far inside the screen's safe area.
+const double _menuScreenMargin = 8;
+
+/// Material's popup menu width limits.
+const double _menuMinWidth = 112;
+const double _menuMaxWidth = 280;
+
+/// Places the feedback menu beside [icon], on the side with more room, so the
+/// control, which paints above the menu, never covers it.
+///
+/// Material grows a menu away from whichever screen edge its position is
+/// closer to, then nudges it back on screen if it spills over. Pushing the
+/// unused edge of the position to the far side fixes the direction, and
+/// capping the width at the room on that side leaves nothing to nudge.
+_FeedbackMenuPlacement _placeMenuBeside(
+  Rect icon, {
+  required Size overlaySize,
+  required EdgeInsets safePadding,
+  required double gap,
+}) {
+  final double roomLeft =
+      icon.left - gap - safePadding.left - _menuScreenMargin;
+  final double roomRight =
+      overlaySize.width -
+      safePadding.right -
+      _menuScreenMargin -
+      icon.right -
+      gap;
+  final bool opensLeftward = roomLeft > roomRight;
+  final double maxWidth = math.max(
+    0,
+    math.min(_menuMaxWidth, opensLeftward ? roomLeft : roomRight),
+  );
+  final double bottom = overlaySize.height - icon.top;
+
+  return (
+    position: opensLeftward
+        ? RelativeRect.fromLTRB(
+            overlaySize.width,
+            icon.top,
+            overlaySize.width - icon.left + gap,
+            bottom,
+          )
+        : RelativeRect.fromLTRB(
+            icon.right + gap,
+            icon.top,
+            overlaySize.width,
+            bottom,
+          ),
+    constraints: BoxConstraints(
+      minWidth: math.min(_menuMinWidth, maxWidth),
+      maxWidth: maxWidth,
+    ),
+  );
+}
+
 /// Floats the feedback control above everything in the app, sign-in screens,
 /// modal dialogs, and print previews included.
 ///
@@ -106,8 +167,18 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     final Offset? savedPosition = ref.watch(feedbackLauncherPositionProvider);
     final ThemeData theme = Theme.of(context);
     final TextDirection textDirection = Directionality.of(context);
-    _viewSize = MediaQuery.sizeOf(context);
-    _safePadding = MediaQuery.paddingOf(context);
+    final Size viewSize = MediaQuery.sizeOf(context);
+    final EdgeInsets safePadding = MediaQuery.paddingOf(context);
+    if (_openMenuKey != null &&
+        (viewSize != _viewSize || safePadding != _safePadding)) {
+      // The menu was placed for the old layout, and the control may move onto
+      // it. Close it at once rather than let the control cover it.
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _closeMenu(animate: false),
+      );
+    }
+    _viewSize = viewSize;
+    _safePadding = safePadding;
     _edgeInset = theme.spacing.sm;
     // The control is an icon until hovered, and its label opens toward the
     // middle of the screen, so the icon alone decides what stays on screen.
@@ -217,6 +288,9 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
   }
 
   void _handleDragStart(DragStartDetails details) {
+    // Moving the control would carry it over its open menu.
+    _closeMenu(animate: false);
+
     final RenderObject? launcher = _anchorKey.currentContext
         ?.findRenderObject();
     final RenderObject? host = context.findRenderObject();
@@ -289,17 +363,23 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     }
 
     final AppLocalizations l10n = navigatorContext.l10n;
-    final Rect anchorRect =
+    final Rect launcherRect =
         overlay.globalToLocal(anchor.localToGlobal(Offset.zero)) & anchor.size;
-    // The control paints above the menu, so open the menu beside it, toward
-    // the wider side of the screen, rather than over it.
-    final double gap = Theme.of(context).spacing.xs;
-    final bool opensLeftward = anchorRect.center.dx > overlay.size.width / 2;
-    final Rect menuAnchor = Rect.fromLTWH(
-      opensLeftward ? anchorRect.left - gap : anchorRect.right + gap,
-      anchorRect.top,
-      0,
-      anchorRect.height,
+    // The control paints above everything, so its menu goes beside it, never
+    // under it. The label hides while the menu is open, so place the menu
+    // against the icon alone.
+    final _FeedbackMenuPlacement placement = _placeMenuBeside(
+      Rect.fromLTWH(
+        _labelOpensLeftward
+            ? launcherRect.right - _iconOnlySize.width
+            : launcherRect.left,
+        launcherRect.top,
+        _iconOnlySize.width,
+        _iconOnlySize.height,
+      ),
+      overlaySize: overlay.size,
+      safePadding: MediaQuery.paddingOf(navigatorContext),
+      gap: Theme.of(context).spacing.xs,
     );
 
     final GlobalKey menuKey = GlobalKey(debugLabel: 'feedback-menu');
@@ -308,10 +388,8 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     try {
       action = await showMenu<_FeedbackMenuAction>(
         context: navigatorContext,
-        position: RelativeRect.fromRect(
-          menuAnchor,
-          Offset.zero & overlay.size,
-        ),
+        position: placement.position,
+        constraints: placement.constraints,
         items: <PopupMenuEntry<_FeedbackMenuAction>>[
           PopupMenuItem<_FeedbackMenuAction>(
             key: menuKey,
@@ -358,8 +436,10 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     }
   }
 
-  /// Closes the menu this control opened, with its usual exit animation.
-  void _closeMenu() {
+  /// Closes the menu this control opened. [animate] plays the usual exit
+  /// animation; without it the menu goes at once, for when the control is
+  /// about to move and would otherwise pass over the fading menu.
+  void _closeMenu({bool animate = true}) {
     final BuildContext? menuContext = _openMenuKey?.currentContext;
     if (menuContext == null) {
       return;
@@ -369,10 +449,10 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     if (route == null || navigator == null || !route.isActive) {
       return;
     }
-    if (route.isCurrent) {
+    if (animate && route.isCurrent) {
       navigator.pop();
     } else {
-      // Something opened above the menu; take the menu out from under it.
+      // Removes it without animation, even from under a route opened above.
       navigator.removeRoute(route);
     }
   }
@@ -541,7 +621,9 @@ class _FeedbackLauncherState extends State<_FeedbackLauncher> {
     final String semanticLabel = widget.canManage
         ? l10n.feedbackAdminMenuSemanticLabel
         : l10n.feedbackLauncherSemanticLabel;
-    final bool showLabel = (_isHovered || _isFocused) && !widget.isDragging;
+    // No label while the menu is open: it would grow over the menu.
+    final bool showLabel =
+        (_isHovered || _isFocused) && !widget.isDragging && !widget.isMenuOpen;
 
     final Widget icon = widget.isBusy
         ? SizedBox.square(
@@ -558,6 +640,27 @@ class _FeedbackLauncherState extends State<_FeedbackLauncher> {
             color: foreground,
             semanticLabel: semanticLabel,
           );
+
+    final Widget content = Row(
+      mainAxisSize: MainAxisSize.min,
+      // Visual order only: the label sits on the side it opens to.
+      textDirection: widget.labelOpensLeftward
+          ? TextDirection.rtl
+          : TextDirection.ltr,
+      children: <Widget>[
+        icon,
+        if (showLabel) ...<Widget>[
+          SizedBox(width: theme.spacing.xs),
+          // The icon already carries the accessible label.
+          ExcludeSemantics(
+            child: Text(
+              l10n.feedbackLauncherLabel,
+              style: theme.textTheme.labelLarge?.copyWith(color: foreground),
+            ),
+          ),
+        ],
+      ],
+    );
 
     return AppPointerInterceptor(
       onPointerLeave: () => _setHovered(false),
@@ -582,35 +685,17 @@ class _FeedbackLauncherState extends State<_FeedbackLauncher> {
                 : SystemMouseCursors.click,
             child: Padding(
               padding: EdgeInsets.all(theme.spacing.xs),
-              child: AnimatedSize(
-                duration: const Duration(milliseconds: 120),
-                curve: Curves.easeOut,
-                alignment: widget.labelOpensLeftward
-                    ? Alignment.centerRight
-                    : Alignment.centerLeft,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  // Visual order only: the label sits on the side it opens to.
-                  textDirection: widget.labelOpensLeftward
-                      ? TextDirection.rtl
-                      : TextDirection.ltr,
-                  children: <Widget>[
-                    icon,
-                    if (showLabel) ...<Widget>[
-                      SizedBox(width: theme.spacing.xs),
-                      // The icon already carries the accessible label.
-                      ExcludeSemantics(
-                        child: Text(
-                          l10n.feedbackLauncherLabel,
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            color: foreground,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
+              // Snap shut as the menu opens instead of shrinking over it.
+              child: widget.isMenuOpen
+                  ? content
+                  : AnimatedSize(
+                      duration: const Duration(milliseconds: 120),
+                      curve: Curves.easeOut,
+                      alignment: widget.labelOpensLeftward
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
+                      child: content,
+                    ),
             ),
           ),
         ),
