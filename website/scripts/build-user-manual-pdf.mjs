@@ -93,18 +93,23 @@ function formatDate(isoDate) {
   }).format(new Date(`${isoDate}T00:00:00Z`));
 }
 
+/* Same placement as the page: badges sit just outside the outlined control. */
 function markerPosition({ x, y, w = 0, h = 0, side }) {
   switch (side) {
     case 'right':
-      return { left: x + w, top: y + h / 2 };
+      return { left: x + w, top: y + h / 2, side: 'right' };
     case 'top':
-      return { left: x + w / 2, top: y };
+      return { left: x + w / 2, top: y, side: 'top' };
     case 'bottom':
-      return { left: x + w / 2, top: y + h };
+      return { left: x + w / 2, top: y + h, side: 'bottom' };
     default:
-      return { left: x < 2 ? x + 1.5 : x, top: y + h / 2 };
+      return { left: x, top: y + h / 2, side: 'left' };
   }
 }
+
+/* Side padding inside each figure, so badges placed just outside a screenshot's
+   edge stay on the page instead of being clipped by the page margin. */
+const FIGURE_GUTTER_MM = 7;
 
 function renderFigure(block) {
   const figure = figures[block.figure];
@@ -112,14 +117,14 @@ function renderFigure(block) {
     console.warn(`Missing figure "${block.figure}"`);
     return '';
   }
-  const widthMm = Math.min(CONTENT_WIDTH_MM, figure.width * MM_PER_PIXEL).toFixed(1);
+  const widthMm = Math.min(CONTENT_WIDTH_MM, figure.width * MM_PER_PIXEL + 2 * FIGURE_GUTTER_MM).toFixed(1);
   const imagePath = fromRoot('public', ...figure.src.split('/').filter(Boolean));
   const markers = (figure.markers || []).map((marker) => {
     const position = markerPosition(marker);
     const outline = marker.w > 0 && marker.h > 0
       ? `<span class="highlight" style="left:${marker.x}%;top:${marker.y}%;width:${marker.w}%;height:${marker.h}%"></span>`
       : '';
-    return `${outline}<span class="marker" style="left:${position.left}%;top:${position.top}%">${marker.n}</span>`;
+    return `${outline}<span class="marker marker-${position.side}" style="left:${position.left}%;top:${position.top}%">${marker.n}</span>`;
   }).join('');
 
   return `
@@ -326,7 +331,7 @@ function renderHtml(chapters, pages) {
   ul li { margin: 0 0 1.4mm; }
   ul li::marker { color: ${c.primary}; }
 
-  figure { margin: 3mm auto 4mm; break-inside: avoid; break-after: avoid; max-width: 100%; }
+  figure { margin: 3mm auto 4mm; padding: 0 ${FIGURE_GUTTER_MM}mm; box-sizing: border-box; break-inside: avoid; break-after: avoid; max-width: 100%; }
   .frame { position: relative; line-height: 0; }
   .frame img { width: 100%; height: auto; border: 0.3mm solid ${c.border}; border-radius: 2mm; }
   .highlight {
@@ -334,13 +339,17 @@ function renderHtml(chapters, pages) {
     background: rgba(226, 58, 46, 0.07);
   }
   .marker {
-    position: absolute; transform: translate(-50%, -50%);
+    position: absolute;
     width: 5.4mm; height: 5.4mm; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     background: ${c.secondary}; color: #FFFFFF; border: 0.55mm solid #FFFFFF;
     box-shadow: 0 0.4mm 1.2mm rgba(13, 39, 68, 0.35);
     font-size: 7.5pt; font-weight: 700; line-height: 1;
   }
+  .marker-left { transform: translate(calc(-100% - 0.8mm), -50%); }
+  .marker-right { transform: translate(0.8mm, -50%); }
+  .marker-top { transform: translate(-50%, calc(-100% - 0.8mm)); }
+  .marker-bottom { transform: translate(-50%, 0.8mm); }
   figcaption { margin-top: 2mm; font-size: 8pt; line-height: 1.4; color: ${c.textSecondary}; }
   figcaption strong { color: ${c.text}; }
 
@@ -486,9 +495,15 @@ async function openBrowser() {
 
   const close = async () => {
     socket.close();
+    const exited = new Promise((resolveExit) => browser.once('exit', resolveExit));
     browser.kill();
-    await sleep(500);
-    rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    await Promise.race([exited, sleep(5000)]);
+    try {
+      rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
+    } catch {
+      // Windows can keep the profile locked briefly after the browser exits.
+      // It is a temporary folder, so leaving it behind is harmless.
+    }
   };
 
   await send('Page.enable');

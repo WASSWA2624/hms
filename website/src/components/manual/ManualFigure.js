@@ -20,10 +20,13 @@
 import React from 'react';
 import styled from 'styled-components';
 
-/* Never wider than the screenshot itself, so narrow crops stay sharp. */
+/* Never wider than the screenshot itself, so narrow crops stay sharp. The side
+   padding leaves room for markers that sit just outside the screenshot edge. */
 const StyledFigure = styled.figure`
   margin: ${props => props.theme.spacing.lg} 0;
+  padding: 0 clamp(1rem, 2.5vw, 2rem);
   max-width: 100%;
+  box-sizing: border-box;
 `;
 
 const StyledFrame = styled.div`
@@ -50,7 +53,6 @@ const StyledHighlight = styled.span`
 
 const StyledMarker = styled.span`
   position: absolute;
-  transform: translate(-50%, -50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -92,19 +94,20 @@ StyledHighlight.displayName = 'StyledManualFigureHighlight';
 StyledMarker.displayName = 'StyledManualFigureMarker';
 StyledCaption.displayName = 'StyledManualFigureCaption';
 
-/* Badge centre, in percent of the screenshot. Defaults to the left edge of
-   the outlined control, mid-height, and moves inside when that would fall
-   off the image. */
-function markerPosition({ x, y, w = 0, h = 0, side }) {
+/* Where a badge is anchored, in percent of the screenshot, and how it sits
+   against that point. Badges sit just outside the outlined control - to its
+   left unless the capture chose another side - so they never cover the
+   control's own label. */
+function markerPlacement({ x, y, w = 0, h = 0, side }) {
   switch (side) {
     case 'right':
-      return { left: x + w, top: y + h / 2 };
+      return { left: x + w, top: y + h / 2, transform: 'translate(4px, -50%)' };
     case 'top':
-      return { left: x + w / 2, top: y };
+      return { left: x + w / 2, top: y, transform: 'translate(-50%, calc(-100% - 4px))' };
     case 'bottom':
-      return { left: x + w / 2, top: y + h };
+      return { left: x + w / 2, top: y + h, transform: 'translate(-50%, 4px)' };
     default:
-      return { left: x < 2 ? x + 1.5 : x, top: y + h / 2 };
+      return { left: x, top: y + h / 2, transform: 'translate(calc(-100% - 4px), -50%)' };
   }
 }
 
@@ -127,7 +130,7 @@ export const ManualFigure = React.memo(({ figure, number, caption }) => {
           decoding="async"
         />
         {markers.map((marker) => {
-          const position = markerPosition(marker);
+          const placement = markerPlacement(marker);
           return (
             <React.Fragment key={marker.n}>
               {marker.w > 0 && marker.h > 0 && (
@@ -143,7 +146,11 @@ export const ManualFigure = React.memo(({ figure, number, caption }) => {
               )}
               <StyledMarker
                 aria-hidden="true"
-                style={{ left: `${position.left}%`, top: `${position.top}%` }}
+                style={{
+                  left: `${placement.left}%`,
+                  top: `${placement.top}%`,
+                  transform: placement.transform,
+                }}
               >
                 {marker.n}
               </StyledMarker>

@@ -1,4 +1,169 @@
 {
+  "access-create-role": {
+    "src": "/images/user-manual/access-create-role.jpg",
+    "width": 1280,
+    "height": 520,
+    "alt": "The Create role form with the scope choice, the organisation, and the role name, display name and description fields.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 2.97,
+        "y": 22.12,
+        "w": 62.66,
+        "h": 10.38
+      },
+      {
+        "n": 2,
+        "x": 2.89,
+        "y": 36.15,
+        "w": 16.72,
+        "h": 7.31
+      },
+      {
+        "n": 3,
+        "x": 2.81,
+        "y": 56.15,
+        "w": 47.66,
+        "h": 12.31
+      },
+      {
+        "n": 4,
+        "x": 50.16,
+        "y": 56.15,
+        "w": 47.66,
+        "h": 12.31
+      },
+      {
+        "n": 5,
+        "x": 2.81,
+        "y": 67.31,
+        "w": 94.84,
+        "h": 16.92
+      },
+      {
+        "n": 6,
+        "x": 86.09,
+        "y": 90.19,
+        "w": 6.33,
+        "h": 8.85
+      }
+    ]
+  },
+  "access-create-staff": {
+    "src": "/images/user-manual/access-create-staff.jpg",
+    "width": 1280,
+    "height": 800,
+    "alt": "The Create staff form with the facility, first and last name, email, phone, position title, status and password fields.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 2.19,
+        "y": 12.5,
+        "w": 96.25,
+        "h": 9.5
+      },
+      {
+        "n": 2,
+        "x": 2.19,
+        "y": 26.75,
+        "w": 96.25,
+        "h": 7
+      },
+      {
+        "n": 3,
+        "x": 2.19,
+        "y": 34,
+        "w": 47.97,
+        "h": 7
+      },
+      {
+        "n": 4,
+        "x": 50.47,
+        "y": 34,
+        "w": 47.34,
+        "h": 6
+      },
+      {
+        "n": 5,
+        "x": 2.19,
+        "y": 41.25,
+        "w": 47.97,
+        "h": 7
+      },
+      {
+        "n": 6,
+        "x": 50.47,
+        "y": 41.25,
+        "w": 47.97,
+        "h": 7
+      },
+      {
+        "n": 7,
+        "x": 2.19,
+        "y": 48.5,
+        "w": 96.25,
+        "h": 9.5
+      },
+      {
+        "n": 8,
+        "x": 86.09,
+        "y": 93.63,
+        "w": 6.33,
+        "h": 5.75
+      }
+    ]
+  },
+  "access-create-staff-roles": {
+    "src": "/images/user-manual/access-create-staff-roles.jpg",
+    "width": 1280,
+    "height": 800,
+    "alt": "The Roles part of the Create staff form, filtered to roles containing nurse, each showing how many permissions it grants.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 1.88,
+        "y": 28.63,
+        "w": 96.88,
+        "h": 8
+      },
+      {
+        "n": 2,
+        "x": 2.03,
+        "y": 51.38,
+        "w": 95.94,
+        "h": 6
+      },
+      {
+        "n": 3,
+        "x": 86.09,
+        "y": 93.63,
+        "w": 6.33,
+        "h": 5.75
+      }
+    ]
+  },
+  "access-roles-list": {
+    "src": "/images/user-manual/access-roles-list.jpg",
+    "width": 1035,
+    "height": 420,
+    "alt": "The Roles tab listing the roles available to the organisation, with the Create role button.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 89.47,
+        "y": 25,
+        "w": 10.43,
+        "h": 9.05
+      },
+      {
+        "n": 2,
+        "x": 0.58,
+        "y": 45.71,
+        "w": 99.03,
+        "h": 13.33
+      }
+    ]
+  },
   "access-staff-record": {
     "src": "/images/user-manual/access-staff-record.jpg",
     "width": 1280,
@@ -71,6 +236,123 @@
       }
     ]
   },
+  "accounts-books": {
+    "src": "/images/user-manual/accounts-books.jpg",
+    "width": 1035,
+    "height": 300,
+    "alt": "The accounting books with the Open work, To post, Need approval, General ledger, Patient ledgers, Account chart and Invoices tabs, and the Journal button.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.67,
+        "w": 91.5,
+        "h": 14.67
+      },
+      {
+        "n": 2,
+        "x": 0.19,
+        "y": 17.33,
+        "w": 71.3,
+        "h": 21.33
+      },
+      {
+        "n": 3,
+        "x": 91.4,
+        "y": 35.67,
+        "w": 8.5,
+        "h": 12.67,
+        "side": "left"
+      }
+    ]
+  },
+  "accounts-journal": {
+    "src": "/images/user-manual/accounts-journal.jpg",
+    "width": 1280,
+    "height": 960,
+    "alt": "A new journal entry with the date, period and source, a line with the account, debit, credit and memo, a second line and notes.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 1.88,
+        "y": 6.67,
+        "w": 96.25,
+        "h": 5.83
+      },
+      {
+        "n": 2,
+        "x": 1.88,
+        "y": 12.92,
+        "w": 96.88,
+        "h": 6.67
+      },
+      {
+        "n": 3,
+        "x": 1.88,
+        "y": 19.38,
+        "w": 96.88,
+        "h": 6.67
+      },
+      {
+        "n": 4,
+        "x": 1.88,
+        "y": 31.25,
+        "w": 96.88,
+        "h": 21.67
+      },
+      {
+        "n": 5,
+        "x": 1.88,
+        "y": 53.54,
+        "w": 96.25,
+        "h": 2.92
+      },
+      {
+        "n": 6,
+        "x": 1.88,
+        "y": 80.42,
+        "w": 96.72,
+        "h": 11.67
+      },
+      {
+        "n": 7,
+        "x": 86.09,
+        "y": 94.69,
+        "w": 6.33,
+        "h": 4.79
+      }
+    ]
+  },
+  "accounts-setup": {
+    "src": "/images/user-manual/accounts-setup.jpg",
+    "width": 1035,
+    "height": 300,
+    "alt": "Accounting setup and controls: fiscal years and periods, departments and cost centres, payment methods and document numbering.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.67,
+        "w": 75.46,
+        "h": 14.67
+      },
+      {
+        "n": 2,
+        "x": 46.76,
+        "y": 35.67,
+        "w": 10.63,
+        "h": 12.67
+      },
+      {
+        "n": 3,
+        "x": 57.29,
+        "y": 35.67,
+        "w": 42.61,
+        "h": 12.67,
+        "side": "bottom"
+      }
+    ]
+  },
   "auth-forgot": {
     "src": "/images/user-manual/auth-forgot.jpg",
     "width": 560,
@@ -128,6 +410,13 @@
         "h": 10.86
       }
     ]
+  },
+  "auth-pending": {
+    "src": "/images/user-manual/auth-pending.jpg",
+    "width": 960,
+    "height": 640,
+    "alt": "The Awaiting approval message, explaining that a platform administrator must approve the account, with the platform administrators to contact and a Close button.",
+    "markers": []
   },
   "auth-register": {
     "src": "/images/user-manual/auth-register.jpg",
@@ -255,6 +544,2239 @@
         "y": 68.29,
         "w": 85.71,
         "h": 12.2
+      }
+    ]
+  },
+  "billing-charge": {
+    "src": "/images/user-manual/billing-charge.jpg",
+    "width": 1280,
+    "height": 560,
+    "alt": "The Charge window with the patient, item, quantity, amount due and currency, payment mode and notes.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 1.88,
+        "y": 11.43,
+        "w": 96.88,
+        "h": 11.43
+      },
+      {
+        "n": 2,
+        "x": 1.88,
+        "y": 22.5,
+        "w": 96.88,
+        "h": 11.43
+      },
+      {
+        "n": 3,
+        "x": 1.88,
+        "y": 33.57,
+        "w": 96.88,
+        "h": 11.43
+      },
+      {
+        "n": 4,
+        "x": 1.88,
+        "y": 44.64,
+        "w": 96.88,
+        "h": 12.5
+      },
+      {
+        "n": 5,
+        "x": 1.88,
+        "y": 56.79,
+        "w": 96.88,
+        "h": 11.43
+      },
+      {
+        "n": 6,
+        "x": 1.88,
+        "y": 67.86,
+        "w": 96.72,
+        "h": 20
+      },
+      {
+        "n": 7,
+        "x": 85,
+        "y": 90.89,
+        "w": 7.42,
+        "h": 8.21
+      }
+    ]
+  },
+  "billing-invoice": {
+    "src": "/images/user-manual/billing-invoice.jpg",
+    "width": 1280,
+    "height": 800,
+    "alt": "An invoice with its quick actions, the financial summary, line items and payments, and the Invoice download and Print buttons.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 84.69,
+        "y": 9,
+        "w": 10.78,
+        "h": 4.5
+      },
+      {
+        "n": 2,
+        "x": 2.97,
+        "y": 21.38,
+        "w": 39.53,
+        "h": 4.5
+      },
+      {
+        "n": 3,
+        "x": 1.88,
+        "y": 28.13,
+        "w": 96.25,
+        "h": 18.63
+      },
+      {
+        "n": 4,
+        "x": 2.5,
+        "y": 47.75,
+        "w": 95,
+        "h": 4.5
+      },
+      {
+        "n": 5,
+        "x": 2.5,
+        "y": 76.88,
+        "w": 95,
+        "h": 4.5
+      },
+      {
+        "n": 6,
+        "x": 85.39,
+        "y": 93.63,
+        "w": 13.59,
+        "h": 5.75,
+        "side": "top"
+      }
+    ]
+  },
+  "billing-pay": {
+    "src": "/images/user-manual/billing-pay.jpg",
+    "width": 1280,
+    "height": 520,
+    "alt": "The Pay window with the invoice and amount due, the amount received and currency, payment method, reference, payer and the Generate receipt after payment option.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 2.03,
+        "y": 12.69,
+        "w": 95.94,
+        "h": 16.15
+      },
+      {
+        "n": 2,
+        "x": 1.88,
+        "y": 30,
+        "w": 96.88,
+        "h": 13.46
+      },
+      {
+        "n": 3,
+        "x": 1.88,
+        "y": 43.08,
+        "w": 96.88,
+        "h": 12.31
+      },
+      {
+        "n": 4,
+        "x": 1.88,
+        "y": 55,
+        "w": 96.88,
+        "h": 12.31
+      },
+      {
+        "n": 5,
+        "x": 1.88,
+        "y": 66.92,
+        "w": 96.88,
+        "h": 12.31
+      },
+      {
+        "n": 6,
+        "x": 1.88,
+        "y": 78.85,
+        "w": 96.25,
+        "h": 9.23
+      },
+      {
+        "n": 7,
+        "x": 86.72,
+        "y": 90.19,
+        "w": 5.7,
+        "h": 8.85
+      }
+    ]
+  },
+  "billing-price-book": {
+    "src": "/images/user-manual/billing-price-book.jpg",
+    "width": 1035,
+    "height": 430,
+    "alt": "The price book listing the prices charged for items and services by payment mode, with the Add, Edit and Deactivate buttons.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.47,
+        "w": 82.42,
+        "h": 10.23
+      },
+      {
+        "n": 2,
+        "x": 0.19,
+        "y": 12.09,
+        "w": 71.3,
+        "h": 14.88
+      },
+      {
+        "n": 3,
+        "x": 93.43,
+        "y": 24.88,
+        "w": 6.47,
+        "h": 8.84,
+        "side": "left"
+      },
+      {
+        "n": 4,
+        "x": 68.99,
+        "y": 46.51,
+        "w": 6.96,
+        "h": 10.23
+      },
+      {
+        "n": 5,
+        "x": 76.71,
+        "y": 46.51,
+        "w": 11.11,
+        "h": 10.23
+      }
+    ]
+  },
+  "billing-worklist": {
+    "src": "/images/user-manual/billing-worklist.jpg",
+    "width": 1035,
+    "height": 310,
+    "alt": "The billing worklist searched for a patient, with its tabs, the Charge button and the Pay action for an invoice awaiting payment.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.65,
+        "w": 76.52,
+        "h": 14.19
+      },
+      {
+        "n": 2,
+        "x": 0.19,
+        "y": 16.77,
+        "w": 71.3,
+        "h": 20.65
+      },
+      {
+        "n": 3,
+        "x": 91.69,
+        "y": 34.52,
+        "w": 8.21,
+        "h": 12.26,
+        "side": "left"
+      },
+      {
+        "n": 4,
+        "x": 78.84,
+        "y": 67.1,
+        "w": 19.81,
+        "h": 7.74
+      }
+    ]
+  },
+  "claims-response": {
+    "src": "/images/user-manual/claims-response.jpg",
+    "width": 1280,
+    "height": 340,
+    "alt": "Recording the insurer’s response to a claim: the payer response, notes and the Record response button.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 1.88,
+        "y": 18.82,
+        "w": 96.88,
+        "h": 18.82
+      },
+      {
+        "n": 2,
+        "x": 1.88,
+        "y": 37.06,
+        "w": 96.72,
+        "h": 32.94
+      },
+      {
+        "n": 3,
+        "x": 84.53,
+        "y": 69.71,
+        "w": 13.52,
+        "h": 11.18
+      }
+    ]
+  },
+  "claims-setup": {
+    "src": "/images/user-manual/claims-setup.jpg",
+    "width": 1035,
+    "height": 240,
+    "alt": "Insurance Setup, with buttons to add insurance companies, schemes, offers and prices, enrol patients and connect insurer systems.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 1.55,
+        "y": 56.25,
+        "w": 14.59,
+        "h": 15,
+        "side": "top"
+      },
+      {
+        "n": 2,
+        "x": 16.52,
+        "y": 56.25,
+        "w": 13.82,
+        "h": 15,
+        "side": "top"
+      },
+      {
+        "n": 3,
+        "x": 30.72,
+        "y": 56.25,
+        "w": 11.98,
+        "h": 15,
+        "side": "top"
+      },
+      {
+        "n": 4,
+        "x": 43.09,
+        "y": 56.25,
+        "w": 14.3,
+        "h": 15,
+        "side": "top"
+      },
+      {
+        "n": 5,
+        "x": 57.78,
+        "y": 56.25,
+        "w": 12.08,
+        "h": 15,
+        "side": "top"
+      },
+      {
+        "n": 6,
+        "x": 70.24,
+        "y": 56.25,
+        "w": 13.04,
+        "h": 15,
+        "side": "top"
+      }
+    ]
+  },
+  "claims-worklist": {
+    "src": "/images/user-manual/claims-worklist.jpg",
+    "width": 1035,
+    "height": 410,
+    "alt": "The insurance claims worklist with its tabs, the Request authorization button and the next step for each authorization, such as Update status.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.49,
+        "w": 92.08,
+        "h": 10.73
+      },
+      {
+        "n": 2,
+        "x": 0.19,
+        "y": 11.71,
+        "w": 78.55,
+        "h": 15.61
+      },
+      {
+        "n": 3,
+        "x": 83.19,
+        "y": 25.12,
+        "w": 16.71,
+        "h": 9.27,
+        "side": "left"
+      },
+      {
+        "n": 4,
+        "x": 78.84,
+        "y": 48.29,
+        "w": 19.81,
+        "h": 8.78
+      }
+    ]
+  },
+  "clinical-diagnosis": {
+    "src": "/images/user-manual/clinical-diagnosis.jpg",
+    "width": 1280,
+    "height": 640,
+    "alt": "Add diagnosis: the diagnosis type, a search of the diagnosis catalogue for malaria, the list of selected diagnoses and the Add diagnosis button.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 2.03,
+        "y": 10.31,
+        "w": 95.94,
+        "h": 5.63
+      },
+      {
+        "n": 2,
+        "x": 2.5,
+        "y": 17.5,
+        "w": 31.72,
+        "h": 8.44
+      },
+      {
+        "n": 4,
+        "x": 33.75,
+        "y": 17.81,
+        "w": 15.31,
+        "h": 6.88,
+        "side": "bottom"
+      },
+      {
+        "n": 5,
+        "x": 50.78,
+        "y": 17.5,
+        "w": 29.69,
+        "h": 8.44
+      },
+      {
+        "n": 6,
+        "x": 83.59,
+        "y": 92.03,
+        "w": 8.83,
+        "h": 7.19
+      }
+    ]
+  },
+  "clinical-encounter": {
+    "src": "/images/user-manual/clinical-encounter.jpg",
+    "width": 1280,
+    "height": 800,
+    "alt": "An encounter open in Clinical details, with the clinical actions, clinical notes, pharmacy orders and patient diagnoses.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 1.88,
+        "y": 8,
+        "w": 96.25,
+        "h": 5.5
+      },
+      {
+        "n": 2,
+        "x": 2.97,
+        "y": 20.37,
+        "w": 87.58,
+        "h": 9.5
+      },
+      {
+        "n": 3,
+        "x": 89.84,
+        "y": 33.13,
+        "w": 5.63,
+        "h": 5.5
+      },
+      {
+        "n": 4,
+        "x": 2.5,
+        "y": 46.25,
+        "w": 95,
+        "h": 4.5
+      },
+      {
+        "n": 5,
+        "x": 84.06,
+        "y": 75.88,
+        "w": 5.7,
+        "h": 5.5
+      }
+    ]
+  },
+  "clinical-lab-picker": {
+    "src": "/images/user-manual/clinical-lab-picker.jpg",
+    "width": 1280,
+    "height": 600,
+    "alt": "Choosing laboratory tests: individual tests or lab panels, a search of the laboratory catalogue and the Confirm selected tests or panels button.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 2.03,
+        "y": 11,
+        "w": 95.94,
+        "h": 7.33
+      },
+      {
+        "n": 2,
+        "x": 1.88,
+        "y": 24,
+        "w": 73.36,
+        "h": 10.67
+      },
+      {
+        "n": 4,
+        "x": 72.34,
+        "y": 91.5,
+        "w": 20.08,
+        "h": 7.67
+      }
+    ]
+  },
+  "clinical-notes": {
+    "src": "/images/user-manual/clinical-notes.jpg",
+    "width": 1280,
+    "height": 440,
+    "alt": "The clinical note editor with its formatting buttons, the Format note with AI and dictation buttons, the note and the Save changes button.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 2.34,
+        "y": 20.91,
+        "w": 13.75,
+        "h": 8.18
+      },
+      {
+        "n": 2,
+        "x": 92.66,
+        "y": 20.91,
+        "w": 2.81,
+        "h": 8.18,
+        "side": "top"
+      },
+      {
+        "n": 3,
+        "x": 95.16,
+        "y": 20.91,
+        "w": 2.81,
+        "h": 8.18,
+        "side": "top"
+      },
+      {
+        "n": 4,
+        "x": 1.88,
+        "y": 29.32,
+        "w": 96.72,
+        "h": 39.55
+      },
+      {
+        "n": 5,
+        "x": 81.64,
+        "y": 88.41,
+        "w": 10.78,
+        "h": 10.45
+      }
+    ]
+  },
+  "clinical-prescribe": {
+    "src": "/images/user-manual/clinical-prescribe.jpg",
+    "width": 1280,
+    "height": 480,
+    "alt": "The Prescribe window with a medicine added, showing its quantity, dose, duration and price, and the Review billing and Prescribe buttons.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 78.91,
+        "y": 25,
+        "w": 9.53,
+        "h": 7.5
+      },
+      {
+        "n": 2,
+        "x": 28.44,
+        "y": 40.83,
+        "w": 6.25,
+        "h": 12.08
+      },
+      {
+        "n": 3,
+        "x": 40,
+        "y": 40.42,
+        "w": 16.56,
+        "h": 12.92
+      },
+      {
+        "n": 4,
+        "x": 55.63,
+        "y": 40.42,
+        "w": 15,
+        "h": 12.92
+      },
+      {
+        "n": 5,
+        "x": 87.97,
+        "y": 41.67,
+        "w": 10,
+        "h": 9.17
+      },
+      {
+        "n": 6,
+        "x": 88.36,
+        "y": 25,
+        "w": 9.61,
+        "h": 7.5
+      },
+      {
+        "n": 7,
+        "x": 83.75,
+        "y": 89.38,
+        "w": 8.67,
+        "h": 9.58
+      }
+    ]
+  },
+  "clinical-prescribe-picker": {
+    "src": "/images/user-manual/clinical-prescribe-picker.jpg",
+    "width": 1280,
+    "height": 600,
+    "alt": "Choosing medicines to prescribe, searched for paracetamol, showing the stock available and the facility unit price of each medicine.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 1.88,
+        "y": 15.33,
+        "w": 90.16,
+        "h": 10.67
+      },
+      {
+        "n": 2,
+        "x": 88.52,
+        "y": 24.67,
+        "w": 9.45,
+        "h": 6
+      },
+      {
+        "n": 3,
+        "x": 1.88,
+        "y": 38.33,
+        "w": 96.25,
+        "h": 14
+      },
+      {
+        "n": 4,
+        "x": 76.64,
+        "y": 91.5,
+        "w": 15.78,
+        "h": 7.67
+      }
+    ]
+  },
+  "clinical-worklist": {
+    "src": "/images/user-manual/clinical-worklist.jpg",
+    "width": 1035,
+    "height": 374,
+    "alt": "The clinical worklist on the Pending tab, with a Record vitals or Review encounter action for each patient.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.53,
+        "w": 74.88,
+        "h": 11.76
+      },
+      {
+        "n": 2,
+        "x": 0.19,
+        "y": 12.83,
+        "w": 71.3,
+        "h": 17.11
+      },
+      {
+        "n": 3,
+        "x": 78.84,
+        "y": 44.12,
+        "w": 19.81,
+        "h": 8.02
+      },
+      {
+        "n": 4,
+        "x": 78.84,
+        "y": 71.93,
+        "w": 19.81,
+        "h": 8.02
+      }
+    ]
+  },
+  "discharge-clearance": {
+    "src": "/images/user-manual/discharge-clearance.jpg",
+    "width": 1280,
+    "height": 800,
+    "alt": "Finalize discharge: the clearance status, the clearance checklist, pending clinical orders and the Refresh and Finalize discharge buttons.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 30.08,
+        "y": 14,
+        "w": 39.92,
+        "h": 13
+      },
+      {
+        "n": 2,
+        "x": 4.69,
+        "y": 39.63,
+        "w": 92.5,
+        "h": 28.5
+      },
+      {
+        "n": 3,
+        "x": 2.5,
+        "y": 76.63,
+        "w": 95,
+        "h": 4.5
+      },
+      {
+        "n": 4,
+        "x": 89.77,
+        "y": 87.38,
+        "w": 7.27,
+        "h": 4.5
+      },
+      {
+        "n": 5,
+        "x": 80.7,
+        "y": 93.63,
+        "w": 5.55,
+        "h": 5.75,
+        "side": "top"
+      },
+      {
+        "n": 6,
+        "x": 86.09,
+        "y": 93.63,
+        "w": 12.89,
+        "h": 5.75,
+        "side": "top"
+      }
+    ]
+  },
+  "discharge-plan": {
+    "src": "/images/user-manual/discharge-plan.jpg",
+    "width": 1280,
+    "height": 380,
+    "alt": "Starting a discharge plan: the discharge summary and the Refresh and Save plan buttons.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 1.88,
+        "y": 25.26,
+        "w": 96.72,
+        "h": 34.74
+      },
+      {
+        "n": 2,
+        "x": 87.03,
+        "y": 86.58,
+        "w": 5.55,
+        "h": 12.11,
+        "side": "top"
+      },
+      {
+        "n": 3,
+        "x": 92.5,
+        "y": 86.58,
+        "w": 6.48,
+        "h": 12.11,
+        "side": "top"
+      }
+    ]
+  },
+  "discharge-worklist": {
+    "src": "/images/user-manual/discharge-worklist.jpg",
+    "width": 1035,
+    "height": 438,
+    "alt": "The discharge planning worklist with its tabs and the Start discharge plan and Manage clearance actions.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.46,
+        "w": 67.73,
+        "h": 10.05
+      },
+      {
+        "n": 2,
+        "x": 0.19,
+        "y": 10.96,
+        "w": 71.3,
+        "h": 14.61
+      },
+      {
+        "n": 3,
+        "x": 78.84,
+        "y": 51.14,
+        "w": 19.81,
+        "h": 5.48
+      },
+      {
+        "n": 4,
+        "x": 78.84,
+        "y": 88.58,
+        "w": 19.81,
+        "h": 5.48
+      }
+    ]
+  },
+  "hr-leave": {
+    "src": "/images/user-manual/hr-leave.jpg",
+    "width": 1035,
+    "height": 254,
+    "alt": "The Leave requests tab with the Request leave button and the Approve leave action.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.79,
+        "w": 89.57,
+        "h": 17.32
+      },
+      {
+        "n": 2,
+        "x": 0.19,
+        "y": 18.9,
+        "w": 71.3,
+        "h": 25.2
+      },
+      {
+        "n": 3,
+        "x": 87.73,
+        "y": 40.55,
+        "w": 12.17,
+        "h": 14.96,
+        "side": "left"
+      },
+      {
+        "n": 4,
+        "x": 78.84,
+        "y": 77.95,
+        "w": 19.81,
+        "h": 14.17
+      }
+    ]
+  },
+  "hr-payroll": {
+    "src": "/images/user-manual/hr-payroll.jpg",
+    "width": 1035,
+    "height": 410,
+    "alt": "The Pay & Compensation tab listing pay runs by period with their totals and approval status, and the Generate payroll button.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.49,
+        "w": 90.43,
+        "h": 10.73
+      },
+      {
+        "n": 2,
+        "x": 0.19,
+        "y": 11.71,
+        "w": 71.3,
+        "h": 15.61
+      },
+      {
+        "n": 3,
+        "x": 86.38,
+        "y": 25.12,
+        "w": 13.53,
+        "h": 9.27,
+        "side": "left"
+      },
+      {
+        "n": 4,
+        "x": 0.19,
+        "y": 33.66,
+        "w": 99.81,
+        "h": 142.93
+      }
+    ]
+  },
+  "hr-profile": {
+    "src": "/images/user-manual/hr-profile.jpg",
+    "width": 1280,
+    "height": 800,
+    "alt": "A staff profile with the staff details, staff actions, and the roster calendar.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 1.88,
+        "y": 8,
+        "w": 96.25,
+        "h": 14.12
+      },
+      {
+        "n": 2,
+        "x": 2.97,
+        "y": 29,
+        "w": 83.59,
+        "h": 9.5
+      },
+      {
+        "n": 3,
+        "x": 2.5,
+        "y": 41.25,
+        "w": 95,
+        "h": 5.5
+      },
+      {
+        "n": 4,
+        "x": 45.08,
+        "y": 48.13,
+        "w": 51.33,
+        "h": 4.5
+      },
+      {
+        "n": 5,
+        "x": 84.45,
+        "y": 93.63,
+        "w": 14.53,
+        "h": 5.75,
+        "side": "top"
+      }
+    ]
+  },
+  "hr-roster": {
+    "src": "/images/user-manual/hr-roster.jpg",
+    "width": 1280,
+    "height": 800,
+    "alt": "Creating a roster template: the template name and rules, department, days of the month and weekly hours.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 2.81,
+        "y": 13.63,
+        "w": 95,
+        "h": 7.25
+      },
+      {
+        "n": 2,
+        "x": 2.97,
+        "y": 20.37,
+        "w": 94.06,
+        "h": 5.5
+      },
+      {
+        "n": 3,
+        "x": 2.81,
+        "y": 26.13,
+        "w": 95,
+        "h": 7.75
+      },
+      {
+        "n": 4,
+        "x": 2.97,
+        "y": 35.13,
+        "w": 94.06,
+        "h": 13
+      },
+      {
+        "n": 5,
+        "x": 2.5,
+        "y": 50.88,
+        "w": 95,
+        "h": 4.5
+      },
+      {
+        "n": 6,
+        "x": 77.34,
+        "y": 93.63,
+        "w": 15.08,
+        "h": 5.75
+      }
+    ]
+  },
+  "hr-staff": {
+    "src": "/images/user-manual/hr-staff.jpg",
+    "width": 1035,
+    "height": 414,
+    "alt": "Human resources on the Staff members tab, with the Create staff button and the list of staff, their roles and status.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.48,
+        "w": 89.57,
+        "h": 10.63
+      },
+      {
+        "n": 2,
+        "x": 0.19,
+        "y": 11.59,
+        "w": 71.3,
+        "h": 15.46
+      },
+      {
+        "n": 3,
+        "x": 88.99,
+        "y": 24.88,
+        "w": 10.92,
+        "h": 9.18,
+        "side": "left"
+      },
+      {
+        "n": 4,
+        "x": 0.19,
+        "y": 33.33,
+        "w": 99.81,
+        "h": 141.55
+      }
+    ]
+  },
+  "icu-stay": {
+    "src": "/images/user-manual/icu-stay.jpg",
+    "width": 1280,
+    "height": 800,
+    "alt": "An ICU stay with its actions and the critical alerts, observations and vitals trend sections.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.63,
+        "y": 6,
+        "w": 98.75,
+        "h": 94.5
+      },
+      {
+        "n": 2,
+        "x": 2.97,
+        "y": 20.37,
+        "w": 88.36,
+        "h": 9.5
+      },
+      {
+        "n": 3,
+        "x": 2.5,
+        "y": 32.63,
+        "w": 95,
+        "h": 4.5
+      },
+      {
+        "n": 4,
+        "x": 2.5,
+        "y": 48.25,
+        "w": 95,
+        "h": 4.5
+      },
+      {
+        "n": 5,
+        "x": 2.5,
+        "y": 68.38,
+        "w": 95,
+        "h": 4.5
+      }
+    ]
+  },
+  "icu-worklist": {
+    "src": "/images/user-manual/icu-worklist.jpg",
+    "width": 1035,
+    "height": 434,
+    "alt": "The intensive care worklist with its tabs and the next action for each ICU stay, such as Manage transfer.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.46,
+        "w": 89.76,
+        "h": 10.14
+      },
+      {
+        "n": 2,
+        "x": 0.19,
+        "y": 11.06,
+        "w": 71.3,
+        "h": 14.75
+      },
+      {
+        "n": 3,
+        "x": 78.84,
+        "y": 88.02,
+        "w": 19.81,
+        "h": 5.53
+      }
+    ]
+  },
+  "ipd-admission": {
+    "src": "/images/user-manual/ipd-admission.jpg",
+    "width": 1280,
+    "height": 575,
+    "alt": "An admission record with the patient, quick actions for the ward team, and the admission source and bed allocation sections.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 1.88,
+        "y": 11.13,
+        "w": 96.25,
+        "h": 7.65
+      },
+      {
+        "n": 2,
+        "x": 2.97,
+        "y": 28.35,
+        "w": 89.22,
+        "h": 13.22
+      },
+      {
+        "n": 3,
+        "x": 2.5,
+        "y": 45.39,
+        "w": 95,
+        "h": 6.26
+      },
+      {
+        "n": 4,
+        "x": 2.5,
+        "y": 73.39,
+        "w": 95,
+        "h": 6.26
+      }
+    ]
+  },
+  "ipd-start-admission": {
+    "src": "/images/user-manual/ipd-start-admission.jpg",
+    "width": 1280,
+    "height": 800,
+    "alt": "The Start admission window with the patient, the ward, room and bed, and the admission charges with their unit prices.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 2.81,
+        "y": 14.12,
+        "w": 95,
+        "h": 8
+      },
+      {
+        "n": 2,
+        "x": 2.81,
+        "y": 29,
+        "w": 47.66,
+        "h": 8
+      },
+      {
+        "n": 3,
+        "x": 50.16,
+        "y": 29,
+        "w": 47.03,
+        "h": 8,
+        "side": "top"
+      },
+      {
+        "n": 4,
+        "x": 8.2,
+        "y": 67.75,
+        "w": 83.28,
+        "h": 26.38,
+        "side": "top"
+      },
+      {
+        "n": 5,
+        "x": 80.63,
+        "y": 93.63,
+        "w": 11.8,
+        "h": 5.75
+      }
+    ]
+  },
+  "ipd-worklist": {
+    "src": "/images/user-manual/ipd-worklist.jpg",
+    "width": 1035,
+    "height": 422,
+    "alt": "The admissions worklist on the Admission Queue tab, with the Start admission button and the Approve admission action.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.47,
+        "w": 79.81,
+        "h": 10.43
+      },
+      {
+        "n": 2,
+        "x": 0.19,
+        "y": 11.37,
+        "w": 71.3,
+        "h": 15.17
+      },
+      {
+        "n": 3,
+        "x": 86.76,
+        "y": 24.41,
+        "w": 13.14,
+        "h": 9,
+        "side": "left"
+      },
+      {
+        "n": 4,
+        "x": 78.84,
+        "y": 48.82,
+        "w": 19.81,
+        "h": 5.69
+      }
+    ]
+  },
+  "lab-result": {
+    "src": "/images/user-manual/lab-result.jpg",
+    "width": 1280,
+    "height": 460,
+    "alt": "Lab result entry for a haemoglobin test, with its reference range, the result value and unit, notes, the Low flag, and the Save results and Preview report buttons.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 2.5,
+        "y": 25.22,
+        "w": 95,
+        "h": 7.83
+      },
+      {
+        "n": 2,
+        "x": 24.14,
+        "y": 41.96,
+        "w": 22.27,
+        "h": 41.74
+      },
+      {
+        "n": 3,
+        "x": 46.41,
+        "y": 43.7,
+        "w": 25.55,
+        "h": 26.52,
+        "side": "right"
+      },
+      {
+        "n": 4,
+        "x": 46.41,
+        "y": 70.65,
+        "w": 25.55,
+        "h": 12.61
+      },
+      {
+        "n": 5,
+        "x": 72.03,
+        "y": 51.74,
+        "w": 4.38,
+        "h": 5.65
+      },
+      {
+        "n": 6,
+        "x": 86.72,
+        "y": 51.96,
+        "w": 10,
+        "h": 7.83
+      },
+      {
+        "n": 7,
+        "x": 78.05,
+        "y": 88.91,
+        "w": 10,
+        "h": 10
+      },
+      {
+        "n": 8,
+        "x": 87.81,
+        "y": 88.91,
+        "w": 11.17,
+        "h": 10,
+        "side": "top"
+      }
+    ]
+  },
+  "lab-worklist": {
+    "src": "/images/user-manual/lab-worklist.jpg",
+    "width": 1035,
+    "height": 458,
+    "alt": "The laboratory worklist with its tabs, the Create Lab Order button and the Enter result action for each order.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.44,
+        "w": 68.21,
+        "h": 9.61
+      },
+      {
+        "n": 2,
+        "x": 0.19,
+        "y": 10.48,
+        "w": 69.28,
+        "h": 13.97
+      },
+      {
+        "n": 3,
+        "x": 86.09,
+        "y": 22.49,
+        "w": 13.82,
+        "h": 8.3,
+        "side": "left"
+      },
+      {
+        "n": 4,
+        "x": 78.84,
+        "y": 42.79,
+        "w": 19.81,
+        "h": 11.35
+      }
+    ]
+  },
+  "nursing-clearance": {
+    "src": "/images/user-manual/nursing-clearance.jpg",
+    "width": 1280,
+    "height": 620,
+    "alt": "The nursing discharge clearance checklist with patient education and ward checks, additional notes, the confirmation and the Discharge clearance button.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 2.03,
+        "y": 15.81,
+        "w": 95.94,
+        "h": 40.65
+      },
+      {
+        "n": 2,
+        "x": 1.88,
+        "y": 57.42,
+        "w": 96.72,
+        "h": 21.94
+      },
+      {
+        "n": 3,
+        "x": 1.88,
+        "y": 79.03,
+        "w": 96.25,
+        "h": 7.74
+      },
+      {
+        "n": 4,
+        "x": 78.44,
+        "y": 91.77,
+        "w": 13.98,
+        "h": 7.42
+      }
+    ]
+  },
+  "nursing-patient": {
+    "src": "/images/user-manual/nursing-patient.jpg",
+    "width": 1280,
+    "height": 800,
+    "alt": "A patient open in the nursing workspace, with the nursing actions and the ward admission checklist.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 1.88,
+        "y": 8,
+        "w": 96.25,
+        "h": 5.5
+      },
+      {
+        "n": 2,
+        "x": 2.97,
+        "y": 20.37,
+        "w": 85.78,
+        "h": 9.5
+      },
+      {
+        "n": 3,
+        "x": 2.5,
+        "y": 32.63,
+        "w": 95,
+        "h": 4.5
+      },
+      {
+        "n": 4,
+        "x": 80.23,
+        "y": 50.5,
+        "w": 16.88,
+        "h": 47.5
+      }
+    ]
+  },
+  "nursing-worklist": {
+    "src": "/images/user-manual/nursing-worklist.jpg",
+    "width": 1035,
+    "height": 478,
+    "alt": "The nursing worklist with its tabs, the Shift context button, and the next nursing task for each patient, such as Record vitals or Discharge clearance.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.42,
+        "w": 80,
+        "h": 9.21
+      },
+      {
+        "n": 2,
+        "x": 0.19,
+        "y": 10.04,
+        "w": 71.3,
+        "h": 13.39
+      },
+      {
+        "n": 3,
+        "x": 88.41,
+        "y": 21.55,
+        "w": 11.5,
+        "h": 7.95,
+        "side": "left"
+      },
+      {
+        "n": 4,
+        "x": 78.84,
+        "y": 41.84,
+        "w": 19.81,
+        "h": 7.53
+      },
+      {
+        "n": 5,
+        "x": 78.84,
+        "y": 88.28,
+        "w": 19.81,
+        "h": 7.53
+      }
+    ]
+  },
+  "opd-start": {
+    "src": "/images/user-manual/opd-start.jpg",
+    "width": 1280,
+    "height": 460,
+    "alt": "The Start OPD encounter window for an existing patient, with the patient search, arrival mode, doctor, consultation fee and the Payment required option.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 2.03,
+        "y": 14.35,
+        "w": 30.7,
+        "h": 9.57
+      },
+      {
+        "n": 2,
+        "x": 1.88,
+        "y": 25.22,
+        "w": 96.88,
+        "h": 13.91
+      },
+      {
+        "n": 3,
+        "x": 1.88,
+        "y": 38.7,
+        "w": 96.88,
+        "h": 13.91
+      },
+      {
+        "n": 4,
+        "x": 1.88,
+        "y": 52.17,
+        "w": 48.59,
+        "h": 18.26
+      },
+      {
+        "n": 5,
+        "x": 50.16,
+        "y": 52.17,
+        "w": 48.59,
+        "h": 15.22,
+        "side": "right"
+      },
+      {
+        "n": 6,
+        "x": 1.88,
+        "y": 70,
+        "w": 96.25,
+        "h": 10.43
+      },
+      {
+        "n": 7,
+        "x": 80.78,
+        "y": 88.91,
+        "w": 11.64,
+        "h": 10
+      }
+    ]
+  },
+  "opd-triage": {
+    "src": "/images/user-manual/opd-triage.jpg",
+    "width": 1280,
+    "height": 1200,
+    "alt": "The Record vitals window: triage level, chief complaint and symptoms, pain severity and allergies, emergency indicators, risk flags, route decision, vital signs and triage notes.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 2.81,
+        "y": 18.83,
+        "w": 95,
+        "h": 5.33
+      },
+      {
+        "n": 2,
+        "x": 2.81,
+        "y": 23.67,
+        "w": 94.84,
+        "h": 14.17
+      },
+      {
+        "n": 3,
+        "x": 2.81,
+        "y": 37.33,
+        "w": 95,
+        "h": 5.33
+      },
+      {
+        "n": 4,
+        "x": 2.81,
+        "y": 42.17,
+        "w": 94.38,
+        "h": 7.75
+      },
+      {
+        "n": 5,
+        "x": 3.44,
+        "y": 53.67,
+        "w": 93.13,
+        "h": 7.67
+      },
+      {
+        "n": 6,
+        "x": 2.81,
+        "y": 62,
+        "w": 95,
+        "h": 5.33
+      },
+      {
+        "n": 7,
+        "x": 2.89,
+        "y": 74,
+        "w": 77.73,
+        "h": 3.17
+      },
+      {
+        "n": 8,
+        "x": 2.81,
+        "y": 82.33,
+        "w": 94.84,
+        "h": 9.33
+      },
+      {
+        "n": 9,
+        "x": 82.11,
+        "y": 95.75,
+        "w": 10.39,
+        "h": 3.83
+      }
+    ]
+  },
+  "opd-worklist": {
+    "src": "/images/user-manual/opd-worklist.jpg",
+    "width": 1035,
+    "height": 514,
+    "alt": "The outpatient worklist with its tabs, the Start OPD encounter button and the next action for each patient.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.39,
+        "w": 64.06,
+        "h": 8.56
+      },
+      {
+        "n": 2,
+        "x": 0.19,
+        "y": 9.34,
+        "w": 71.3,
+        "h": 12.45
+      },
+      {
+        "n": 3,
+        "x": 84.06,
+        "y": 20.04,
+        "w": 15.85,
+        "h": 7.39
+      },
+      {
+        "n": 4,
+        "x": 78.84,
+        "y": 39.69,
+        "w": 19.81,
+        "h": 4.67
+      },
+      {
+        "n": 5,
+        "x": 78.84,
+        "y": 49.81,
+        "w": 19.81,
+        "h": 4.67
+      }
+    ]
+  },
+  "patients-list": {
+    "src": "/images/user-manual/patients-list.jpg",
+    "width": 1035,
+    "height": 514,
+    "alt": "The patient registry, searched for patients named Ouma, with the All patients, Active, Admitted and Balance due tabs, the list tools and the Register patient button.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.39,
+        "w": 50.72,
+        "h": 8.56
+      },
+      {
+        "n": 2,
+        "x": 0.19,
+        "y": 9.34,
+        "w": 71.3,
+        "h": 12.45
+      },
+      {
+        "n": 3,
+        "x": 70.14,
+        "y": 12.26,
+        "w": 28.89,
+        "h": 5.45,
+        "side": "top"
+      },
+      {
+        "n": 4,
+        "x": 86.67,
+        "y": 20.04,
+        "w": 13.24,
+        "h": 7.39
+      },
+      {
+        "n": 5,
+        "x": 0.19,
+        "y": 36.19,
+        "w": 99.81,
+        "h": 11.67
+      }
+    ]
+  },
+  "patients-record": {
+    "src": "/images/user-manual/patients-record.jpg",
+    "width": 1280,
+    "height": 800,
+    "alt": "A patient record with the patient’s details and allergy alert, the quick actions, and the Allergies, Identifiers and Contacts sections.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 2.81,
+        "y": 14.12,
+        "w": 94.38,
+        "h": 10.5
+      },
+      {
+        "n": 2,
+        "x": 2.97,
+        "y": 33,
+        "w": 90.86,
+        "h": 9.5
+      },
+      {
+        "n": 3,
+        "x": 2.66,
+        "y": 45.5,
+        "w": 94.69,
+        "h": 6
+      },
+      {
+        "n": 4,
+        "x": 91.09,
+        "y": 53.63,
+        "w": 5.63,
+        "h": 5.5
+      },
+      {
+        "n": 5,
+        "x": 93.2,
+        "y": 93.63,
+        "w": 5.78,
+        "h": 5.75
+      }
+    ]
+  },
+  "patients-register": {
+    "src": "/images/user-manual/patients-register.jpg",
+    "width": 1280,
+    "height": 700,
+    "alt": "The Register new patient form with sample details: name, date of birth, gender, facility, phone, email, identifier, notes and the Patient is active option.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 1.88,
+        "y": 9.14,
+        "w": 96.88,
+        "h": 9.14
+      },
+      {
+        "n": 2,
+        "x": 1.88,
+        "y": 18,
+        "w": 47.97,
+        "h": 8
+      },
+      {
+        "n": 3,
+        "x": 50.16,
+        "y": 18,
+        "w": 48.59,
+        "h": 9.14
+      },
+      {
+        "n": 4,
+        "x": 1.88,
+        "y": 26.86,
+        "w": 96.88,
+        "h": 9.14
+      },
+      {
+        "n": 5,
+        "x": 1.88,
+        "y": 39.29,
+        "w": 94.06,
+        "h": 8.86
+      },
+      {
+        "n": 6,
+        "x": 1.88,
+        "y": 47.86,
+        "w": 96.88,
+        "h": 9.14
+      },
+      {
+        "n": 7,
+        "x": 1.88,
+        "y": 56.71,
+        "w": 96.88,
+        "h": 9.14
+      },
+      {
+        "n": 8,
+        "x": 1.88,
+        "y": 65.57,
+        "w": 96.72,
+        "h": 16
+      },
+      {
+        "n": 9,
+        "x": 1.88,
+        "y": 81.29,
+        "w": 96.25,
+        "h": 6.86
+      },
+      {
+        "n": 10,
+        "x": 80.63,
+        "y": 92.71,
+        "w": 11.8,
+        "h": 6.57
+      }
+    ]
+  },
+  "patients-report": {
+    "src": "/images/user-manual/patients-report.jpg",
+    "width": 1280,
+    "height": 800,
+    "alt": "The patient report window with the view buttons, the report period, the report sections to include and the print preview.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 1.41,
+        "y": 7.25,
+        "w": 20.78,
+        "h": 5.5
+      },
+      {
+        "n": 2,
+        "x": 2.81,
+        "y": 24.13,
+        "w": 36.64,
+        "h": 8
+      },
+      {
+        "n": 3,
+        "x": 2.89,
+        "y": 40.13,
+        "w": 35.78,
+        "h": 61.25
+      },
+      {
+        "n": 4,
+        "x": 40.39,
+        "y": 7,
+        "w": 58.36,
+        "h": 85.5,
+        "side": "top"
+      },
+      {
+        "n": 5,
+        "x": 88.36,
+        "y": 93.63,
+        "w": 6.25,
+        "h": 5.75
+      }
+    ]
+  },
+  "pharmacy-dispense": {
+    "src": "/images/user-manual/pharmacy-dispense.jpg",
+    "width": 1280,
+    "height": 360,
+    "alt": "Dispensing an order: each medicine’s drug code, generic name, dose and form, the quantity still to supply, the Dispense Quantity and the Dispense button.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 1.88,
+        "y": 17.78,
+        "w": 78.36,
+        "h": 17.78
+      },
+      {
+        "n": 2,
+        "x": 7.5,
+        "y": 51.67,
+        "w": 56.88,
+        "h": 7.78
+      },
+      {
+        "n": 3,
+        "x": 64.84,
+        "y": 51.11,
+        "w": 14.06,
+        "h": 8.89,
+        "side": "bottom"
+      },
+      {
+        "n": 4,
+        "x": 79.53,
+        "y": 48.89,
+        "w": 8.44,
+        "h": 15
+      },
+      {
+        "n": 5,
+        "x": 83.91,
+        "y": 85.83,
+        "w": 8.52,
+        "h": 12.78
+      }
+    ]
+  },
+  "pharmacy-walk-in": {
+    "src": "/images/user-manual/pharmacy-walk-in.jpg",
+    "width": 1280,
+    "height": 600,
+    "alt": "A walk-in pharmacy order for an anonymous customer, with one medicine added and the Create order button.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 2.03,
+        "y": 11,
+        "w": 83.75,
+        "h": 6
+      },
+      {
+        "n": 2,
+        "x": 86.09,
+        "y": 11,
+        "w": 11.88,
+        "h": 6
+      },
+      {
+        "n": 3,
+        "x": 88.44,
+        "y": 27.33,
+        "w": 9.53,
+        "h": 6
+      },
+      {
+        "n": 4,
+        "x": 1.88,
+        "y": 33,
+        "w": 96.25,
+        "h": 17.33
+      },
+      {
+        "n": 5,
+        "x": 82.34,
+        "y": 91.5,
+        "w": 10.08,
+        "h": 7.67
+      }
+    ]
+  },
+  "pharmacy-worklist": {
+    "src": "/images/user-manual/pharmacy-worklist.jpg",
+    "width": 1035,
+    "height": 410,
+    "alt": "The pharmacy worklist on the All orders tab, with the Open reports and Walk-in order buttons and the Dispense action for each order.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.49,
+        "w": 82.9,
+        "h": 10.73
+      },
+      {
+        "n": 2,
+        "x": 0.19,
+        "y": 11.71,
+        "w": 71.3,
+        "h": 15.61
+      },
+      {
+        "n": 3,
+        "x": 76.71,
+        "y": 25.12,
+        "w": 11.59,
+        "h": 9.27,
+        "side": "left"
+      },
+      {
+        "n": 4,
+        "x": 88.12,
+        "y": 25.12,
+        "w": 11.79,
+        "h": 9.27,
+        "side": "right"
+      },
+      {
+        "n": 5,
+        "x": 78.84,
+        "y": 48.29,
+        "w": 19.81,
+        "h": 8.78
+      }
+    ]
+  },
+  "radiology-report": {
+    "src": "/images/user-manual/radiology-report.jpg",
+    "width": 1280,
+    "height": 1100,
+    "alt": "The radiology report editor with the findings, impression or conclusion, recommendation and report narrative, and the Report preview, Print, Draft report and Release report buttons.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 1.88,
+        "y": 5.82,
+        "w": 96.72,
+        "h": 19.64
+      },
+      {
+        "n": 2,
+        "x": 1.88,
+        "y": 27.45,
+        "w": 96.72,
+        "h": 17.45
+      },
+      {
+        "n": 3,
+        "x": 1.88,
+        "y": 46.91,
+        "w": 96.72,
+        "h": 15.27
+      },
+      {
+        "n": 4,
+        "x": 1.88,
+        "y": 64.18,
+        "w": 96.72,
+        "h": 21.82
+      },
+      {
+        "n": 5,
+        "x": 92.66,
+        "y": 8.45,
+        "w": 2.81,
+        "h": 3.27,
+        "side": "top"
+      },
+      {
+        "n": 6,
+        "x": 54.45,
+        "y": 95.36,
+        "w": 11.33,
+        "h": 4.18,
+        "side": "top"
+      },
+      {
+        "n": 7,
+        "x": 65.63,
+        "y": 95.36,
+        "w": 6.25,
+        "h": 4.18,
+        "side": "top"
+      },
+      {
+        "n": 8,
+        "x": 78.36,
+        "y": 95.36,
+        "w": 9.69,
+        "h": 4.18,
+        "side": "top"
+      },
+      {
+        "n": 9,
+        "x": 87.81,
+        "y": 95.36,
+        "w": 11.17,
+        "h": 4.18,
+        "side": "top"
+      }
+    ]
+  },
+  "radiology-worklist": {
+    "src": "/images/user-manual/radiology-worklist.jpg",
+    "width": 1035,
+    "height": 458,
+    "alt": "The radiology worklist with its tabs, the Request imaging button and the Continue report action for studies waiting for a report.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.44,
+        "w": 54.88,
+        "h": 9.61
+      },
+      {
+        "n": 2,
+        "x": 0.19,
+        "y": 10.48,
+        "w": 71.3,
+        "h": 13.97
+      },
+      {
+        "n": 3,
+        "x": 86.18,
+        "y": 22.49,
+        "w": 13.72,
+        "h": 8.3,
+        "side": "left"
+      },
+      {
+        "n": 4,
+        "x": 78.84,
+        "y": 42.79,
+        "w": 19.81,
+        "h": 11.35
+      }
+    ]
+  },
+  "reception-desk": {
+    "src": "/images/user-manual/reception-desk.jpg",
+    "width": 1035,
+    "height": 410,
+    "alt": "The reception desk on the Desk queue tab, listing waiting patients and their current step, with the Schedule appointment and Register patient buttons.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.49,
+        "w": 79.32,
+        "h": 10.73
+      },
+      {
+        "n": 2,
+        "x": 0.19,
+        "y": 11.71,
+        "w": 71.3,
+        "h": 15.61
+      },
+      {
+        "n": 3,
+        "x": 69.95,
+        "y": 25.12,
+        "w": 16.91,
+        "h": 9.27
+      },
+      {
+        "n": 4,
+        "x": 86.67,
+        "y": 25.12,
+        "w": 13.24,
+        "h": 9.27,
+        "side": "right"
+      },
+      {
+        "n": 5,
+        "x": 0.19,
+        "y": 45.37,
+        "w": 99.81,
+        "h": 14.63
+      }
+    ]
+  },
+  "reception-schedule-existing": {
+    "src": "/images/user-manual/reception-schedule-existing.jpg",
+    "width": 1280,
+    "height": 560,
+    "alt": "The Schedule appointment window on the Existing patient tab, searching for a patient by name.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.78,
+        "y": 8.93,
+        "w": 26.25,
+        "h": 7.86
+      },
+      {
+        "n": 2,
+        "x": 1.88,
+        "y": 17.86,
+        "w": 84.3,
+        "h": 11.43
+      },
+      {
+        "n": 3,
+        "x": 1.88,
+        "y": 33.21,
+        "w": 96.25,
+        "h": 10.71
+      }
+    ]
+  },
+  "reception-schedule-visitor": {
+    "src": "/images/user-manual/reception-schedule-visitor.jpg",
+    "width": 1280,
+    "height": 560,
+    "alt": "The Visitor / staff meeting tab of the Schedule appointment window, with the visitor’s name and phone, organisation, hosting staff member, date, times and reason.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 1.88,
+        "y": 17.86,
+        "w": 96.88,
+        "h": 11.43
+      },
+      {
+        "n": 2,
+        "x": 1.88,
+        "y": 28.21,
+        "w": 47.97,
+        "h": 13.57
+      },
+      {
+        "n": 3,
+        "x": 50.16,
+        "y": 28.21,
+        "w": 48.59,
+        "h": 11.43
+      },
+      {
+        "n": 5,
+        "x": 1.88,
+        "y": 52.14,
+        "w": 47.97,
+        "h": 10
+      },
+      {
+        "n": 6,
+        "x": 50.16,
+        "y": 52.14,
+        "w": 47.97,
+        "h": 10
+      },
+      {
+        "n": 7,
+        "x": 1.88,
+        "y": 62.14,
+        "w": 96.88,
+        "h": 11.43
+      },
+      {
+        "n": 8,
+        "x": 1.88,
+        "y": 72.5,
+        "w": 96.72,
+        "h": 15.71
+      },
+      {
+        "n": 9,
+        "x": 77.34,
+        "y": 90.89,
+        "w": 15.08,
+        "h": 8.21
+      }
+    ]
+  },
+  "reports-catalog": {
+    "src": "/images/user-manual/reports-catalog.jpg",
+    "width": 1035,
+    "height": 474,
+    "alt": "The report catalogue listing report definitions with their reference, last update and status, and a Run report action.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 8.02,
+        "w": 90.43,
+        "h": 9.28
+      },
+      {
+        "n": 2,
+        "x": 0.19,
+        "y": 17.72,
+        "w": 71.3,
+        "h": 13.5
+      },
+      {
+        "n": 3,
+        "x": 78.84,
+        "y": 43.46,
+        "w": 19.81,
+        "h": 5.06
+      },
+      {
+        "n": 4,
+        "x": 0.19,
+        "y": 39.24,
+        "w": 99.81,
+        "h": 12.24
+      }
+    ]
+  },
+  "reports-overview": {
+    "src": "/images/user-manual/reports-overview.jpg",
+    "width": 1035,
+    "height": 610,
+    "alt": "Reporting and Analytics on the Overview tab, with ready-made reports grouped into facility, financial, clinical and pharmacy snapshots.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.33,
+        "w": 90.43,
+        "h": 7.21
+      },
+      {
+        "n": 2,
+        "x": 0.39,
+        "y": 8.2,
+        "w": 17.87,
+        "h": 7.21
+      },
+      {
+        "n": 3,
+        "x": 0.19,
+        "y": 16.39,
+        "w": 83.09,
+        "h": 10.49
+      },
+      {
+        "n": 4,
+        "x": 0.97,
+        "y": 27.21,
+        "w": 98.26,
+        "h": 5.9
+      },
+      {
+        "n": 5,
+        "x": 1.16,
+        "y": 34.26,
+        "w": 17.97,
+        "h": 8.52
       }
     ]
   },
@@ -1071,6 +3593,143 @@
         "y": 91.44,
         "w": 6.37,
         "h": 7.72
+      }
+    ]
+  },
+  "theatre-case": {
+    "src": "/images/user-manual/theatre-case.jpg",
+    "width": 1280,
+    "height": 800,
+    "alt": "A theatre case with its quick actions and the team and flow, readiness checklist and clinical records sections.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 2.5,
+        "y": 8.75,
+        "w": 47.5,
+        "h": 4
+      },
+      {
+        "n": 2,
+        "x": 2.97,
+        "y": 20.37,
+        "w": 86.64,
+        "h": 4.5
+      },
+      {
+        "n": 3,
+        "x": 2.5,
+        "y": 27.63,
+        "w": 95,
+        "h": 4.5
+      },
+      {
+        "n": 4,
+        "x": 2.5,
+        "y": 50.75,
+        "w": 95,
+        "h": 4.5
+      },
+      {
+        "n": 5,
+        "x": 2.5,
+        "y": 62.38,
+        "w": 95,
+        "h": 4.5
+      }
+    ]
+  },
+  "theatre-schedule": {
+    "src": "/images/user-manual/theatre-schedule.jpg",
+    "width": 1280,
+    "height": 960,
+    "alt": "The Schedule case window with the patient, date and time, room, surgeon and anaesthetist, stage notes and the procedures to bill.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 2.81,
+        "y": 14.27,
+        "w": 95,
+        "h": 6.67
+      },
+      {
+        "n": 2,
+        "x": 2.81,
+        "y": 32.71,
+        "w": 94.38,
+        "h": 5.83
+      },
+      {
+        "n": 3,
+        "x": 2.81,
+        "y": 38.54,
+        "w": 95,
+        "h": 6.67
+      },
+      {
+        "n": 4,
+        "x": 2.81,
+        "y": 44.58,
+        "w": 95,
+        "h": 6.67
+      },
+      {
+        "n": 5,
+        "x": 2.81,
+        "y": 50.63,
+        "w": 94.84,
+        "h": 11.67
+      },
+      {
+        "n": 6,
+        "x": 84.77,
+        "y": 71.56,
+        "w": 12.27,
+        "h": 3.75
+      },
+      {
+        "n": 7,
+        "x": 81.33,
+        "y": 94.69,
+        "w": 11.09,
+        "h": 4.79
+      }
+    ]
+  },
+  "theatre-worklist": {
+    "src": "/images/user-manual/theatre-worklist.jpg",
+    "width": 1035,
+    "height": 410,
+    "alt": "The operating theatre worklist with its tabs, the Schedule case button and the scheduled cases.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 0.39,
+        "y": 0.49,
+        "w": 61.74,
+        "h": 10.73
+      },
+      {
+        "n": 2,
+        "x": 0.19,
+        "y": 11.71,
+        "w": 71.3,
+        "h": 15.61
+      },
+      {
+        "n": 3,
+        "x": 87.54,
+        "y": 25.12,
+        "w": 12.37,
+        "h": 9.27,
+        "side": "left"
+      },
+      {
+        "n": 4,
+        "x": 0.19,
+        "y": 33.66,
+        "w": 99.81,
+        "h": 142.93
       }
     ]
   }
