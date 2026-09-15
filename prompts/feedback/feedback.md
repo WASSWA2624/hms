@@ -1,25 +1,21 @@
 # FEEDBACK PROMPTS GENERATOR
 
-Use the **feedback workbook** in this folder as the source of truth to generate prompts to implement/fix all the feedbacks mentioned in the **feedback workbook**.
+Use the **feedback workbook** in this folder as the **source of truth** to generate prompts for implementing/fixing all feedback mentioned in the **feedback workbook**.
 
-First read all the repository rules ([project rules](.cursor), [backend rules](backend\.cursor), [frontend rules](frontend\.cursor)) and [app-write-up](.cursor\app-write-up.mdc)`, then analyze **all rows in the workbook before creating any prompts**.
+First, read all repository rules:
 
-Use all relevant Excel columns available in the workbook to understand each issue, especially fields such as:
+- [project rules](.cursor)
+- [backend rules](backend.cursor)
+- [frontend rules](frontend.cursor)
+- [app-write-up](.cursor/app-write-up.mdc)
 
-- Feedback/Issue/Description
-- Date/Time
-- Category
-- User/Reporter
-- Role/Permissions
-- Tenant/Facility
-- Screen/Page/URL
-- Platform/Device
-- App Version
-- Environment
-- Status/Priority
-- Reproduction or diagnostic details
+Then analyze **all rows in the workbook before creating any prompts**.
 
-Adapt to the actual column names and available data; do not assume these exact columns exist.
+Use all relevant Excel columns available in the workbook to understand each issue. These include:
+
+Feedback ID, Submitted At (Africa/Kampala), Submitted At (UTC), Category, Feedback, Submitted By, User Email, User Name, User ID, Position Title, Roles, Permissions, Tenant, Tenant ID, Facility, Facility ID, Subscription Plan, Plan Code, Plan Tier, Subscription Status, Screen, Route, Route Name, Page URL, Platform, Device Type, App Version, Environment, Locale, Time Zone, Viewport (px), Display (px), Orientation, Breakpoint, Theme, Text Scale, Connectivity, Device Clock (UTC), User Agent, IP Address
+
+The data collected from the Excel workbook is intended to provide enough context to fix/resolve each feedback.
 
 ### Consolidate
 
@@ -27,7 +23,7 @@ Identify duplicates, dependencies, common root causes, and cross-cutting changes
 
 **Merge feedback that can be resolved by the same implementation into one task.** Do not create separate prompts for related feedback.
 
-Then order the consolidated tasks chronologically, while respecting technical dependencies.
+Then order the consolidated tasks chronologically while respecting technical dependencies.
 
 ### Generate files
 
@@ -46,9 +42,13 @@ Generate:
 ...
 ```
 
-`000-index.md` should show the implementation order, task titles, and the feedback items/IDs covered by each task.
+`000-index.md` should show:
 
-Each numbered file must be a **ready-to-use coding-agent implementation prompt** containing:
+- The implementation order
+- Task titles
+- The feedback items/IDs covered by each task
+
+Each numbered file must be a **ready-to-use, context-aware, actionable, and specific coding-agent implementation prompt** containing:
 
 - Objective
 - Feedback covered and relevant Excel details
