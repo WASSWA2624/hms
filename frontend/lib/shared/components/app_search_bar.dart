@@ -1494,38 +1494,34 @@ class _MultiSelectFilterGroup extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
 
-    return Semantics(
-      container: true,
-      label: group.label,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          for (int index = 0; index < group.choices.length; index++) ...<Widget>[
-            if (index > 0) SizedBox(height: theme.spacing.xs),
-            Builder(
-              builder: (BuildContext context) {
-                final AppSearchBarFilterChoice choice = group.choices[index];
-                final bool isSelected = selected.contains(choice.value);
-                return AppCheckboxField(
-                  title: choice.label,
-                  value: isSelected,
-                  semanticLabel: choice.label,
-                  secondary: choice.icon == null ? null : Icon(choice.icon),
-                  onChanged: (bool checked) {
-                    final Set<String> next = Set<String>.of(selected);
-                    if (checked) {
-                      next.add(choice.value);
-                    } else {
-                      next.remove(choice.value);
-                    }
-                    onChanged(next);
-                  },
-                );
-              },
-            ),
-          ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        for (int index = 0; index < group.choices.length; index++) ...<Widget>[
+          if (index > 0) SizedBox(height: theme.spacing.xs),
+          Builder(
+            builder: (BuildContext context) {
+              final AppSearchBarFilterChoice choice = group.choices[index];
+              final bool isSelected = selected.contains(choice.value);
+              return AppCheckboxField(
+                title: choice.label,
+                value: isSelected,
+                semanticLabel: choice.label,
+                secondary: choice.icon == null ? null : Icon(choice.icon),
+                onChanged: (bool checked) {
+                  final Set<String> next = Set<String>.of(selected);
+                  if (checked) {
+                    next.add(choice.value);
+                  } else {
+                    next.remove(choice.value);
+                  }
+                  onChanged(next);
+                },
+              );
+            },
+          ),
         ],
-      ),
+      ],
     );
   }
 }
@@ -1536,9 +1532,10 @@ bool _hasFilterChoices(AppSearchBarFilterGroup group) {
 
 /// One titled block of related filter controls.
 ///
-/// The heading names the block, so the controls inside need no label of their
-/// own, and a block that currently narrows the list is outlined as selected —
-/// an open dialog then shows at a glance which filters are doing work.
+/// The heading names the block, for sighted users and for screen readers
+/// alike, so the controls inside need no label of their own; a block that
+/// currently narrows the list is outlined as selected, so an open dialog shows
+/// at a glance which filters are doing work.
 class _FilterPanel extends StatelessWidget {
   const _FilterPanel({
     required this.icon,
@@ -1560,50 +1557,57 @@ class _FilterPanel extends StatelessWidget {
         ? colorScheme.primary
         : colorScheme.onSurfaceVariant;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(theme.radius.md),
-        border: isActive
-            ? theme.borders.all(tone: AppBorderTone.selected)
-            : theme.borders.all(),
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(theme.spacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Row(
-              children: <Widget>[
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(theme.radius.xs),
-                  ),
-                  child: Padding(
-                    padding: EdgeInsets.all(theme.spacing.xs),
-                    child: Icon(
-                      icon,
-                      size: theme.appTokens.listIconSize,
-                      color: accent,
+    return Semantics(
+      container: true,
+      label: title,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(theme.radius.md),
+          border: isActive
+              ? theme.borders.all(tone: AppBorderTone.selected)
+              : theme.borders.all(),
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(theme.spacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(theme.radius.xs),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.all(theme.spacing.xs),
+                      child: Icon(
+                        icon,
+                        size: theme.appTokens.listIconSize,
+                        color: accent,
+                      ),
                     ),
                   ),
-                ),
-                SizedBox(width: theme.spacing.sm),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: colorScheme.onSurface,
-                      fontWeight: AppFontWeight.emphasis,
+                  SizedBox(width: theme.spacing.sm),
+                  Expanded(
+                    // The group already carries this as its accessible name.
+                    child: ExcludeSemantics(
+                      child: Text(
+                        title,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: colorScheme.onSurface,
+                          fontWeight: AppFontWeight.emphasis,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            SizedBox(height: theme.spacing.sm),
-            child,
-          ],
+                ],
+              ),
+              SizedBox(height: theme.spacing.sm),
+              child,
+            ],
+          ),
         ),
       ),
     );
