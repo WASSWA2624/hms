@@ -43,6 +43,7 @@ final class _ScriptedFeedbackRepository implements FeedbackRepository {
   Future<Result<AppPage<FeedbackRecord>>> fetchFeedbackPage({
     required FeedbackFilters filters,
     required AppPageRequest request,
+    FeedbackSort sort = FeedbackSort.newestFirst,
   }) {
     throw UnimplementedError();
   }
@@ -50,6 +51,8 @@ final class _ScriptedFeedbackRepository implements FeedbackRepository {
   @override
   Future<Result<Uint8List>> downloadFeedbackExport({
     required int utcOffsetMinutes,
+    Set<String> referenceIds = const <String>{},
+    FeedbackFilters filters = FeedbackFilters.none,
   }) {
     throw UnimplementedError();
   }

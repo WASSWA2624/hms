@@ -23,6 +23,7 @@ const { validateRequest } = require('@middlewares/validate.middleware');
 const { FEEDBACK_ADMIN_ROLES } = require('@lib/feedback/feedback-access');
 const {
   deleteFeedbackSchema,
+  exportFeedbackBodySchema,
   exportFeedbackQuerySchema,
   feedbackFilterQuerySchema,
   listFeedbackQuerySchema,
@@ -114,6 +115,27 @@ router.get(
   '/export',
   ...requireFeedbackAdmin(),
   validateRequest({ query: exportFeedbackQuerySchema }),
+  feedbackController.exportFeedback
+);
+
+/**
+ * @description Download the picked feedback records as HOSSPI-FEEDBACK-DDMMYYYY-HHmmss.xlsx
+ * @method POST
+ * @route /api/v1/feedback/export
+ * @authentication Required
+ * @permissions PLATFORM_OWNER, PLATFORM_ADMIN
+ * @urlParams None
+ * @queryParams None
+ * @bodyParams human_friendly_ids, search, category, submitter_type, device_type, platform, from, to, utc_offset_minutes
+ * @returns {Buffer} Excel workbook
+ * @throws 400 Validation error
+ * @throws 401 Unauthorized
+ * @throws 403 Forbidden
+ */
+router.post(
+  '/export',
+  ...requireFeedbackAdmin(),
+  validateRequest({ body: exportFeedbackBodySchema }),
   feedbackController.exportFeedback
 );
 

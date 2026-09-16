@@ -40,7 +40,8 @@ const FEEDBACK_SORTABLE_FIELDS = new Set([
   'client_platform',
   'user_email',
   'tenant_name',
-  'facility_name'
+  'facility_name',
+  'route_path'
 ]);
 
 const ensureTenant = (context) => {
@@ -335,6 +336,17 @@ const ensureFeedbackAdmin = (context = {}) => {
   }
 };
 
+// Upper-cased, de-duplicated feedback ids, or null when none were supplied.
+const normalizeFeedbackIds = (values) => {
+  if (!Array.isArray(values)) {
+    return null;
+  }
+  const ids = Array.from(
+    new Set(values.map((id) => String(id || '').trim().toUpperCase()).filter(Boolean))
+  );
+  return ids.length > 0 ? ids : null;
+};
+
 // Newest first by default; submission time and id break ties so paging is stable.
 const buildFeedbackOrderBy = (sortBy, order) => {
   const direction = order === 'asc' ? 'asc' : 'desc';
@@ -416,15 +428,23 @@ const getFeedbackSummary = async (filters = {}, context = {}) => {
 /**
  * Build the feedback workbook for download.
  *
- * @param {Object} query - Filters plus utc_offset_minutes
+ * @param {Object} query - Filters plus utc_offset_minutes and optional human_friendly_ids
  * @param {Object} context - Request context (timezone header, user)
  * @returns {Promise<Object>} buffer, file_name, mime_type, record_count
  */
 const exportFeedback = async (query = {}, context = {}) => {
   ensureFeedbackAdmin(context);
 
-  const { utc_offset_minutes: utcOffsetMinutes, ...filters } = query;
-  const rows = await feedbackRepository.listActiveFeedbackForExport(filters);
+  const {
+    utc_offset_minutes: utcOffsetMinutes,
+    human_friendly_ids: requestedIds,
+    ...filters
+  } = query;
+  // "Download feedback" picks records by id; without a pick the filters decide.
+  const humanFriendlyIds = normalizeFeedbackIds(requestedIds);
+  const rows = await feedbackRepository.listActiveFeedbackForExport(filters, {
+    humanFriendlyIds
+  });
   const generatedAt = new Date();
   const clock = resolveExportClock({ timeZone: context.timezone, utcOffsetMinutes });
   const buffer = await renderFeedbackWorkbook({
@@ -444,6 +464,9 @@ const exportFeedback = async (query = {}, context = {}) => {
     diff: {
       after: {
         record_count: rows.length,
+        human_friendly_ids: humanFriendlyIds
+          ? humanFriendlyIds.slice(0, FEEDBACK_AUDIT_ID_SAMPLE)
+          : null,
         filters
       }
     },
@@ -469,15 +492,7 @@ const exportFeedback = async (query = {}, context = {}) => {
 const deleteFeedback = async (body = {}, context = {}) => {
   ensureFeedbackAdmin(context);
 
-  const humanFriendlyIds = Array.isArray(body.human_friendly_ids)
-    ? Array.from(
-        new Set(
-          body.human_friendly_ids
-            .map((id) => String(id || '').trim().toUpperCase())
-            .filter(Boolean)
-        )
-      )
-    : [];
+  const humanFriendlyIds = normalizeFeedbackIds(body.human_friendly_ids) || [];
   const deletesAllMatching = body.all_matching === true;
   if (humanFriendlyIds.length === 0 && !deletesAllMatching) {
     throw new HttpError('errors.validation.invalid', 400, [{ field: 'human_friendly_ids' }]);

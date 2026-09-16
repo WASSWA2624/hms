@@ -16,6 +16,12 @@ import 'package:hosspi_hms/shared/forms/forms.dart';
 ///
 /// The caller captures the screen and device context; the form asks only for
 /// what the system cannot know: the kind of feedback and its details.
+///
+/// It opens at the size of that form rather than filling the window, and its
+/// chrome is see-through, so the screen the feedback is about stays legible
+/// behind it while the user writes. Only the details box is solid: that is
+/// where the user is reading their own words back. Callers pair this with a
+/// see-through barrier.
 class FeedbackSubmitDialog extends ConsumerStatefulWidget {
   const FeedbackSubmitDialog({
     required this.feedbackContext,
@@ -34,6 +40,10 @@ class FeedbackSubmitDialog extends ConsumerStatefulWidget {
 }
 
 class _FeedbackSubmitDialogState extends ConsumerState<FeedbackSubmitDialog> {
+  /// Enough of the screen behind shows through to place the feedback, while
+  /// the form's own labels and buttons keep their contrast.
+  static const double _surfaceOpacity = 0.86;
+
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _messageController = TextEditingController();
   FeedbackCategory _category = FeedbackCategory.general;
@@ -55,7 +65,9 @@ class _FeedbackSubmitDialogState extends ConsumerState<FeedbackSubmitDialog> {
       title: Text(l10n.feedbackDialogTitle),
       icon: const Icon(Icons.feedback_outlined),
       scrollable: true,
-      pinActionsToBottom: true,
+      initialMaximized: false,
+      sizeToContent: true,
+      surfaceOpacity: _surfaceOpacity,
       closeEnabled: !_isSubmitting,
       content: AppFormShell(
         formKey: _formKey,
@@ -73,6 +85,8 @@ class _FeedbackSubmitDialogState extends ConsumerState<FeedbackSubmitDialog> {
               });
             },
           ),
+          // The one solid control: the field's own fill hides the screen
+          // behind it so what the user types stays easy to read.
           AppTextField(
             controller: _messageController,
             labelText: l10n.feedbackMessageLabel,

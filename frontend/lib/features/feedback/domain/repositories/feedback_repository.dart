@@ -15,17 +15,22 @@ abstract interface class FeedbackRepository {
     required bool signedIn,
   });
 
-  /// One page of stored feedback matching [filters], newest first.
+  /// One page of stored feedback matching [filters], in [sort] order.
   /// Platform owners and platform admins only.
   Future<Result<AppPage<FeedbackRecord>>> fetchFeedbackPage({
     required FeedbackFilters filters,
     required AppPageRequest request,
+    FeedbackSort sort,
   });
 
   /// Stored feedback as `.xlsx` bytes, with dates on [utcOffsetMinutes].
-  /// Platform owners and platform admins only.
+  ///
+  /// With [referenceIds] only those records are exported; without them every
+  /// record matching [filters]. Platform owners and platform admins only.
   Future<Result<Uint8List>> downloadFeedbackExport({
     required int utcOffsetMinutes,
+    Set<String> referenceIds,
+    FeedbackFilters filters,
   });
 
   /// Permanently deletes the feedback with these [referenceIds].

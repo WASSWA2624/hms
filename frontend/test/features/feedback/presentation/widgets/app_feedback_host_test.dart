@@ -20,6 +20,7 @@ import 'package:hosspi_hms/features/feedback/domain/entities/feedback_entities.d
 import 'package:hosspi_hms/features/feedback/domain/repositories/feedback_repository.dart';
 import 'package:hosspi_hms/features/feedback/presentation/widgets/app_feedback_host.dart';
 import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_delete_dialog.dart';
+import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_download_dialog.dart';
 import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_submit_dialog.dart';
 import 'package:hosspi_hms/l10n/app_localizations.dart';
 import 'package:hosspi_hms/shared/actions/app_action_dialogs.dart';
@@ -35,6 +36,7 @@ final class _FakeFeedbackRepository implements FeedbackRepository {
   final List<({FeedbackSubmission submission, bool signedIn})> submissions =
       <({FeedbackSubmission submission, bool signedIn})>[];
   final List<int> exportOffsets = <int>[];
+  final List<Set<String>> exportedIds = <Set<String>>[];
   final Uint8List exportBytes = Uint8List.fromList(<int>[80, 75, 3, 4]);
   final List<FeedbackRecord> records = <FeedbackRecord>[
     for (int index = 1; index <= 3; index += 1)
@@ -67,6 +69,7 @@ final class _FakeFeedbackRepository implements FeedbackRepository {
   Future<Result<AppPage<FeedbackRecord>>> fetchFeedbackPage({
     required FeedbackFilters filters,
     required AppPageRequest request,
+    FeedbackSort sort = FeedbackSort.newestFirst,
   }) async {
     return Result<AppPage<FeedbackRecord>>.success(
       AppPage<FeedbackRecord>(
@@ -80,8 +83,11 @@ final class _FakeFeedbackRepository implements FeedbackRepository {
   @override
   Future<Result<Uint8List>> downloadFeedbackExport({
     required int utcOffsetMinutes,
+    Set<String> referenceIds = const <String>{},
+    FeedbackFilters filters = FeedbackFilters.none,
   }) async {
     exportOffsets.add(utcOffsetMinutes);
+    exportedIds.add(Set<String>.of(referenceIds));
     return Result<Uint8List>.success(exportBytes);
   }
 
@@ -240,11 +246,8 @@ void main() {
       expect(find.byType(FeedbackSubmitDialog), findsOneWidget);
       expect(find.text('GIVE US FEEDBACK'), findsOneWidget);
       expect(find.text('Download feedback'), findsNothing);
-      // The control stays on top of the open form but does not open another.
-      expect(_launcher.hitTestable(), findsOneWidget);
-      await tester.tap(_launcher);
-      await tester.pumpAndSettle();
-      expect(find.byType(FeedbackSubmitDialog), findsOneWidget);
+      // The control steps aside while its own form is open.
+      expect(_launcher, findsNothing);
 
       await tester.enterText(_messageField, 'The save button does nothing');
       await tester.tap(find.widgetWithText(AppButton, 'Send feedback'));
@@ -342,6 +345,18 @@ void main() {
 
     expect(find.byType(FeedbackSubmitDialog), findsOneWidget);
     expect(find.text('Register new patient'), findsOneWidget);
+    // The control hides behind its own form, and comes back when it closes.
+    expect(_launcher, findsNothing);
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(FeedbackSubmitDialog),
+        matching: find.widgetWithText(AppButton, 'Close'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(FeedbackSubmitDialog), findsNothing);
     expect(_launcher.hitTestable(), findsOneWidget);
   });
 
@@ -592,7 +607,7 @@ void main() {
     expect(rect.top, greaterThanOrEqualTo(0));
   });
 
-  testWidgets('download saves HOSSPI-FEEDBACK-DDMMYYYY-HHmmss.xlsx', (
+  testWidgets('download saves the picked records as a named workbook', (
     WidgetTester tester,
   ) async {
     final _FakeFeedbackRepository repository = _FakeFeedbackRepository();
@@ -608,9 +623,22 @@ void main() {
     await tester.tap(find.text('Download feedback'));
     await tester.pumpAndSettle();
 
+    expect(find.byType(FeedbackDownloadDialog), findsOneWidget);
+    expect(find.text('Stored feedback 2'), findsOneWidget);
+    expect(savedFiles, isEmpty);
+
+    await tester.tap(
+      find.byKey(FeedbackDownloadDialog.rowCheckboxKey('FBK0000002')),
+    );
+    await tester.pump();
+    await tester.tap(find.widgetWithText(AppButton, 'Download'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(FeedbackDownloadDialog), findsNothing);
     expect(repository.exportOffsets, <int>[
       DateTime.now().timeZoneOffset.inMinutes,
     ]);
+    expect(repository.exportedIds.single, <String>{'FBK0000002'});
     final _SavedFile saved = savedFiles.single;
     expect(saved.bytes, repository.exportBytes);
     expect(
@@ -618,6 +646,58 @@ void main() {
       matches(RegExp(r'^HOSSPI-FEEDBACK-\d{8}-\d{6}\.xlsx$')),
     );
     expect(find.text('Feedback downloaded.'), findsOneWidget);
+  });
+
+  testWidgets('downloading without a pick exports every matching record', (
+    WidgetTester tester,
+  ) async {
+    final _FakeFeedbackRepository repository = _FakeFeedbackRepository();
+    final List<_SavedFile> savedFiles = <_SavedFile>[];
+    await _pumpHost(
+      tester,
+      session: _signedInAs('PLATFORM_ADMIN'),
+      repository: repository,
+      savedFiles: savedFiles,
+    );
+
+    await _openLauncher(tester);
+    await tester.tap(find.text('Download feedback'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(AppButton, 'Download'));
+    await tester.pumpAndSettle();
+
+    // No ids means the whole matching list, which the API resolves.
+    expect(repository.exportedIds.single, isEmpty);
+    expect(savedFiles, hasLength(1));
+  });
+
+  testWidgets('closing Download feedback downloads nothing', (
+    WidgetTester tester,
+  ) async {
+    final _FakeFeedbackRepository repository = _FakeFeedbackRepository();
+    final List<_SavedFile> savedFiles = <_SavedFile>[];
+    await _pumpHost(
+      tester,
+      session: _signedInAs('PLATFORM_ADMIN'),
+      repository: repository,
+      savedFiles: savedFiles,
+    );
+
+    await _openLauncher(tester);
+    await tester.tap(find.text('Download feedback'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(FeedbackDownloadDialog),
+        matching: find.widgetWithText(AppButton, 'Close'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(FeedbackDownloadDialog), findsNothing);
+    expect(repository.exportOffsets, isEmpty);
+    expect(savedFiles, isEmpty);
+    expect(_launcher.hitTestable(), findsOneWidget);
   });
 
   testWidgets('clear feedback lets owners pick records to delete permanently', (
@@ -636,7 +716,7 @@ void main() {
 
     expect(find.byType(FeedbackDeleteDialog), findsOneWidget);
     expect(find.text('Stored feedback 2'), findsOneWidget);
-    expect(_launcher.hitTestable(), findsOneWidget);
+    expect(_launcher, findsNothing);
 
     await tester.tap(
       find.byKey(FeedbackDeleteDialog.rowCheckboxKey('FBK0000002')),

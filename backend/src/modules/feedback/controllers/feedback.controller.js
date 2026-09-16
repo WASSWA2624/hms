@@ -53,7 +53,9 @@ const getFeedbackSummary = asyncHandler(async (req, res) => {
 });
 
 const exportFeedback = asyncHandler(async (req, res) => {
-  const result = await feedbackService.exportFeedback(req.query, buildFeedbackContext(req));
+  // GET carries filters in the query; POST carries the picked ids in the body.
+  const request = { ...req.query, ...req.body };
+  const result = await feedbackService.exportFeedback(request, buildFeedbackContext(req));
   res.setHeader('Content-Type', result.mime_type);
   res.setHeader('Content-Disposition', `attachment; filename="${result.file_name}"`);
   res.setHeader('Cache-Control', 'no-store');

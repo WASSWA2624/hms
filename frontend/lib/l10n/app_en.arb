@@ -38474,10 +38474,6 @@
   "@feedbackDeleteDialogTitle": {
     "description": "Title of the dialog for choosing stored feedback to delete permanently."
   },
-  "feedbackDeleteDialogBody": "Select feedback to delete permanently, or narrow the list with search and filters and select every match. Download feedback first if you need a copy.",
-  "@feedbackDeleteDialogBody": {
-    "description": "Guidance at the top of the Clear feedback dialog."
-  },
   "feedbackSearchLabel": "Search feedback",
   "@feedbackSearchLabel": {
     "description": "Accessible label of the search field in the Clear feedback dialog."
@@ -38640,27 +38636,13 @@
       }
     }
   },
-  "feedbackSelectAllMatchingAction": "{count, plural, =1{Select the matching record} other{Select all {count} matching records}}",
-  "@feedbackSelectAllMatchingAction": {
-    "description": "Action that selects every record matching the search and filters, across pages.",
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "feedbackAllMatchingSelected": "{count, plural, =1{The matching record is selected} other{All {count} matching records are selected}}",
-  "@feedbackAllMatchingSelected": {
-    "description": "Selection status when every matching record is selected.",
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "feedbackDeleteSelectedAction": "Delete permanently",
   "@feedbackDeleteSelectedAction": {
     "description": "Button that permanently deletes the selected feedback."
+  },
+  "feedbackDownloadSelectedAction": "Download",
+  "@feedbackDownloadSelectedAction": {
+    "description": "Button that downloads the selected feedback as a workbook, or every matching record when none is selected."
   },
   "feedbackDeleteConfirmTitle": "Delete feedback permanently",
   "@feedbackDeleteConfirmTitle": {

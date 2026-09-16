@@ -392,9 +392,10 @@ describe('feedback service', () => {
         ownerContext
       );
 
-      expect(feedbackRepository.listActiveFeedbackForExport).toHaveBeenCalledWith({
-        category: ['GENERAL']
-      });
+      expect(feedbackRepository.listActiveFeedbackForExport).toHaveBeenCalledWith(
+        { category: ['GENERAL'] },
+        { humanFriendlyIds: null }
+      );
       expect(result.file_name).toMatch(/^HOSSPI-FEEDBACK-\d{8}-\d{6}\.xlsx$/);
       expect(result.mime_type).toBe(
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -413,7 +414,48 @@ describe('feedback service', () => {
           entity: 'feedback',
           tenant_id: 'tenant-platform',
           user_id: 'owner-1',
-          diff: { after: { record_count: 1, filters: { category: ['GENERAL'] } } }
+          diff: {
+            after: {
+              record_count: 1,
+              human_friendly_ids: null,
+              filters: { category: ['GENERAL'] }
+            }
+          }
+        })
+      );
+    });
+
+    it('exports exactly the picked records when ids are supplied', async () => {
+      feedbackRepository.listActiveFeedbackForExport.mockResolvedValue([
+        {
+          human_friendly_id: 'FBK0000002',
+          category: 'PROBLEM',
+          message: 'Printer jam',
+          submitter_type: 'AUTHENTICATED',
+          submitted_at: submittedAt
+        }
+      ]);
+
+      const result = await exportFeedback(
+        { human_friendly_ids: ['fbk0000002', 'FBK0000002', ' '], utc_offset_minutes: 0 },
+        ownerContext
+      );
+
+      expect(feedbackRepository.listActiveFeedbackForExport).toHaveBeenCalledWith(
+        {},
+        { humanFriendlyIds: ['FBK0000002'] }
+      );
+      expect(result.record_count).toBe(1);
+      expect(createAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'EXPORT',
+          diff: {
+            after: {
+              record_count: 1,
+              human_friendly_ids: ['FBK0000002'],
+              filters: {}
+            }
+          }
         })
       );
     });

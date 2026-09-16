@@ -220,10 +220,16 @@ const listActiveFeedbackPage = async ({ filters = {}, skip = 0, take = 20, order
  * Every active feedback row for export, newest first.
  *
  * @param {Object} [filters]
+ * @param {Object} [options]
+ * @param {string[]|null} [options.humanFriendlyIds] - Export exactly these records
  * @returns {Promise<Object[]>}
  */
-const listActiveFeedbackForExport = async (filters = {}) => {
-  const where = buildActiveFeedbackWhere(filters);
+const listActiveFeedbackForExport = async (filters = {}, { humanFriendlyIds } = {}) => {
+  const matching = buildActiveFeedbackWhere(filters);
+  const where =
+    Array.isArray(humanFriendlyIds) && humanFriendlyIds.length > 0
+      ? { AND: [matching, { human_friendly_id: { in: humanFriendlyIds } }] }
+      : matching;
   const rows = [];
   let cursorId = null;
   let hasMore = true;

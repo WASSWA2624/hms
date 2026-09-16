@@ -192,6 +192,50 @@ final class FeedbackRecord {
   final String? platform;
 }
 
+/// A column stored feedback can be ordered by. [apiValue] matches the API's
+/// `sort_by` values.
+enum FeedbackSortField {
+  submittedAt('submitted_at'),
+  reference('human_friendly_id'),
+  category('category'),
+  submitterType('submitter_type'),
+  submitter('user_email'),
+  tenant('tenant_name'),
+  facility('facility_name'),
+  deviceType('device_type'),
+  platform('client_platform'),
+  routePath('route_path');
+
+  const FeedbackSortField(this.apiValue);
+
+  final String apiValue;
+}
+
+/// How a page of stored feedback is ordered.
+final class FeedbackSort {
+  const FeedbackSort({required this.field, this.ascending = false});
+
+  /// The API's own default: the most recent feedback first.
+  static const FeedbackSort newestFirst = FeedbackSort(
+    field: FeedbackSortField.submittedAt,
+  );
+
+  final FeedbackSortField field;
+  final bool ascending;
+
+  String get apiOrder => ascending ? 'asc' : 'desc';
+
+  @override
+  bool operator ==(Object other) {
+    return other is FeedbackSort &&
+        other.field == field &&
+        other.ascending == ascending;
+  }
+
+  @override
+  int get hashCode => Object.hash(field, ascending);
+}
+
 /// Narrows stored feedback while browsing or deleting it.
 ///
 /// Submission dates are local calendar days; [submittedTo] includes the whole

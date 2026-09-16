@@ -30025,10 +30025,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get feedbackDeleteDialogTitle => 'Clear feedback';
 
   @override
-  String get feedbackDeleteDialogBody =>
-      'Select feedback to delete permanently, or narrow the list with search and filters and select every match. Download feedback first if you need a copy.';
-
-  @override
   String get feedbackSearchLabel => 'Search feedback';
 
   @override
@@ -30148,29 +30144,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String feedbackSelectAllMatchingAction(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: 'Select all $count matching records',
-      one: 'Select the matching record',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String feedbackAllMatchingSelected(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: 'All $count matching records are selected',
-      one: 'The matching record is selected',
-    );
-    return '$_temp0';
-  }
-
-  @override
   String get feedbackDeleteSelectedAction => 'Delete permanently';
+
+  @override
+  String get feedbackDownloadSelectedAction => 'Download';
 
   @override
   String get feedbackDeleteConfirmTitle => 'Delete feedback permanently';

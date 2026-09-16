@@ -23,11 +23,13 @@ const FEEDBACK_SORT_FIELDS = Object.freeze([
   'client_platform',
   'user_email',
   'tenant_name',
-  'facility_name'
+  'facility_name',
+  'route_path'
 ]);
 const FEEDBACK_MESSAGE_MIN_LENGTH = 3;
 const FEEDBACK_MESSAGE_MAX_LENGTH = 5000;
 const FEEDBACK_DELETE_MAX_IDS = 1000;
+const FEEDBACK_EXPORT_MAX_IDS = 1000;
 const MAX_UTC_OFFSET_MINUTES = 14 * 60;
 
 const submitNpsSchema = z.object({
@@ -150,6 +152,19 @@ const exportFeedbackQuerySchema = feedbackFiltersSchema.extend({
 });
 
 /**
+ * Body form of the export request, for "Download feedback" once records are
+ * picked: too many ids to carry in a URL. Without `human_friendly_ids` it
+ * exports every record matching the filters, exactly as the query form does.
+ */
+const exportFeedbackBodySchema = exportFeedbackQuerySchema.extend({
+  human_friendly_ids: z
+    .array(z.string().trim().min(1).max(32))
+    .min(1)
+    .max(FEEDBACK_EXPORT_MAX_IDS)
+    .optional()
+});
+
+/**
  * Permanent deletion of either the listed feedback ids or, with `all_matching`,
  * every record matching `filters`. `confirm` must be true so a stray DELETE
  * cannot remove feedback.
@@ -174,11 +189,13 @@ module.exports = {
   FEEDBACK_CATEGORIES,
   FEEDBACK_DELETE_MAX_IDS,
   FEEDBACK_DEVICE_TYPES,
+  FEEDBACK_EXPORT_MAX_IDS,
   FEEDBACK_MESSAGE_MAX_LENGTH,
   FEEDBACK_MESSAGE_MIN_LENGTH,
   FEEDBACK_SORT_FIELDS,
   FEEDBACK_SUBMITTER_TYPES,
   deleteFeedbackSchema,
+  exportFeedbackBodySchema,
   exportFeedbackQuerySchema,
   feedbackFilterQuerySchema,
   feedbackFiltersSchema,

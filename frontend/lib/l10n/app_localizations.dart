@@ -54535,12 +54535,6 @@ abstract class AppLocalizations {
   /// **'Clear feedback'**
   String get feedbackDeleteDialogTitle;
 
-  /// Guidance at the top of the Clear feedback dialog.
-  ///
-  /// In en, this message translates to:
-  /// **'Select feedback to delete permanently, or narrow the list with search and filters and select every match. Download feedback first if you need a copy.'**
-  String get feedbackDeleteDialogBody;
-
   /// Accessible label of the search field in the Clear feedback dialog.
   ///
   /// In en, this message translates to:
@@ -54751,23 +54745,17 @@ abstract class AppLocalizations {
   /// **'{count, plural, =0{No feedback selected} =1{1 record selected} other{{count} records selected}}'**
   String feedbackSelectedCount(int count);
 
-  /// Action that selects every record matching the search and filters, across pages.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{Select the matching record} other{Select all {count} matching records}}'**
-  String feedbackSelectAllMatchingAction(int count);
-
-  /// Selection status when every matching record is selected.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{The matching record is selected} other{All {count} matching records are selected}}'**
-  String feedbackAllMatchingSelected(int count);
-
   /// Button that permanently deletes the selected feedback.
   ///
   /// In en, this message translates to:
   /// **'Delete permanently'**
   String get feedbackDeleteSelectedAction;
+
+  /// Button that downloads the selected feedback as a workbook, or every matching record when none is selected.
+  ///
+  /// In en, this message translates to:
+  /// **'Download'**
+  String get feedbackDownloadSelectedAction;
 
   /// Title of the confirmation before feedback is deleted permanently.
   ///

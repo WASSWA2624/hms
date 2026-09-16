@@ -30,6 +30,8 @@ class AppDialog extends StatefulWidget {
     this.resizable = true,
     this.closeEnabled = true,
     this.initialMaximized = true,
+    this.sizeToContent = false,
+    this.surfaceOpacity = 1,
     this.maxWidth = _defaultMaxWidth,
     this.cornerRadius,
     this.contentPadding,
@@ -80,6 +82,21 @@ class AppDialog extends StatefulWidget {
   final bool resizable;
   final bool closeEnabled;
   final bool initialMaximized;
+
+  /// When true, a restored (non-maximized) shell is only as tall as its
+  /// content, up to the height the viewport allows. Use it with
+  /// `initialMaximized: false` for short forms that should not open as a tall,
+  /// mostly empty panel. Content past that height still scrolls.
+  final bool sizeToContent;
+
+  /// Opacity of the dialog's own surfaces — body, header, and footer — from 0
+  /// to 1.
+  ///
+  /// Below 1 the screen behind shows through, so the user can see the part of
+  /// the app they are writing about. Controls that carry their own opaque
+  /// colour, such as text fields, stay readable on top of it. Pair it with a
+  /// see-through barrier ([showAppDialog]'s `barrierColor`).
+  final double surfaceOpacity;
   final double maxWidth;
 
   /// Overrides dialog shell corner radius. Use `0` for square forms.
@@ -143,7 +160,9 @@ class _AppDialogState extends State<AppDialog> {
     final double shellHeight = _isMaximized
         ? maxHeight
         : (desktopSize?.height ??
-              (widget.scrollable && desktopInteractive
+              (widget.scrollable &&
+                      desktopInteractive &&
+                      !widget.sizeToContent
                   ? defaultScrollableHeight
                   : maxHeight));
     final BoxConstraints dialogConstraints = BoxConstraints(
@@ -154,11 +173,15 @@ class _AppDialogState extends State<AppDialog> {
         desktopInteractive && !_isMaximized && widget.resizable;
     final bool pinFooter =
         widget.pinActionsToBottom && widget.actions.isNotEmpty;
+    // A content-sized shell never stretches to a fixed height; the footer sits
+    // under the content instead of being pinned to the bottom of the viewport.
+    final bool hugContent = widget.sizeToContent && !_isMaximized;
     final bool fillShellHeight =
-        pinFooter ||
-        _isMaximized ||
-        (desktopInteractive && desktopSize != null) ||
-        (desktopInteractive && widget.scrollable && !_isMaximized);
+        !hugContent &&
+        (pinFooter ||
+            _isMaximized ||
+            (desktopInteractive && desktopSize != null) ||
+            (desktopInteractive && widget.scrollable && !_isMaximized));
 
     final Widget dialogContent = DecoratedBox(
       decoration: BoxDecoration(
@@ -171,6 +194,8 @@ class _AppDialogState extends State<AppDialog> {
         icon: widget.icon,
         scrollable: widget.scrollable,
         fillHeight: fillShellHeight,
+        hugContent: hugContent,
+        surfaceOpacity: widget.surfaceOpacity,
         compact: compact,
         stackActionsWhenCompact: widget.stackActionsWhenCompact,
         denseActions: widget.denseActions,
@@ -189,7 +214,7 @@ class _AppDialogState extends State<AppDialog> {
       ),
     );
 
-    final bool enforceShellHeight = pinFooter || fillShellHeight;
+    final bool enforceShellHeight = !hugContent && (pinFooter || fillShellHeight);
     Widget dialogBody = ConstrainedBox(
       constraints: desktopInteractive
           ? BoxConstraints(
@@ -208,7 +233,7 @@ class _AppDialogState extends State<AppDialog> {
       ),
     );
 
-    if (desktopInteractive || pinFooter || _isMaximized) {
+    if (desktopInteractive || enforceShellHeight || _isMaximized) {
       dialogBody = SizedBox(
         // Unique per State so nested AppDialogs do not share an Overlay key.
         key: desktopInteractive || _isMaximized
@@ -306,7 +331,9 @@ class _AppDialogState extends State<AppDialog> {
       elevation: theme.dialogTheme.elevation ?? 24,
       shape: dialogShape,
       clipBehavior: Clip.antiAlias,
-      backgroundColor: colorScheme.surface,
+      backgroundColor: colorScheme.surface.withValues(
+        alpha: widget.surfaceOpacity,
+      ),
       shadowColor: colorScheme.shadow.withValues(alpha: 0.28),
       child: dialogBody,
     );
@@ -504,6 +531,8 @@ class _DialogBody extends StatelessWidget {
     required this.actions,
     required this.scrollable,
     required this.fillHeight,
+    required this.hugContent,
+    required this.surfaceOpacity,
     required this.compact,
     required this.stackActionsWhenCompact,
     required this.denseActions,
@@ -526,6 +555,11 @@ class _DialogBody extends StatelessWidget {
   final Widget? icon;
   final bool scrollable;
   final bool fillHeight;
+
+  /// Lets the body shrink to its content while still scrolling past the
+  /// height the shell allows.
+  final bool hugContent;
+  final double surfaceOpacity;
   final bool compact;
   final bool stackActionsWhenCompact;
   final bool denseActions;
@@ -579,6 +613,7 @@ class _DialogBody extends StatelessWidget {
           title: title,
           icon: icon,
           titleStyle: titleStyle,
+          surfaceOpacity: surfaceOpacity,
           showCloseButton: showCloseButton,
           showMaximizeButton: showMaximizeButton,
           isMaximized: isMaximized,
@@ -588,13 +623,19 @@ class _DialogBody extends StatelessWidget {
           onMaximizeToggle: onMaximizeToggle,
           onDragUpdate: onHeaderDragUpdate,
         ),
-        if (body != null) fillHeight ? Expanded(child: body) : body,
+        if (body != null)
+          fillHeight
+              ? Expanded(child: body)
+              : hugContent
+              ? Flexible(child: body)
+              : body,
         if (actions.isNotEmpty)
           _DialogActions(
             actions: actions,
             compact: compact,
             stackWhenCompact: stackActionsWhenCompact,
             dense: denseActions,
+            surfaceOpacity: surfaceOpacity,
           ),
       ],
     );
@@ -626,6 +667,7 @@ class _DialogHeader extends StatelessWidget {
     required this.title,
     required this.icon,
     required this.titleStyle,
+    required this.surfaceOpacity,
     required this.showCloseButton,
     required this.showMaximizeButton,
     required this.isMaximized,
@@ -639,6 +681,7 @@ class _DialogHeader extends StatelessWidget {
   final Widget? title;
   final Widget? icon;
   final TextStyle titleStyle;
+  final double surfaceOpacity;
   final bool showCloseButton;
   final bool showMaximizeButton;
   final bool isMaximized;
@@ -681,7 +724,7 @@ class _DialogHeader extends StatelessWidget {
 
     final Widget header = DecoratedBox(
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLow,
+        color: colorScheme.surfaceContainerLow.withValues(alpha: surfaceOpacity),
         border: theme.borders.only(bottom: true),
       ),
       child: Padding(
@@ -870,12 +913,14 @@ class _DialogActions extends StatelessWidget {
     required this.compact,
     required this.stackWhenCompact,
     this.dense = true,
+    this.surfaceOpacity = 1,
   });
 
   final List<Widget> actions;
   final bool compact;
   final bool stackWhenCompact;
   final bool dense;
+  final double surfaceOpacity;
 
   /// Slack so an estimate landing a hair under the true width still overflows
   /// an action instead of clipping the row.
@@ -914,7 +959,7 @@ class _DialogActions extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLow,
+        color: colorScheme.surfaceContainerLow.withValues(alpha: surfaceOpacity),
         border: theme.borders.only(top: true),
       ),
       child: AppActionLabelScope(
@@ -1234,6 +1279,9 @@ Future<T?> showAppDialog<T>({
   required WidgetBuilder builder,
   /// Outside taps never dismiss; only the dialog close control or Escape do.
   bool barrierDismissible = false,
+  /// Overrides the scrim behind the dialog. Pass [Colors.transparent] when the
+  /// screen underneath must stay visible, alongside [AppDialog.surfaceOpacity].
+  Color? barrierColor,
   TraversalEdgeBehavior traversalEdgeBehavior =
       TraversalEdgeBehavior.closedLoop,
   bool requestFocus = true,
@@ -1243,6 +1291,7 @@ Future<T?> showAppDialog<T>({
   final T? result = await showDialog<T>(
     context: context,
     barrierDismissible: barrierDismissible,
+    barrierColor: barrierColor ?? Colors.black54,
     traversalEdgeBehavior: traversalEdgeBehavior,
     requestFocus: requestFocus,
     routeSettings: routeSettings,

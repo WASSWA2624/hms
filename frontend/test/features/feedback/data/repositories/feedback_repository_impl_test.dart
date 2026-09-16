@@ -258,16 +258,51 @@ void main() {
     );
 
     final _RecordedCall call = apiClient.calls.single;
-    expect(call.method, 'GET');
+    expect(call.method, 'POST');
     expect(call.endpoint.path, '/api/v1/feedback/export');
-    expect(call.endpoint.queryParameters, <String, String>{
-      'utc_offset_minutes': '-300',
-    });
+    expect(call.endpoint.queryParameters, isEmpty);
+    expect(call.data, <String, Object?>{'utc_offset_minutes': -300});
     expect(call.options?.responseType, ResponseType.bytes);
     expect(
       (result as ResultSuccess<Uint8List>).value,
       Uint8List.fromList(<int>[80, 75, 3, 4]),
     );
+  });
+
+  test('downloads only the picked records when references are given', () async {
+    final _RecordingApiClient apiClient = _RecordingApiClient(<int>[80, 75]);
+    final FeedbackRepositoryImpl repository = _repository(apiClient);
+
+    await repository.downloadFeedbackExport(
+      utcOffsetMinutes: 0,
+      referenceIds: <String>{'FBK0000003', 'FBK0000001'},
+      // The picked records win: filters only widen what they already chose.
+      filters: const FeedbackFilters(search: 'printer'),
+    );
+
+    expect(apiClient.calls.single.data, <String, Object?>{
+      'utc_offset_minutes': 0,
+      'human_friendly_ids': <String>['FBK0000001', 'FBK0000003'],
+    });
+  });
+
+  test('downloads every record matching the filters when none are picked', () async {
+    final _RecordingApiClient apiClient = _RecordingApiClient(<int>[80, 75]);
+    final FeedbackRepositoryImpl repository = _repository(apiClient);
+
+    await repository.downloadFeedbackExport(
+      utcOffsetMinutes: 0,
+      filters: const FeedbackFilters(
+        search: 'printer',
+        categories: <FeedbackCategory>{FeedbackCategory.problem},
+      ),
+    );
+
+    expect(apiClient.calls.single.data, <String, Object?>{
+      'utc_offset_minutes': 0,
+      'search': 'printer',
+      'category': <String>['PROBLEM'],
+    });
   });
 
   test('lists a page of feedback with every filter in the query', () async {
@@ -307,6 +342,10 @@ void main() {
             submittedTo: DateTime(2026, 9, 14),
           ),
           request: request,
+          sort: const FeedbackSort(
+            field: FeedbackSortField.category,
+            ascending: true,
+          ),
         );
 
     final _RecordedCall call = apiClient.calls.single;
@@ -315,6 +354,8 @@ void main() {
     expect(call.endpoint.queryParameters, <String, String>{
       'page': '2',
       'limit': '20',
+      'sort_by': 'category',
+      'order': 'asc',
       'search': 'printer',
       'category': 'COMPLAINT,PROBLEM',
       'submitter_type': 'ANONYMOUS',

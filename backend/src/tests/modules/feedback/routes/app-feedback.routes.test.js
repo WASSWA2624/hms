@@ -47,7 +47,8 @@ describe('app-feedback.routes contract', () => {
       'GET /',
       'GET /export',
       'GET /summary',
-      'POST /'
+      'POST /',
+      'POST /export'
     ]);
   });
 
@@ -64,6 +65,7 @@ describe('app-feedback.routes contract', () => {
     ['get', '/', 'listFeedback'],
     ['get', '/summary', 'getFeedbackSummary'],
     ['get', '/export', 'exportFeedback'],
+    ['post', '/export', 'exportFeedback'],
     ['delete', '/', 'deleteFeedback']
   ])('requires live platform roles for %s %s', (method, path, handler) => {
     const chain = routeChain(method, path);
@@ -73,7 +75,7 @@ describe('app-feedback.routes contract', () => {
   });
 
   it('authorizes management for platform owners and platform admins only', () => {
-    expect(authorizeCalls).toHaveLength(4);
+    expect(authorizeCalls).toHaveLength(5);
     authorizeCalls.forEach((call) => {
       expect(call).toEqual([['PLATFORM_OWNER', 'PLATFORM_ADMIN']]);
     });

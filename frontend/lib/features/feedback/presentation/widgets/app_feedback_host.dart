@@ -21,6 +21,7 @@ import 'package:hosspi_hms/features/feedback/presentation/controllers/feedback_l
 import 'package:hosspi_hms/features/feedback/presentation/feedback_access.dart';
 import 'package:hosspi_hms/features/feedback/presentation/feedback_context_capture.dart';
 import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_delete_dialog.dart';
+import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_download_dialog.dart';
 import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_submit_dialog.dart';
 import 'package:hosspi_hms/l10n/app_localizations.dart';
 import 'package:hosspi_hms/l10n/app_localizations_x.dart';
@@ -108,6 +109,9 @@ _FeedbackMenuPlacement _placeMenuBeside(
 /// Everyone can give feedback. Platform owners and platform admins get a menu
 /// that also offers Download feedback and Clear feedback; tapping the control
 /// shows or hides it. The API enforces the same roles.
+///
+/// The control is on screen at all times bar one: while one of its own dialogs
+/// is open it steps aside, so it cannot sit over the form it just opened.
 class AppFeedbackHost extends ConsumerStatefulWidget {
   const AppFeedbackHost({
     required this.router,
@@ -137,10 +141,14 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
 
   final GlobalKey _anchorKey = GlobalKey(debugLabel: 'feedback-launcher');
 
-  // The control stays tappable above its own menu and dialogs. A tap closes
-  // an open menu; while a dialog or download is under way, taps are ignored
-  // instead of stacking a second.
+  // The control stays tappable above its own menu. A tap closes an open menu;
+  // while a dialog or download is under way, taps are ignored instead of
+  // stacking a second.
   bool _isFlowActive = false;
+
+  // One of this control's own dialogs is showing, so the control hides until
+  // the dialog closes rather than floating over it.
+  bool _isDialogOpen = false;
   bool _isBusy = false;
   bool _isDragging = false;
 
@@ -246,7 +254,10 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
         // Last child, so it paints above the navigators and everything they
         // show. Every branch builds the same keyed `Positioned`, so dragging
         // moves the control without remounting it and cancelling the gesture.
-        if (position == null)
+        // While one of its own dialogs is open it leaves the screen entirely.
+        if (_isDialogOpen)
+          ...const <Widget>[]
+        else if (position == null)
           Positioned.directional(
             key: _launcherSlotKey,
             textDirection: textDirection,
@@ -271,6 +282,18 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
           ),
       ],
     );
+  }
+
+  /// Hides the control while one of its own dialogs is on screen.
+  Future<T?> _withDialogHidden<T>(Future<T?> Function() open) async {
+    setState(() => _isDialogOpen = true);
+    try {
+      return await open();
+    } finally {
+      if (mounted) {
+        setState(() => _isDialogOpen = false);
+      }
+    }
   }
 
   Future<void> _runExclusive(Future<void> Function() flow) async {
@@ -472,11 +495,15 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
       connectivity: ref.read(appConnectivityStatusProvider).value,
     );
 
-    final FeedbackReceipt? receipt = await showAppDialog<FeedbackReceipt>(
-      context: navigatorContext,
-      builder: (_) => FeedbackSubmitDialog(
-        feedbackContext: feedbackContext,
-        signedIn: session.session != null,
+    final FeedbackReceipt? receipt = await _withDialogHidden<FeedbackReceipt>(
+      () => showAppDialog<FeedbackReceipt>(
+        context: navigatorContext,
+        // See-through, so the screen the feedback is about stays in view.
+        barrierColor: Colors.transparent,
+        builder: (_) => FeedbackSubmitDialog(
+          feedbackContext: feedbackContext,
+          signedIn: session.session != null,
+        ),
       ),
     );
     if (receipt == null || !navigatorContext.mounted) {
@@ -493,9 +520,18 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     );
   }
 
+  /// Lets the user pick stored feedback and save it as a workbook.
   Future<void> _downloadFeedback() async {
     final BuildContext? navigatorContext = _navigatorContext;
     if (navigatorContext == null) {
+      return;
+    }
+
+    final FeedbackExportRequest? request =
+        await _withDialogHidden<FeedbackExportRequest>(
+          () => showFeedbackDownloadDialog(context: navigatorContext),
+        );
+    if (request == null || !navigatorContext.mounted) {
       return;
     }
 
@@ -506,6 +542,8 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     try {
       final Result<Uint8List> result = await repository.downloadFeedbackExport(
         utcOffsetMinutes: requestedAt.timeZoneOffset.inMinutes,
+        referenceIds: request.referenceIds,
+        filters: request.filters,
       );
       if (!navigatorContext.mounted) {
         return;
@@ -556,8 +594,8 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
       return;
     }
 
-    final int? deletedCount = await showFeedbackDeleteDialog(
-      context: navigatorContext,
+    final int? deletedCount = await _withDialogHidden<int>(
+      () => showFeedbackDeleteDialog(context: navigatorContext),
     );
     if (deletedCount == null || !navigatorContext.mounted) {
       return;

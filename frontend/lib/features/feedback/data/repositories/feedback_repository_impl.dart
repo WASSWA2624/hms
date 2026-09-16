@@ -52,6 +52,7 @@ final class FeedbackRepositoryImpl implements FeedbackRepository {
   Future<Result<AppPage<FeedbackRecord>>> fetchFeedbackPage({
     required FeedbackFilters filters,
     required AppPageRequest request,
+    FeedbackSort sort = FeedbackSort.newestFirst,
   }) {
     return _apiClient.get<AppPage<FeedbackRecord>>(
       ApiEndpoints.apiV1(
@@ -59,6 +60,8 @@ final class FeedbackRepositoryImpl implements FeedbackRepository {
         queryParameters: <String, String>{
           'page': '${request.pageIndex + 1}',
           'limit': '${request.pageSize}',
+          'sort_by': sort.field.apiValue,
+          'order': sort.apiOrder,
           ...feedbackFilterQueryParameters(filters),
         },
       ),
@@ -69,14 +72,20 @@ final class FeedbackRepositoryImpl implements FeedbackRepository {
   @override
   Future<Result<Uint8List>> downloadFeedbackExport({
     required int utcOffsetMinutes,
+    Set<String> referenceIds = const <String>{},
+    FeedbackFilters filters = FeedbackFilters.none,
   }) {
-    return _apiClient.get<Uint8List>(
-      ApiEndpoints.apiV1(
-        <String>[HmsApiResource.feedback.path, 'export'],
-        queryParameters: <String, String>{
-          'utc_offset_minutes': '$utcOffsetMinutes',
-        },
-      ),
+    // The picked ids are too many for a URL, so the export is posted. Ids win
+    // over filters: the user picked exactly those records.
+    return _apiClient.post<Uint8List>(
+      ApiEndpoints.apiV1(<String>[HmsApiResource.feedback.path, 'export']),
+      data: <String, Object?>{
+        'utc_offset_minutes': utcOffsetMinutes,
+        if (referenceIds.isNotEmpty)
+          'human_friendly_ids': _sortedValues(referenceIds)
+        else
+          ...feedbackFilterBody(filters),
+      },
       options: Options(responseType: ResponseType.bytes),
       decoder: _decodeBytes,
     );

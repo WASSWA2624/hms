@@ -15,7 +15,11 @@ import 'package:hosspi_hms/shared/actions/app_action_dialogs.dart';
 import 'package:hosspi_hms/shared/components/components.dart';
 import 'package:hosspi_hms/shared/data/app_pagination.dart';
 
-typedef _PageCall = ({FeedbackFilters filters, AppPageRequest request});
+typedef _PageCall = ({
+  FeedbackFilters filters,
+  AppPageRequest request,
+  FeedbackSort sort,
+});
 
 final class _FakeFeedbackRepository implements FeedbackRepository {
   _FakeFeedbackRepository(int count)
@@ -43,8 +47,9 @@ final class _FakeFeedbackRepository implements FeedbackRepository {
   Future<Result<AppPage<FeedbackRecord>>> fetchFeedbackPage({
     required FeedbackFilters filters,
     required AppPageRequest request,
+    FeedbackSort sort = FeedbackSort.newestFirst,
   }) async {
-    pageCalls.add((filters: filters, request: request));
+    pageCalls.add((filters: filters, request: request, sort: sort));
     if (failuresRemaining > 0) {
       failuresRemaining -= 1;
       return const Result<AppPage<FeedbackRecord>>.failure(
@@ -100,6 +105,8 @@ final class _FakeFeedbackRepository implements FeedbackRepository {
   @override
   Future<Result<Uint8List>> downloadFeedbackExport({
     required int utcOffsetMinutes,
+    Set<String> referenceIds = const <String>{},
+    FeedbackFilters filters = FeedbackFilters.none,
   }) {
     throw UnimplementedError();
   }
@@ -150,17 +157,6 @@ Finder get _deleteButton => find.descendant(
   matching: find.widgetWithText(AppButton, 'Delete permanently'),
 );
 
-/// A search-bar action, whether it shows its label or only its tooltip.
-Finder _action(String label) {
-  return find
-      .byWidgetPredicate(
-        (Widget widget) =>
-            (widget is Tooltip && widget.message == label) ||
-            (widget is Text && widget.data == label),
-      )
-      .first;
-}
-
 Future<void> _tapRow(WidgetTester tester, String referenceId) async {
   await tester.tap(find.byKey(FeedbackDeleteDialog.rowCheckboxKey(referenceId)));
   await tester.pump();
@@ -201,7 +197,9 @@ void main() {
       find.byKey(FeedbackDeleteDialog.rowCheckboxKey('FBK0000001')),
       findsOneWidget,
     );
-    expect(find.text('No feedback selected'), findsOneWidget);
+    expect(call.sort, FeedbackSort.newestFirst);
+    // Nothing is selected, so no selection summary and nothing to delete.
+    expect(find.textContaining('selected'), findsNothing);
     expect(tester.widget<AppButton>(_deleteButton).onPressed, isNull);
   });
 
@@ -259,7 +257,7 @@ void main() {
 
     await tester.tap(find.byKey(FeedbackDeleteDialog.pageCheckboxKey));
     await tester.pump();
-    expect(find.text('No feedback selected'), findsOneWidget);
+    expect(find.textContaining('selected'), findsNothing);
     expect(_rowChecked(tester, 'FBK0000002'), isFalse);
   });
 
@@ -282,52 +280,48 @@ void main() {
     expect(find.text('2 records selected'), findsOneWidget);
   });
 
-  testWidgets('can select and delete every record matching across pages', (
+  testWidgets('sorting a column reorders the whole list from the first page', (
     WidgetTester tester,
   ) async {
     final _FakeFeedbackRepository repository = _FakeFeedbackRepository(45);
-    int? result;
-    await _openDialog(
-      tester,
-      repository,
-      onResult: (int? value) => result = value,
-    );
+    await _openDialog(tester, repository);
 
-    await tester.tap(_action('Select all 45 matching records'));
-    await tester.pump();
-
-    expect(find.text('All 45 matching records are selected'), findsOneWidget);
-    expect(_rowChecked(tester, 'FBK0000007'), isTrue);
-
-    await tester.tap(_deleteButton);
+    await tester.tap(find.byTooltip('Next page'));
     await tester.pumpAndSettle();
+    await _tapRow(tester, 'FBK0000021');
+    expect(find.text('1 record selected'), findsOneWidget);
+
+    await tester.tap(find.text('Submitted'));
+    await tester.pumpAndSettle();
+
+    final _PageCall sorted = repository.pageCalls.last;
     expect(
-      find.textContaining(
-        'Delete 45 feedback records permanently',
-        findRichText: true,
+      sorted.sort,
+      const FeedbackSort(
+        field: FeedbackSortField.submittedAt,
+        ascending: true,
       ),
-      findsOneWidget,
     );
+    // The same records still match, so the selection survives the reorder.
+    expect(sorted.request.pageIndex, 0);
+    expect(find.text('1 record selected'), findsOneWidget);
 
-    await _confirmDelete(tester);
+    await tester.tap(find.text('Submitted'));
+    await tester.pumpAndSettle();
 
-    expect(repository.deletedIds, isEmpty);
-    expect(repository.deletedMatching.single.hasActiveFilters, isFalse);
-    expect(result, 45);
+    expect(repository.pageCalls.last.sort, FeedbackSort.newestFirst);
   });
 
-  testWidgets('unticking a row after selecting every match keeps the rest of the page', (
+  testWidgets('the details column cannot be sorted', (
     WidgetTester tester,
   ) async {
-    await _openDialog(tester, _FakeFeedbackRepository(45));
+    final _FakeFeedbackRepository repository = _FakeFeedbackRepository(3);
+    await _openDialog(tester, repository);
 
-    await tester.tap(_action('Select all 45 matching records'));
-    await tester.pump();
-    await _tapRow(tester, 'FBK0000002');
+    await tester.tap(find.text('Details'));
+    await tester.pumpAndSettle();
 
-    expect(find.text('19 records selected'), findsOneWidget);
-    expect(_rowChecked(tester, 'FBK0000002'), isFalse);
-    expect(_rowChecked(tester, 'FBK0000003'), isTrue);
+    expect(repository.pageCalls, hasLength(1));
   });
 
   testWidgets(
@@ -353,7 +347,7 @@ void main() {
 
       expect(repository.pageCalls.last.filters.search, 'printer');
       expect(repository.pageCalls.last.request.pageIndex, 0);
-      expect(find.text('No feedback selected'), findsOneWidget);
+      expect(find.textContaining('selected'), findsNothing);
 
       final AppSearchBar searchBar = tester.widget<AppSearchBar>(
         find.byType(AppSearchBar),
@@ -403,14 +397,6 @@ void main() {
     expect(
       find.text('No stored feedback matches the search and filters.'),
       findsOneWidget,
-    );
-    expect(
-      find.byWidgetPredicate(
-        (Widget widget) =>
-            widget is Tooltip &&
-            (widget.message ?? '').startsWith('Select all'),
-      ),
-      findsNothing,
     );
   });
 

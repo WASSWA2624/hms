@@ -32,6 +32,10 @@ typedef AppListTableRowColorBuilder<T> =
 typedef AppListTableSearchMatcher<T> = bool Function(T item, String query);
 typedef AppListTableSortComparator<T> = int Function(T left, T right);
 
+/// Reports the column the user sorted by and its direction.
+typedef AppListTableSortChanged =
+    void Function(String columnKey, bool ascending);
+
 enum AppListTableDisplayMode { adaptive, table, list }
 
 /// How [AppListTable] requests additional [AppPage] data.
@@ -1327,6 +1331,7 @@ class AppListTable<T> extends StatefulWidget {
     this.rowColorBuilder,
     this.initialSortColumnKey,
     this.initialSortAscending = true,
+    this.onSortChanged,
     this.maxVisibleItems,
     this.isLoading = false,
     this.error,
@@ -1415,6 +1420,14 @@ class AppListTable<T> extends StatefulWidget {
   final AppListTableRowColorBuilder<T>? rowColorBuilder;
   final String? initialSortColumnKey;
   final bool initialSortAscending;
+
+  /// Called when the user picks a sort column or flips its direction.
+  ///
+  /// Set it when the rows are ordered elsewhere — a paged backend, say. The
+  /// header keeps showing the sort indicator, but the table leaves the loaded
+  /// rows in the order they arrived instead of re-sorting the page on its own,
+  /// which would only order the rows in front of the user.
+  final AppListTableSortChanged? onSortChanged;
 
   /// Progressive reveal batch size override.
   ///
@@ -2666,7 +2679,8 @@ class _AppListTableState<T> extends State<AppListTable<T>> {
 
   List<T> _sortedItems(List<T> sourceItems) {
     final String? sortColumnKey = _sortColumnKey;
-    if (sortColumnKey == null) {
+    // The source is already ordered by whoever answers [onSortChanged].
+    if (sortColumnKey == null || widget.onSortChanged != null) {
       return sourceItems;
     }
 
@@ -3172,6 +3186,7 @@ class _AppListTableState<T> extends State<AppListTable<T>> {
       // new direction/column; clear so we never show a stale order.
       _invalidateSortCache();
     });
+    widget.onSortChanged?.call(column.key, _sortAscending);
   }
 
   Future<void> _openColumnVisibilityDialog() async {
