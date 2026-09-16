@@ -234,6 +234,34 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
         ? _safePadding.left
         : _safePadding.right;
 
+    // Every branch builds the same keyed `Positioned`, so dragging moves the
+    // control without remounting it and cancelling the gesture. While one of
+    // its own dialogs is open the control leaves the screen entirely.
+    final Widget? launcherSlot = _isDialogOpen
+        ? null
+        : position == null
+        ? Positioned.directional(
+            key: _launcherSlotKey,
+            textDirection: textDirection,
+            end: endInset + theme.spacing.lg,
+            bottom: _safePadding.bottom + theme.spacing.lg,
+            child: launcher,
+          )
+        : _labelOpensLeftward
+        // Pin the right edge so the label grows leftward, into the screen.
+        ? Positioned(
+            key: _launcherSlotKey,
+            right: _viewSize.width - position.dx - _iconOnlySize.width,
+            top: position.dy,
+            child: launcher,
+          )
+        : Positioned(
+            key: _launcherSlotKey,
+            left: position.dx,
+            top: position.dy,
+            child: launcher,
+          );
+
     return Stack(
       fit: StackFit.expand,
       children: <Widget>[
@@ -252,34 +280,8 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
             ),
           ),
         // Last child, so it paints above the navigators and everything they
-        // show. Every branch builds the same keyed `Positioned`, so dragging
-        // moves the control without remounting it and cancelling the gesture.
-        // While one of its own dialogs is open it leaves the screen entirely.
-        if (_isDialogOpen)
-          ...const <Widget>[]
-        else if (position == null)
-          Positioned.directional(
-            key: _launcherSlotKey,
-            textDirection: textDirection,
-            end: endInset + theme.spacing.lg,
-            bottom: _safePadding.bottom + theme.spacing.lg,
-            child: launcher,
-          )
-        else if (_labelOpensLeftward)
-          // Pin the right edge so the label grows leftward, into the screen.
-          Positioned(
-            key: _launcherSlotKey,
-            right: _viewSize.width - position.dx - _iconOnlySize.width,
-            top: position.dy,
-            child: launcher,
-          )
-        else
-          Positioned(
-            key: _launcherSlotKey,
-            left: position.dx,
-            top: position.dy,
-            child: launcher,
-          ),
+        // show.
+        ?launcherSlot,
       ],
     );
   }
