@@ -303,6 +303,162 @@ describe('tenant-facility-workspace service', () => {
     );
   });
 
+  describe('effective facility contact', () => {
+    const withoutFacilityContacts = () => {
+      repository.findFacilityContactRecords.mockResolvedValue({
+        contacts: [],
+        addresses: [],
+      });
+    };
+
+    it('reports the facility own phone and email as its effective contact', async () => {
+      const result = await service.getSetup({}, { role: 'TENANT_ADMIN' });
+
+      const expected = {
+        phone: '+256700000000',
+        email: 'info@acme.test',
+        phone_source: 'FACILITY',
+        email_source: 'FACILITY',
+      };
+      expect(result.effective_contact).toEqual(expected);
+      expect(result.facility.effective_contact).toEqual(expected);
+    });
+
+    it('inherits the tenant contact without changing the facility own values', async () => {
+      withoutFacilityContacts();
+
+      const result = await service.getSetup({}, { role: 'TENANT_ADMIN' });
+
+      expect(result.effective_contact).toEqual({
+        phone: '256700000111',
+        email: 'owner@acme.test',
+        phone_source: 'TENANT',
+        email_source: 'TENANT',
+      });
+      // Own values stay empty so saving the facility form never copies them.
+      expect(result.contact_address.phone).toBeNull();
+      expect(result.contact_address.email).toBeNull();
+      expect(result.facility.phone).toBeNull();
+      expect(result.facility.effective_contact.phone_source).toBe('TENANT');
+
+      const identity = result.checklist.items.find(
+        (item) => item.id === 'facility_identity'
+      );
+      expect(identity).toEqual(
+        expect.objectContaining({ completed: true, phone_source: 'TENANT' })
+      );
+    });
+
+    it('reflects tenant contact changes on the next read', async () => {
+      withoutFacilityContacts();
+      const first = await service.getSetup({}, { role: 'TENANT_ADMIN' });
+      expect(first.effective_contact.email).toBe('owner@acme.test');
+
+      repository.findTenants.mockResolvedValue([
+        {
+          id: 'tenant-uuid',
+          human_friendly_id: 'TEN0001',
+          name: 'Acme Hospital',
+          is_active: true,
+          extension_json: {
+            contact: { email: 'desk@acme.test', phone: '+256700000999' },
+          },
+        },
+      ]);
+      const second = await service.getSetup({}, { role: 'TENANT_ADMIN' });
+
+      expect(second.effective_contact).toEqual(
+        expect.objectContaining({
+          phone: '+256700000999',
+          email: 'desk@acme.test',
+        })
+      );
+    });
+
+    it('leaves facility identity incomplete when no phone exists anywhere', async () => {
+      withoutFacilityContacts();
+      repository.findTenants.mockResolvedValue([
+        {
+          id: 'tenant-uuid',
+          human_friendly_id: 'TEN0001',
+          name: 'Acme Hospital',
+          is_active: true,
+          extension_json: null,
+        },
+      ]);
+
+      const result = await service.getSetup({}, { role: 'TENANT_ADMIN' });
+
+      expect(result.effective_contact.phone_source).toBe('NONE');
+      const identity = result.checklist.items.find(
+        (item) => item.id === 'facility_identity'
+      );
+      expect(identity.completed).toBe(false);
+    });
+
+    it('inherits from the scoped tenant when platform admins list every tenant', async () => {
+      withoutFacilityContacts();
+      repository.findTenants.mockImplementation(async (scope, includeAll) =>
+        includeAll
+          ? [
+              {
+                id: 'other-tenant-uuid',
+                human_friendly_id: 'TEN0000',
+                name: 'Aardvark Clinic',
+                is_active: true,
+                extension_json: { contact: { phone: '+256711111111' } },
+              },
+              {
+                id: 'tenant-uuid',
+                human_friendly_id: 'TEN0001',
+                name: 'Acme Hospital',
+                is_active: true,
+                extension_json: { contact: { phone: '+256722222222' } },
+              },
+            ]
+          : []
+      );
+
+      const result = await service.getSetup(
+        { tenant_id: 'TEN0001' },
+        { role: 'PLATFORM_ADMIN' }
+      );
+
+      expect(result.tenant.id).toBe('TEN0001');
+      expect(result.effective_contact.phone).toBe('+256722222222');
+      expect(result.lookups.tenants).toHaveLength(2);
+    });
+
+    it('loads the scoped tenant when it is beyond the platform admin list', async () => {
+      withoutFacilityContacts();
+      repository.findTenants.mockImplementation(async (scope, includeAll) =>
+        includeAll
+          ? [
+              {
+                id: 'other-tenant-uuid',
+                human_friendly_id: 'TEN0000',
+                name: 'Aardvark Clinic',
+                is_active: true,
+              },
+            ]
+          : [
+              {
+                id: 'tenant-uuid',
+                human_friendly_id: 'TEN0001',
+                name: 'Acme Hospital',
+                is_active: true,
+                extension_json: { contact: { phone: '+256722222222' } },
+              },
+            ]
+      );
+
+      const result = await service.getSetup({}, { role: 'PLATFORM_ADMIN' });
+
+      expect(result.tenant.id).toBe('TEN0001');
+      expect(result.effective_contact.phone).toBe('+256722222222');
+    });
+  });
+
   it('returns tenant context required payload without facility records', async () => {
     repository.resolveWorkspaceScope.mockResolvedValue({
       state: 'tenant_context_required',

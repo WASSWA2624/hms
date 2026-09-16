@@ -20414,7 +20414,7 @@ paths:
                       data:
                         type: array
                         items:
-                          $ref: '#/components/schemas/GenericRecord'
+                          $ref: '#/components/schemas/FacilityWithEffectiveContact'
         '401':
           $ref: '#/components/responses/UnauthorizedProblem'
         '403':
@@ -20516,7 +20516,7 @@ paths:
                   - $ref: '#/components/schemas/ResourceEnvelope'
                   - properties:
                       data:
-                        $ref: '#/components/schemas/GenericRecord'
+                        $ref: '#/components/schemas/FacilityWithEffectiveContact'
         '401':
           $ref: '#/components/responses/UnauthorizedProblem'
         '403':
@@ -62043,6 +62043,33 @@ components:
         meta:
           $ref: '#/components/schemas/Meta'
       additionalProperties: true
+    EffectiveFacilityContact:
+      type: object
+      description: >-
+        Facility phone and email with tenant fallback. A value missing on the
+        facility is taken from the tenant contact at read time and never
+        copied into the facility's own contact rows.
+      properties:
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        phone_source:
+          type: string
+          enum: [FACILITY, TENANT, NONE]
+        email_source:
+          type: string
+          enum: [FACILITY, TENANT, NONE]
+      required: [phone, email, phone_source, email_source]
+    FacilityWithEffectiveContact:
+      allOf:
+        - $ref: '#/components/schemas/GenericRecord'
+        - type: object
+          properties:
+            effective_contact:
+              $ref: '#/components/schemas/EffectiveFacilityContact'
     GenericRecord:
       type: object
       properties:

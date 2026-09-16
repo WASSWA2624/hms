@@ -3648,8 +3648,15 @@ class _FacilityDetailsSummary extends StatelessWidget {
         facility.logoUrl != null && facility.logoUrl!.trim().isNotEmpty;
     final FacilityContactAddress contact =
         snapshot?.contactAddress ?? const FacilityContactAddress();
-    final String? phone = contact.phone?.trim();
-    final String? email = contact.email?.trim();
+    // Phone/email fall back to the tenant contact when the facility has none.
+    final FacilitySetupSnapshot? loadedSnapshot = snapshot;
+    final FacilityEffectiveContact effectiveContact = loadedSnapshot == null
+        ? facility.displayContact
+        : loadedSnapshot.resolvedEffectiveContact;
+    final String? phone = effectiveContact.phone?.trim();
+    final String? email = effectiveContact.email?.trim();
+    final bool hasInheritedContact =
+        effectiveContact.isPhoneInherited || effectiveContact.isEmailInherited;
     final String address =
         <String?>[contact.addressLine1, contact.city, contact.country]
             .whereType<String>()
@@ -3832,25 +3839,44 @@ class _FacilityDetailsSummary extends StatelessWidget {
           AppCollapsibleSection(
             title: l10n.tenantFacilityFacilityDetailsContactHeading,
             titleIcon: Icons.contact_mail_outlined,
-            child: AppInfoSheetGrid(
-              emptyValue: emptyValue,
-              maxColumns: 2,
-              items: <AppInfoSheetItem>[
-                if (phone != null && phone.isNotEmpty)
-                  AppInfoSheetItem(
-                    label: l10n.profilePhoneLabel,
-                    value: phone,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                AppInfoSheetGrid(
+                  emptyValue: emptyValue,
+                  maxColumns: 2,
+                  items: <AppInfoSheetItem>[
+                    if (phone != null && phone.isNotEmpty)
+                      AppInfoSheetItem(
+                        label: effectiveContact.isPhoneInherited
+                            ? l10n.tenantFacilityInheritedContactLabel(
+                                l10n.profilePhoneLabel,
+                              )
+                            : l10n.profilePhoneLabel,
+                        value: phone,
+                      ),
+                    if (email != null && email.isNotEmpty)
+                      AppInfoSheetItem(
+                        label: effectiveContact.isEmailInherited
+                            ? l10n.tenantFacilityInheritedContactLabel(
+                                l10n.profileEmailLabel,
+                              )
+                            : l10n.profileEmailLabel,
+                        value: email,
+                      ),
+                    if (address.isNotEmpty)
+                      AppInfoSheetItem(
+                        label: l10n.tenantFacilityAddressLineLabel,
+                        value: address,
+                      ),
+                  ],
+                ),
+                if (hasInheritedContact) ...<Widget>[
+                  SizedBox(height: theme.spacing.sm),
+                  TenantFacilityInheritedContactNote(
+                    message: l10n.tenantFacilityInheritedContactNote,
                   ),
-                if (email != null && email.isNotEmpty)
-                  AppInfoSheetItem(
-                    label: l10n.profileEmailLabel,
-                    value: email,
-                  ),
-                if (address.isNotEmpty)
-                  AppInfoSheetItem(
-                    label: l10n.tenantFacilityAddressLineLabel,
-                    value: address,
-                  ),
+                ],
               ],
             ),
           ),

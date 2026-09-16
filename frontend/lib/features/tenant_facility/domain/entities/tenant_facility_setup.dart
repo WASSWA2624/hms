@@ -163,6 +163,103 @@ final class TenantProfile {
   }
 }
 
+/// Where an effective facility contact value came from.
+enum FacilityContactSource {
+  facility,
+  tenant,
+  none;
+
+  static FacilityContactSource fromApi(Object? value) {
+    return switch (value?.toString().trim().toUpperCase()) {
+      'FACILITY' => FacilityContactSource.facility,
+      'TENANT' => FacilityContactSource.tenant,
+      _ => FacilityContactSource.none,
+    };
+  }
+}
+
+/// A facility's phone and email with tenant fallback.
+///
+/// A value the facility lacks is taken from the tenant contact. It is only ever
+/// shown, never saved as the facility's own, so forms keep editing own values.
+final class FacilityEffectiveContact {
+  const FacilityEffectiveContact({
+    this.phone,
+    this.email,
+    this.phoneSource = FacilityContactSource.none,
+    this.emailSource = FacilityContactSource.none,
+  });
+
+  /// Resolves each field independently: the facility's own value wins, then a
+  /// value the server already reported as inherited, then the tenant contact.
+  factory FacilityEffectiveContact.resolve({
+    String? ownPhone,
+    String? ownEmail,
+    FacilityEffectiveContact? inherited,
+    String? tenantPhone,
+    String? tenantEmail,
+  }) {
+    (String?, FacilityContactSource) field(
+      String? own,
+      String? inheritedValue,
+      FacilityContactSource inheritedSource,
+      String? tenantValue,
+    ) {
+      final String? ownText = _nonBlank(own);
+      if (ownText != null) {
+        return (ownText, FacilityContactSource.facility);
+      }
+      final String? inheritedText = _nonBlank(inheritedValue);
+      if (inheritedText != null &&
+          inheritedSource == FacilityContactSource.tenant) {
+        return (inheritedText, FacilityContactSource.tenant);
+      }
+      final String? tenantText = _nonBlank(tenantValue);
+      if (tenantText != null) {
+        return (tenantText, FacilityContactSource.tenant);
+      }
+      return (null, FacilityContactSource.none);
+    }
+
+    final (String? phone, FacilityContactSource phoneSource) = field(
+      ownPhone,
+      inherited?.phone,
+      inherited?.phoneSource ?? FacilityContactSource.none,
+      tenantPhone,
+    );
+    final (String? email, FacilityContactSource emailSource) = field(
+      ownEmail,
+      inherited?.email,
+      inherited?.emailSource ?? FacilityContactSource.none,
+      tenantEmail,
+    );
+    return FacilityEffectiveContact(
+      phone: phone,
+      email: email,
+      phoneSource: phoneSource,
+      emailSource: emailSource,
+    );
+  }
+
+  final String? phone;
+  final String? email;
+  final FacilityContactSource phoneSource;
+  final FacilityContactSource emailSource;
+
+  bool get isPhoneInherited =>
+      phoneSource == FacilityContactSource.tenant && _nonBlank(phone) != null;
+
+  bool get isEmailInherited =>
+      emailSource == FacilityContactSource.tenant && _nonBlank(email) != null;
+
+  bool get hasPhone => _nonBlank(phone) != null;
+
+  static String? _nonBlank(String? value) {
+    final String? trimmed = value?.trim();
+    return trimmed == null || trimmed.isEmpty ? null : trimmed;
+  }
+}
+
 final class FacilityProfile {
   const FacilityProfile({
     required this.id,
@@ -178,6 +275,7 @@ final class FacilityProfile {
     this.addressLine1,
     this.city,
     this.country,
+    this.effectiveContact,
     this.resourceUuid,
     this.displayId,
     this.deletedAt,
@@ -196,6 +294,10 @@ final class FacilityProfile {
   final String? addressLine1;
   final String? city;
   final String? country;
+
+  /// Phone/email with tenant fallback, when the server resolved it. [phone] and
+  /// [email] stay the facility's own values.
+  final FacilityEffectiveContact? effectiveContact;
   final String? resourceUuid;
   final String? displayId;
   final DateTime? deletedAt;
@@ -204,6 +306,15 @@ final class FacilityProfile {
 
   String get mutationId =>
       resourceUuid != null && resourceUuid!.isNotEmpty ? resourceUuid! : id;
+
+  /// Contact to display: own values first, then inherited tenant values.
+  FacilityEffectiveContact get displayContact {
+    return FacilityEffectiveContact.resolve(
+      ownPhone: phone,
+      ownEmail: email,
+      inherited: effectiveContact,
+    );
+  }
 
   FacilityProfile copyWith({
     String? id,
@@ -219,6 +330,7 @@ final class FacilityProfile {
     String? addressLine1,
     String? city,
     String? country,
+    FacilityEffectiveContact? effectiveContact,
     String? resourceUuid,
     String? displayId,
     DateTime? deletedAt,
@@ -243,6 +355,7 @@ final class FacilityProfile {
       addressLine1: addressLine1 ?? this.addressLine1,
       city: city ?? this.city,
       country: country ?? this.country,
+      effectiveContact: effectiveContact ?? this.effectiveContact,
       resourceUuid: resourceUuid ?? this.resourceUuid,
       displayId: displayId ?? this.displayId,
       deletedAt: clearDeletedAt ? null : (deletedAt ?? this.deletedAt),
@@ -613,6 +726,7 @@ final class FacilitySetupSnapshot {
     this.facility,
     this.facilities = const <FacilityProfile>[],
     this.contactAddress = const FacilityContactAddress(),
+    this.effectiveContact,
     this.departments = const <DepartmentProfile>[],
     this.units = const <UnitProfile>[],
     this.wards = const <WardProfile>[],
@@ -625,7 +739,11 @@ final class FacilitySetupSnapshot {
   final TenantProfile? tenant;
   final FacilityProfile? facility;
   final List<FacilityProfile> facilities;
+  /// The facility's own contact and address; what setup forms edit.
   final FacilityContactAddress contactAddress;
+
+  /// Phone/email with tenant fallback as the server resolved it, when known.
+  final FacilityEffectiveContact? effectiveContact;
   final List<DepartmentProfile> departments;
   final List<UnitProfile> units;
   final List<WardProfile> wards;
@@ -639,6 +757,7 @@ final class FacilitySetupSnapshot {
     Object? facility = _facilitySetupSnapshotUnset,
     List<FacilityProfile>? facilities,
     FacilityContactAddress? contactAddress,
+    Object? effectiveContact = _facilitySetupSnapshotUnset,
     List<DepartmentProfile>? departments,
     List<UnitProfile>? units,
     List<WardProfile>? wards,
@@ -656,6 +775,10 @@ final class FacilitySetupSnapshot {
           : facility as FacilityProfile?,
       facilities: facilities ?? this.facilities,
       contactAddress: contactAddress ?? this.contactAddress,
+      effectiveContact:
+          identical(effectiveContact, _facilitySetupSnapshotUnset)
+          ? this.effectiveContact
+          : effectiveContact as FacilityEffectiveContact?,
       departments: departments ?? this.departments,
       units: units ?? this.units,
       wards: wards ?? this.wards,
@@ -678,14 +801,31 @@ final class FacilitySetupSnapshot {
   int get roomsCount => rooms.length;
   int get wardsCount => wards.length;
   int get bedsCount => beds.length;
+  /// Phone/email to display and print for [facility]: its own values, else the
+  /// tenant contact. Own values always win, so an unsaved local edit is never
+  /// masked by an older inherited value.
+  FacilityEffectiveContact get resolvedEffectiveContact {
+    if (facility == null) {
+      return const FacilityEffectiveContact();
+    }
+    return FacilityEffectiveContact.resolve(
+      ownPhone: contactAddress.phone,
+      ownEmail: contactAddress.email,
+      inherited: effectiveContact ?? facility?.effectiveContact,
+      tenantPhone: tenant?.contactPhone,
+      tenantEmail: tenant?.contactEmail,
+    );
+  }
+
   bool get hasFacilityIdentity {
     final FacilityProfile? currentFacility = facility;
     if (currentFacility == null) {
       return false;
     }
 
+    // A phone inherited from the tenant is enough to reach the facility.
     return currentFacility.name.trim().isNotEmpty &&
-        contactAddress.phone?.trim().isNotEmpty == true;
+        resolvedEffectiveContact.hasPhone;
   }
 
 

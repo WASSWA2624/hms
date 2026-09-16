@@ -23,6 +23,10 @@ const {
   resolveTenantContact,
   hasResolvedContact,
 } = require('@lib/tenant/resolve-tenant-contact');
+const {
+  pickFacilityOwnContact,
+  resolveEffectiveFacilityContact,
+} = require('@lib/facility/effective-facility-contact');
 
 const safePublicId = (...values) => resolvePublicIdentifier(...values) || null;
 
@@ -170,7 +174,20 @@ const serializeTenant = (record) => {
   };
 };
 
-const serializeFacility = (record, context = null, contactAddress = null) => {
+/**
+ * @param {Object} record - Facility row
+ * @param {Object|null} [context] - Serialize context from buildSerializeContext
+ * @param {Object|null} [contactAddress] - The facility's own contact/address
+ * @param {Object|null} [effectiveContact] - Phone/email with tenant fallback,
+ *   only known when the facility's own contacts were loaded
+ * @returns {Object|null} Public facility payload
+ */
+const serializeFacility = (
+  record,
+  context = null,
+  contactAddress = null,
+  effectiveContact = null
+) => {
   if (!record) return null;
 
   const extensionJson =
@@ -207,6 +224,9 @@ const serializeFacility = (record, context = null, contactAddress = null) => {
     address_line1: contactAddress?.address_line1 || null,
     city: contactAddress?.city || null,
     country: contactAddress?.country || null,
+    // `phone`/`email` stay the facility's own values so edit forms never save
+    // an inherited tenant contact as the facility's.
+    effective_contact: effectiveContact || null,
     extension_json: {
       logo_url: extensionJson.logo_url || null,
       currency,
@@ -310,17 +330,12 @@ const serializeBed = (record, context = null) => ({
 });
 
 const buildContactAddress = (contacts = [], addresses = []) => {
-  const phoneContacts = contacts.filter((entry) => entry.contact_type === 'PHONE');
-  const phone =
-    phoneContacts.find((entry) => entry.is_primary) || phoneContacts[0] || null;
-  const emailContacts = contacts.filter((entry) => entry.contact_type === 'EMAIL');
-  const email =
-    emailContacts.find((entry) => entry.is_primary) || emailContacts[0] || null;
+  const { phone, email } = pickFacilityOwnContact(contacts);
   const address = addresses[0] || null;
 
   return {
-    phone: phone?.value || null,
-    email: email?.value || null,
+    phone,
+    email,
     address_line1: address?.line1 || null,
     city: address?.city || null,
     country: address?.country || null,
@@ -330,7 +345,7 @@ const buildContactAddress = (contacts = [], addresses = []) => {
 const buildChecklist = ({
   tenant,
   facility,
-  contactAddress,
+  effectiveContact,
   departments = [],
   units = [],
   wards = [],
@@ -338,8 +353,9 @@ const buildChecklist = ({
   beds = [],
 }) => {
   const hasTenant = Boolean(tenant);
+  // A phone inherited from the tenant is enough to reach the facility.
   const hasFacilityIdentity =
-    Boolean(facility?.name?.trim()) && Boolean(contactAddress?.phone?.trim());
+    Boolean(facility?.name?.trim()) && Boolean(effectiveContact?.phone?.trim());
   const hasDepartments = departments.length > 0;
   const hasUnitsConfigured = units.length > 0 || departments.length > 0;
   const hasWardsConfigured = wards.length > 0 || rooms.length > 0 || beds.length > 0;
@@ -357,6 +373,7 @@ const buildChecklist = ({
       id: 'facility_identity',
       label_key: 'tenant_facility.checklist.identity',
       completed: hasFacilityIdentity,
+      phone_source: effectiveContact?.phone_source || 'NONE',
       priority: 3,
     },
     {
@@ -446,6 +463,7 @@ const getSetup = async (filters = {}, user = {}) => {
       facility: null,
       facilities: [],
       contact_address: buildContactAddress(),
+      effective_contact: resolveEffectiveFacilityContact(),
       departments: [],
       units: [],
       wards: [],
@@ -481,7 +499,14 @@ const getSetup = async (filters = {}, user = {}) => {
       : Promise.resolve(null),
   ]);
 
-  const tenant = tenants[0] || null;
+  // Platform admins get every tenant for the lookup list; the snapshot tenant
+  // must still be the scoped one, since facility contacts inherit from it.
+  const tenant =
+    tenants.find((entry) => entry?.id === scope.tenant_id) ||
+    (includeAllTenants && scope.tenant_id
+      ? (await repository.findTenants(scope, false))[0]
+      : tenants[0]) ||
+    null;
   const selectedFacility = selectFacility(facilities, requestedFacilityId);
   // Desk tabs load structure lists themselves. Default bootstrap is context-only
   // (tenant/facility/facilities) so users/roles/catalog are not blocked on
@@ -512,6 +537,9 @@ const getSetup = async (filters = {}, user = {}) => {
     facilityRecords.contacts,
     facilityRecords.addresses
   );
+  const effectiveContact = selectedFacility
+    ? resolveEffectiveFacilityContact(contactAddress, tenant)
+    : resolveEffectiveFacilityContact();
   const serializeContext = buildSerializeContext(
     tenant,
     selectedFacility,
@@ -522,15 +550,23 @@ const getSetup = async (filters = {}, user = {}) => {
     state: 'ready',
     generated_at: new Date().toISOString(),
     tenant: serializeTenant(tenant),
-    facility: serializeFacility(selectedFacility, serializeContext, contactAddress),
-    facilities: facilities.map((entry) =>
-      serializeFacility(
+    facility: serializeFacility(
+      selectedFacility,
+      serializeContext,
+      contactAddress,
+      effectiveContact
+    ),
+    facilities: facilities.map((entry) => {
+      const isSelected = entry?.id === selectedFacility?.id;
+      return serializeFacility(
         entry,
         serializeContext,
-        entry?.id === selectedFacility?.id ? contactAddress : null
-      )
-    ),
+        isSelected ? contactAddress : null,
+        isSelected ? effectiveContact : null
+      );
+    }),
     contact_address: contactAddress,
+    effective_contact: effectiveContact,
     departments: facilityRecords.departments.map((entry) =>
       serializeDepartment(entry, serializeContext)
     ),
@@ -541,7 +577,7 @@ const getSetup = async (filters = {}, user = {}) => {
     checklist: buildChecklist({
       tenant,
       facility: selectedFacility,
-      contactAddress,
+      effectiveContact,
       departments: facilityRecords.departments,
       units: facilityRecords.units,
       wards: facilityRecords.wards,

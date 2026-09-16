@@ -12,6 +12,7 @@ const { HttpError } = require('@lib/errors');
 const {
   softDeleteFacilityCascade,
 } = require('@lib/facility-structure/cascade-soft-delete');
+const { PRIMARY_TENANT_ADMIN_INCLUDE } = require('@lib/tenant/resolve-tenant-contact');
 
 const normalizeFacilityName = (value) =>
   String(value || '')
@@ -105,6 +106,30 @@ const findMany = async (
       take,
       orderBy,
       include
+    });
+  } catch (error) {
+    throw new HttpError('errors.database.unexpected', 500, [{ originalError: error.message }]);
+  }
+};
+
+/**
+ * Tenants loaded with what `resolveTenantContact` reads, so facility rows can
+ * inherit the tenant contact in one query per page. Soft-deleted tenants are
+ * included so deleted facilities still resolve.
+ *
+ * @param {Array<string>} tenantIds - Tenant IDs
+ * @returns {Promise<Array>} Tenants with their primary tenant admin role
+ */
+const findTenantContactSources = async (tenantIds = []) => {
+  const ids = [...new Set((tenantIds || []).filter(Boolean).map(String))];
+  if (ids.length === 0) {
+    return [];
+  }
+
+  try {
+    return await prisma.tenant.findMany({
+      where: { id: { in: ids } },
+      include: PRIMARY_TENANT_ADMIN_INCLUDE
     });
   } catch (error) {
     throw new HttpError('errors.database.unexpected', 500, [{ originalError: error.message }]);
@@ -335,6 +360,7 @@ const permanentDelete = async (id) => {
 module.exports = {
   findById,
   findMany,
+  findTenantContactSources,
   findByTenantAndName,
   count,
   create,

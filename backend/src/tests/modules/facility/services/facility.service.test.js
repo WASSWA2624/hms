@@ -410,3 +410,103 @@ describe('facility.service restore and permanent delete', () => {
     ).rejects.toBeInstanceOf(HttpError);
   });
 });
+
+describe('facility.service effective contact', () => {
+  const tenants = [
+    {
+      id: 'tenant-a',
+      extension_json: {
+        contact: { phone: '+256700000100', email: 'desk@tenant-a.test' }
+      }
+    },
+    { id: 'tenant-b', extension_json: null }
+  ];
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    facilityRepository.findTenantContactSources.mockResolvedValue(tenants);
+  });
+
+  it('adds effective contacts to listed facilities in one tenant lookup', async () => {
+    facilityRepository.findMany.mockResolvedValue([
+      {
+        id: 'facility-own',
+        tenant_id: 'tenant-a',
+        name: 'Own contacts',
+        contacts: [
+          { contact_type: 'PHONE', value: '+256700000200', is_primary: true },
+          { contact_type: 'EMAIL', value: 'own@facility.test' }
+        ]
+      },
+      {
+        id: 'facility-inherits',
+        tenant_id: 'tenant-a',
+        name: 'No contacts',
+        contacts: []
+      },
+      {
+        id: 'facility-none',
+        tenant_id: 'tenant-b',
+        name: 'Tenant without contact',
+        contacts: []
+      }
+    ]);
+    facilityRepository.count.mockResolvedValue(3);
+
+    const result = await facilityService.listFacilities({}, 1, 20);
+
+    expect(facilityRepository.findTenantContactSources).toHaveBeenCalledTimes(1);
+    expect(facilityRepository.findTenantContactSources).toHaveBeenCalledWith([
+      'tenant-a',
+      'tenant-a',
+      'tenant-b'
+    ]);
+    expect(result.facilities.map((facility) => facility.effective_contact)).toEqual([
+      {
+        phone: '+256700000200',
+        email: 'own@facility.test',
+        phone_source: 'FACILITY',
+        email_source: 'FACILITY'
+      },
+      {
+        phone: '+256700000100',
+        email: 'desk@tenant-a.test',
+        phone_source: 'TENANT',
+        email_source: 'TENANT'
+      },
+      {
+        phone: null,
+        email: null,
+        phone_source: 'NONE',
+        email_source: 'NONE'
+      }
+    ]);
+    // The facility's own contact rows are returned untouched.
+    expect(result.facilities[1].contacts).toEqual([]);
+  });
+
+  it('loads contacts and the tenant for a single facility', async () => {
+    facilityRepository.findById.mockResolvedValue({
+      id: 'facility-inherits',
+      tenant_id: 'tenant-a',
+      name: 'No contacts',
+      contacts: [{ contact_type: 'PHONE', value: '+256700000300' }]
+    });
+
+    const facility = await facilityService.getFacilityById('facility-inherits');
+
+    expect(facilityRepository.findById).toHaveBeenCalledWith(
+      'facility-inherits',
+      expect.objectContaining({
+        contacts: expect.any(Object),
+        addresses: expect.any(Object)
+      })
+    );
+    expect(facility.effective_contact).toEqual({
+      phone: '+256700000300',
+      email: 'desk@tenant-a.test',
+      phone_source: 'FACILITY',
+      email_source: 'TENANT'
+    });
+  });
+});

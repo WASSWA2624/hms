@@ -1005,8 +1005,9 @@ List<TenantFacilityWizardStepRequirement> tenantFacilityWizardStepRequirements(
       final FacilityProfile? facility = snapshot.facility;
       final bool hasFacility = facility != null;
       final bool hasName = facility?.name.trim().isNotEmpty == true;
-      final bool hasPhone =
-          snapshot.contactAddress.phone?.trim().isNotEmpty == true;
+      final FacilityEffectiveContact contact =
+          snapshot.resolvedEffectiveContact;
+      final bool hasPhone = contact.hasPhone;
       return <TenantFacilityWizardStepRequirement>[
         TenantFacilityWizardStepRequirement(
           label: l10n.tenantFacilityWizardMissingFacility,
@@ -1019,7 +1020,9 @@ List<TenantFacilityWizardStepRequirement> tenantFacilityWizardStepRequirements(
           fixStep: TenantFacilitySetupWizardStep.facility,
         ),
         TenantFacilityWizardStepRequirement(
-          label: l10n.tenantFacilityWizardMissingFacilityPhone,
+          label: contact.isPhoneInherited
+              ? l10n.tenantFacilityWizardFacilityPhoneInherited
+              : l10n.tenantFacilityWizardMissingFacilityPhone,
           satisfied: hasPhone,
           fixStep: TenantFacilitySetupWizardStep.facility,
         ),

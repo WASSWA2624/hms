@@ -7825,6 +7825,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Add a facility phone number';
 
   @override
+  String get tenantFacilityWizardFacilityPhoneInherited =>
+      'Facility phone uses the tenant phone';
+
+  @override
   String get tenantFacilityWizardMissingDepartments =>
       'Create at least one department';
 
@@ -8496,6 +8500,30 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tenantFacilityFacilityDetailsContactHeading => 'Contact';
+
+  @override
+  String tenantFacilityInheritedContactLabel(String label) {
+    return '$label · From tenant';
+  }
+
+  @override
+  String tenantFacilityInheritedContactValue(String value) {
+    return '$value (from tenant)';
+  }
+
+  @override
+  String get tenantFacilityInheritedContactNote =>
+      'Contacts marked From tenant use the tenant\'s details until this facility adds its own.';
+
+  @override
+  String tenantFacilityInheritedPhoneHint(String phone) {
+    return 'Leave empty to keep using the tenant phone: $phone';
+  }
+
+  @override
+  String tenantFacilityInheritedEmailHint(String email) {
+    return 'Leave empty to keep using the tenant email: $email';
+  }
 
   @override
   String get tenantFacilityEditFacilityDetailsAction => 'Edit facility';

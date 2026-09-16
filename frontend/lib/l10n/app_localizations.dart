@@ -14521,6 +14521,12 @@ abstract class AppLocalizations {
   /// **'Add a facility phone number'**
   String get tenantFacilityWizardMissingFacilityPhone;
 
+  /// Setup checklist requirement shown as met because the facility has no phone of its own and uses the tenant phone.
+  ///
+  /// In en, this message translates to:
+  /// **'Facility phone uses the tenant phone'**
+  String get tenantFacilityWizardFacilityPhoneInherited;
+
   /// Missing requirement for the departments setup wizard step.
   ///
   /// In en, this message translates to:
@@ -15660,6 +15666,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Contact'**
   String get tenantFacilityFacilityDetailsContactHeading;
+
+  /// Facility contact field label when the value comes from the tenant because the facility has none of its own.
+  ///
+  /// In en, this message translates to:
+  /// **'{label} · From tenant'**
+  String tenantFacilityInheritedContactLabel(String label);
+
+  /// Facility contact table cell when the value comes from the tenant because the facility has none of its own.
+  ///
+  /// In en, this message translates to:
+  /// **'{value} (from tenant)'**
+  String tenantFacilityInheritedContactValue(String value);
+
+  /// Note under facility contacts explaining inherited tenant contacts.
+  ///
+  /// In en, this message translates to:
+  /// **'Contacts marked From tenant use the tenant\'s details until this facility adds its own.'**
+  String get tenantFacilityInheritedContactNote;
+
+  /// Helper under the facility phone field while the facility has no phone and uses the tenant phone.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave empty to keep using the tenant phone: {phone}'**
+  String tenantFacilityInheritedPhoneHint(String phone);
+
+  /// Helper under the facility email field while the facility has no email and uses the tenant email.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave empty to keep using the tenant email: {email}'**
+  String tenantFacilityInheritedEmailHint(String email);
 
   /// Edit facility action label in facility details modal.
   ///

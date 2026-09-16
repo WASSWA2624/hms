@@ -31,6 +31,19 @@ const {
   buildCandidateSnapshot,
   checkFacilityDuplicates
 } = require('@lib/facility/facility-similarity');
+const {
+  pickFacilityOwnContact,
+  resolveEffectiveFacilityContact
+} = require('@lib/facility/effective-facility-contact');
+
+const FACILITY_CONTACT_INCLUDE = Object.freeze({
+  contacts: {
+    where: { deleted_at: null }
+  },
+  addresses: {
+    where: { deleted_at: null }
+  }
+});
 
 const FACILITY_REALTIME_RECIPIENT_ROLES = Object.freeze([
   ROLES.FACILITY_ADMIN,
@@ -173,7 +186,14 @@ const resolveFacilityId = async (identifier, { includeDeleted = false } = {}) =>
   return resolveEntityId({ model: 'facility', identifier: normalized });
 };
 
-const normalizeFacilityRecord = (facility) => {
+/**
+ * @param {Object} facility - Facility row
+ * @param {Map<string, Object>|null} [tenantsById] - Tenants for contact
+ *   inheritance; `effective_contact` is added only when the row's own contacts
+ *   were loaded and this map is given
+ * @returns {Object} Facility payload
+ */
+const normalizeFacilityRecord = (facility, tenantsById = null) => {
   if (!facility || typeof facility !== 'object') {
     return facility;
   }
@@ -181,8 +201,29 @@ const normalizeFacilityRecord = (facility) => {
   return {
     ...facility,
     resource_uuid: facility.id,
-    display_id: resolvePublicIdentifier(facility.human_friendly_id) || null
+    display_id: resolvePublicIdentifier(facility.human_friendly_id) || null,
+    ...(tenantsById && Array.isArray(facility.contacts)
+      ? {
+          effective_contact: resolveEffectiveFacilityContact(
+            pickFacilityOwnContact(facility.contacts),
+            tenantsById.get(facility.tenant_id) || null
+          )
+        }
+      : {})
   };
+};
+
+/**
+ * Tenants for the given facility rows, keyed by id, in a single query.
+ *
+ * @param {Array<Object>} facilities - Facility rows
+ * @returns {Promise<Map<string, Object>>} Tenants by id
+ */
+const loadContactTenants = async (facilities = []) => {
+  const tenants = await facilityRepository.findTenantContactSources(
+    facilities.map((facility) => facility?.tenant_id)
+  );
+  return new Map((tenants || []).map((tenant) => [tenant.id, tenant]));
 };
 
 const toPositiveInt = (value, fallback, max = Number.POSITIVE_INFINITY) => {
@@ -355,18 +396,12 @@ const listFacilities = async (filters = {}, page = 1, limit = 20, sort_by = 'cre
       skip,
       resolvedLimit,
       orderBy,
-      {
-        contacts: {
-          where: { deleted_at: null }
-        },
-        addresses: {
-          where: { deleted_at: null }
-        }
-      },
+      FACILITY_CONTACT_INCLUDE,
       listOptions
     ),
     facilityRepository.count(repoFilters, listOptions)
   ]);
+  const tenantsById = await loadContactTenants(facilities);
 
   // Calculate pagination metadata
   const totalPages = Math.ceil(total / resolvedLimit);
@@ -374,7 +409,9 @@ const listFacilities = async (filters = {}, page = 1, limit = 20, sort_by = 'cre
   const hasPreviousPage = resolvedPage > 1;
 
   return {
-    facilities: facilities.map((facility) => normalizeFacilityRecord(facility)),
+    facilities: facilities.map((facility) =>
+      normalizeFacilityRecord(facility, tenantsById)
+    ),
     pagination: {
       page: resolvedPage,
       limit: resolvedLimit,
@@ -394,13 +431,16 @@ const listFacilities = async (filters = {}, page = 1, limit = 20, sort_by = 'cre
  */
 const getFacilityById = async (id) => {
   const facilityId = await resolveFacilityId(id);
-  const facility = await facilityRepository.findById(facilityId);
-  
+  const facility = await facilityRepository.findById(
+    facilityId,
+    FACILITY_CONTACT_INCLUDE
+  );
+
   if (!facility) {
     throw new HttpError('errors.facility.not_found', 404);
   }
 
-  return normalizeFacilityRecord(facility);
+  return normalizeFacilityRecord(facility, await loadContactTenants([facility]));
 };
 
 /**

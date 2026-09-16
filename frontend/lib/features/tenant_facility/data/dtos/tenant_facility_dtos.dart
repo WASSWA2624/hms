@@ -112,6 +112,7 @@ final class FacilityProfileDto {
     this.addressLine1,
     this.city,
     this.country,
+    this.effectiveContact,
     this.resourceUuid,
     this.displayId,
     this.deletedAt,
@@ -152,6 +153,7 @@ final class FacilityProfileDto {
           (primaryAddress == null
               ? null
               : _optionalString(primaryAddress, 'country')),
+      effectiveContact: _effectiveFacilityContact(json['effective_contact']),
       resourceUuid:
           _optionalString(json, 'resource_uuid') ?? _requiredString(json, 'id'),
       displayId: _optionalString(json, 'display_id') ??
@@ -173,6 +175,7 @@ final class FacilityProfileDto {
   final String? addressLine1;
   final String? city;
   final String? country;
+  final FacilityEffectiveContact? effectiveContact;
   final String? resourceUuid;
   final String? displayId;
   final DateTime? deletedAt;
@@ -192,6 +195,7 @@ final class FacilityProfileDto {
       addressLine1: addressLine1,
       city: city,
       country: country,
+      effectiveContact: effectiveContact,
       resourceUuid: resourceUuid,
       displayId: displayId,
       deletedAt: deletedAt,
@@ -777,6 +781,7 @@ final class FacilitySetupWorkspaceDto {
           city: _optionalString(contactAddressJson, 'city'),
           country: _optionalString(contactAddressJson, 'country'),
         ),
+        effectiveContact: _effectiveFacilityContact(json['effective_contact']),
         departments: _decodeOptionalList<DepartmentProfileDto>(
           json['departments'],
           DepartmentProfileDto.fromJson,
@@ -812,6 +817,20 @@ final class FacilitySetupWorkspaceDto {
   final FacilitySetupSnapshot snapshot;
 
   FacilitySetupSnapshot toEntity() => snapshot;
+}
+
+/// `effective_contact`: facility phone/email with tenant fallback, or null
+/// when the server did not resolve one.
+FacilityEffectiveContact? _effectiveFacilityContact(Object? value) {
+  if (value is! JsonMap) {
+    return null;
+  }
+  return FacilityEffectiveContact(
+    phone: _optionalString(value, 'phone'),
+    email: _optionalString(value, 'email'),
+    phoneSource: FacilityContactSource.fromApi(value['phone_source']),
+    emailSource: FacilityContactSource.fromApi(value['email_source']),
+  );
 }
 
 JsonMap _requireWorkspaceMap(Object? value) {

@@ -9975,6 +9975,10 @@
   "@tenantFacilityWizardMissingFacilityPhone": {
     "description": "Missing requirement when facility identity has no phone contact."
   },
+  "tenantFacilityWizardFacilityPhoneInherited": "Facility phone uses the tenant phone",
+  "@tenantFacilityWizardFacilityPhoneInherited": {
+    "description": "Setup checklist requirement shown as met because the facility has no phone of its own and uses the tenant phone."
+  },
   "tenantFacilityWizardMissingDepartments": "Create at least one department",
   "@tenantFacilityWizardMissingDepartments": {
     "description": "Missing requirement for the departments setup wizard step."
@@ -10852,6 +10856,50 @@
   "tenantFacilityFacilityDetailsContactHeading": "Contact",
   "@tenantFacilityFacilityDetailsContactHeading": {
     "description": "Contact section heading in facility details summary."
+  },
+  "tenantFacilityInheritedContactLabel": "{label} · From tenant",
+  "@tenantFacilityInheritedContactLabel": {
+    "description": "Facility contact field label when the value comes from the tenant because the facility has none of its own.",
+    "placeholders": {
+      "label": {
+        "type": "String",
+        "example": "Phone"
+      }
+    }
+  },
+  "tenantFacilityInheritedContactValue": "{value} (from tenant)",
+  "@tenantFacilityInheritedContactValue": {
+    "description": "Facility contact table cell when the value comes from the tenant because the facility has none of its own.",
+    "placeholders": {
+      "value": {
+        "type": "String",
+        "example": "+256 700 000000"
+      }
+    }
+  },
+  "tenantFacilityInheritedContactNote": "Contacts marked From tenant use the tenant's details until this facility adds its own.",
+  "@tenantFacilityInheritedContactNote": {
+    "description": "Note under facility contacts explaining inherited tenant contacts."
+  },
+  "tenantFacilityInheritedPhoneHint": "Leave empty to keep using the tenant phone: {phone}",
+  "@tenantFacilityInheritedPhoneHint": {
+    "description": "Helper under the facility phone field while the facility has no phone and uses the tenant phone.",
+    "placeholders": {
+      "phone": {
+        "type": "String",
+        "example": "+256 700 000000"
+      }
+    }
+  },
+  "tenantFacilityInheritedEmailHint": "Leave empty to keep using the tenant email: {email}",
+  "@tenantFacilityInheritedEmailHint": {
+    "description": "Helper under the facility email field while the facility has no email and uses the tenant email.",
+    "placeholders": {
+      "email": {
+        "type": "String",
+        "example": "info@hospital.org"
+      }
+    }
   },
   "tenantFacilityEditFacilityDetailsAction": "Edit facility",
   "@tenantFacilityEditFacilityDetailsAction": {
