@@ -90,6 +90,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-
 const FRIENDLY_ID_REGEX = /^[A-Z]{3}\d{7}$/;
 
 const SYSTEM_MODELS = new Set(['human_id_counter']);
+const tenantGuardMetadata = buildTenantGuardModelMetadata(Prisma);
 
 const ROLE_PREFIX_MAP = Object.freeze({
   PLATFORM_OWNER: 'OWN',
@@ -219,9 +220,16 @@ const reserveNextFriendlySequence = async (prismaClient, model, prefix, scopeKey
   }
 };
 
+const modelHasHumanFriendlyId = (model) =>
+  tenantGuardMetadata.get(model)?.hasHumanFriendlyId === true;
+
 const assignFriendlyIdIfMissing = async (prismaClient, model, data) => {
   if (!data || typeof data !== 'object') return;
   if (SYSTEM_MODELS.has(model)) return;
+  // Manifest item rows (and any other table without the column) must not receive
+  // a generated human_friendly_id — Prisma rejects unknown create arguments and
+  // the surrounding patient-delete transaction would roll back.
+  if (!modelHasHumanFriendlyId(model)) return;
 
   if (typeof data.human_friendly_id === 'string' && data.human_friendly_id.trim()) {
     const standardizedInput = data.human_friendly_id.trim().toUpperCase();
@@ -333,16 +341,26 @@ const withHumanFriendlyIdSupport = (prismaClient) =>
           }
           return query(args);
         },
-        async findFirst({ args, query }) {
-          args.where = rewriteHumanFriendlyIdFilters(args.where);
+        async findFirst({ model, args, query }) {
+          if (modelHasHumanFriendlyId(model)) {
+            args.where = rewriteHumanFriendlyIdFilters(args.where);
+          }
           return query(args);
         },
-        async findMany({ args, query }) {
-          args.where = appendFriendlyIdSearchTerm(rewriteHumanFriendlyIdFilters(args.where));
+        async findMany({ model, args, query }) {
+          if (modelHasHumanFriendlyId(model)) {
+            args.where = appendFriendlyIdSearchTerm(
+              rewriteHumanFriendlyIdFilters(args.where)
+            );
+          }
           return query(args);
         },
-        async count({ args, query }) {
-          args.where = appendFriendlyIdSearchTerm(rewriteHumanFriendlyIdFilters(args.where));
+        async count({ model, args, query }) {
+          if (modelHasHumanFriendlyId(model)) {
+            args.where = appendFriendlyIdSearchTerm(
+              rewriteHumanFriendlyIdFilters(args.where)
+            );
+          }
           return query(args);
         }}}});
 
@@ -383,7 +401,6 @@ const buildPrismaMariaDbUrl = (databaseUrl) => {
 const globalForPrisma = globalThis;
 
 const isDevelopment = NODE_ENV === 'development';
-const tenantGuardMetadata = buildTenantGuardModelMetadata(Prisma);
 
 const adapter = new PrismaMariaDb(buildPrismaMariaDbUrl(DATABASE_URL));
 

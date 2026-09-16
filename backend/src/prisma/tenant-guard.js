@@ -43,11 +43,21 @@ const buildTenantGuardModelMetadata = (Prisma) => {
   const models = Prisma?.dmmf?.datamodel?.models || [];
 
   for (const model of models) {
-    const fieldNames = new Set((model.fields || []).map((field) => field.name));
+    const fields = model.fields || [];
+    const fieldNames = new Set(fields.map((field) => field.name));
+    const deletedAtField = fields.find((field) => field.name === 'deleted_at');
+    // Required `deleted_at` is a real timestamp (e.g. cascade time on
+    // patient_deletion_batch). Soft-delete filtering only applies when the
+    // column is optional, and never when `batch_deleted_at` is the live flag.
+    const isSoftDeleteDeletedAt =
+      Boolean(deletedAtField) &&
+      deletedAtField.isRequired !== true &&
+      !fieldNames.has('batch_deleted_at');
     metadata.set(model.name, {
       hasId: fieldNames.has('id'),
       hasTenantId: fieldNames.has('tenant_id'),
-      hasDeletedAt: fieldNames.has('deleted_at')
+      hasDeletedAt: isSoftDeleteDeletedAt,
+      hasHumanFriendlyId: fieldNames.has('human_friendly_id')
     });
   }
 

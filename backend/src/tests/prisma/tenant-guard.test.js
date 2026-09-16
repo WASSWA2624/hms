@@ -1,6 +1,7 @@
 const { runWithRequestContext } = require('@lib/context/request-context-store');
 const {
   buildGuardedWhere,
+  buildTenantGuardModelMetadata,
   createTenantGuardQueryExtension
 } = require('../../prisma/tenant-guard');
 
@@ -251,3 +252,61 @@ describe('tenant guard query extension', () => {
     expect(withoutFixShape.context?.bypassTenantGuard).toBe(true);
   });
 });
+
+describe('buildTenantGuardModelMetadata', () => {
+  it('does not treat required deleted_at as a soft-delete flag', () => {
+    const metadata = buildTenantGuardModelMetadata({
+      dmmf: {
+        datamodel: {
+          models: [
+            {
+              name: 'patient',
+              fields: [
+                { name: 'id' },
+                { name: 'tenant_id' },
+                { name: 'deleted_at', isRequired: false },
+                { name: 'human_friendly_id' }
+              ]
+            },
+            {
+              name: 'patient_deletion_batch',
+              fields: [
+                { name: 'id' },
+                { name: 'tenant_id' },
+                { name: 'deleted_at', isRequired: true },
+                { name: 'batch_deleted_at', isRequired: false },
+                { name: 'human_friendly_id' }
+              ]
+            },
+            {
+              name: 'patient_deletion_batch_item',
+              fields: [
+                { name: 'id' },
+                { name: 'batch_id' },
+                { name: 'entity_model' },
+                { name: 'entity_id' }
+              ]
+            }
+          ]
+        }
+      }
+    });
+
+    expect(metadata.get('patient')).toMatchObject({
+      hasDeletedAt: true,
+      hasHumanFriendlyId: true,
+      hasTenantId: true
+    });
+    expect(metadata.get('patient_deletion_batch')).toMatchObject({
+      hasDeletedAt: false,
+      hasHumanFriendlyId: true,
+      hasTenantId: true
+    });
+    expect(metadata.get('patient_deletion_batch_item')).toMatchObject({
+      hasDeletedAt: false,
+      hasHumanFriendlyId: false,
+      hasTenantId: false
+    });
+  });
+});
+

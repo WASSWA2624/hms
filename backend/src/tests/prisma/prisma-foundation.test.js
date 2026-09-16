@@ -63,4 +63,18 @@ console.log('ok');
     const readinessSource = readProjectFile('src/lib/health/readinessCheck.js');
     expect(readinessSource).toMatch(/const PRISMA_TIMEOUT_MS = 2000;/);
   });
+
+  it('skips friendly-id assignment on models without human_friendly_id', () => {
+    const prismaClient = readProjectFile('src/prisma/client.js');
+    const schema = readProjectFile('prisma/schema.prisma');
+    const itemBlock = schema.match(
+      /model\s+patient_deletion_batch_item\s*\{[\s\S]*?\n\}/
+    );
+
+    expect(itemBlock).not.toBeNull();
+    expect(itemBlock[0]).not.toMatch(/\bhuman_friendly_id\b/);
+    expect(prismaClient).toMatch(/modelHasHumanFriendlyId\(model\)/);
+    expect(prismaClient).toMatch(/if \(!modelHasHumanFriendlyId\(model\)\) return;/);
+  });
 });
+
