@@ -17,6 +17,7 @@ AppSpeechAiFormatter createAiSpeechFormatter(AiRepository repository) {
     required AppSpeechAiAbort abort,
     String? locale,
     String? hint,
+    String? context,
   }) async {
     final CancelToken cancelToken = CancelToken();
     abort.attach(() {
@@ -41,6 +42,8 @@ AppSpeechAiFormatter createAiSpeechFormatter(AiRepository repository) {
         'mode': mode,
         if (locale != null && locale.trim().isNotEmpty) 'locale': locale.trim(),
         if (hint != null && hint.trim().isNotEmpty) 'hint': hint.trim(),
+        if (context != null && context.trim().isNotEmpty)
+          'context_before': context,
       },
       cancelToken: cancelToken,
     );

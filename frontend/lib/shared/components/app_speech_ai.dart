@@ -12,6 +12,9 @@ final class AppSpeechAiAbort {
 }
 
 /// Optional backend formatter. Returns null to keep the STT text.
+///
+/// [context] is the field text right before [transcript] (long-form fields),
+/// so a continuation is capitalized and punctuated as part of its sentence.
 typedef AppSpeechAiFormatter =
     Future<String?> Function({
       required String transcript,
@@ -19,4 +22,5 @@ typedef AppSpeechAiFormatter =
       required AppSpeechAiAbort abort,
       String? locale,
       String? hint,
+      String? context,
     });

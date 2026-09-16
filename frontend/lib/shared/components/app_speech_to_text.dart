@@ -11,6 +11,7 @@ import 'package:hosspi_hms/shared/components/app_action_label_scope.dart';
 import 'package:hosspi_hms/shared/components/app_button.dart';
 import 'package:hosspi_hms/shared/components/app_speech_ai.dart';
 import 'package:hosspi_hms/shared/layout/app_workspace_feedback.dart';
+import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 export 'package:hosspi_hms/shared/components/app_speech_ai.dart';
@@ -36,6 +37,10 @@ enum AppSpeechInitStatus {
 abstract class AppSpeechRecognizer {
   bool get isListening;
 
+  /// Whether each result repeats everything heard in the recognizer session
+  /// (web, iOS) rather than only the running phrase (Android).
+  bool get resendsSessionTranscript;
+
   Future<AppSpeechInitStatus> ensureReady({
     void Function(String status)? onStatus,
     void Function(String error)? onError,
@@ -55,8 +60,16 @@ abstract class AppSpeechRecognizer {
 /// Longest single recognizer session requested from the platform.
 const Duration appSpeechListenFor = Duration(minutes: 5);
 
-/// Silence a recognizer session may sit through before the platform ends it.
+/// Silence a recognizer session may sit through before it is ended.
+///
+/// Not sent on Android: the plugin also waits this long after the recognizer
+/// stops hearing speech before reporting the session over, which would leave
+/// the mic deaf between phrases, and engines that do honor it split the
+/// session into phrases that restart from empty.
 const Duration appSpeechPauseFor = Duration(seconds: 30);
+
+bool get _appSpeechIsAndroid =>
+    !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
 /// Default [speech_to_text] backed recognizer.
 final class SpeechToTextAppSpeechRecognizer implements AppSpeechRecognizer {
@@ -74,6 +87,12 @@ final class SpeechToTextAppSpeechRecognizer implements AppSpeechRecognizer {
 
   @override
   bool get isListening => _speech.isListening;
+
+  @override
+  bool get resendsSessionTranscript =>
+      kIsWeb ||
+      defaultTargetPlatform == TargetPlatform.iOS ||
+      defaultTargetPlatform == TargetPlatform.macOS;
 
   void _dispatchStatus(String status) {
     _lifecycleStatusListener?.call(status);
@@ -150,18 +169,25 @@ final class SpeechToTextAppSpeechRecognizer implements AppSpeechRecognizer {
     _sessionErrorListener = onError;
     await _speech.listen(
       onResult: (result) {
-        onResult(result.recognizedWords, isFinal: result.finalResult);
+        // Android closes a phrase inside a longer session with an
+        // `intermediate` result; the next phrase then starts from empty, so
+        // it must count as final or the next phrase would replace it.
+        onResult(
+          result.recognizedWords,
+          isFinal:
+              result.finalResult ||
+              result.resultTypeValue == ResultType.intermediate,
+        );
       },
       // `cancelOnError` stays off: Android reports every error as permanent,
       // so the plugin would end dictation on a mere silence. Partial results
       // (the default) also keep web recognition continuous.
       listenOptions: SpeechListenOptions(
         listenMode: ListenMode.dictation,
-        // Long limits keep one recognizer session open across pauses where
-        // the platform honors them. Android still ends sessions on its own,
-        // and the coordinator restarts them.
+        // Punctuation and capitals from the engine where supported (iOS).
+        autoPunctuation: true,
         listenFor: appSpeechListenFor,
-        pauseFor: appSpeechPauseFor,
+        pauseFor: _appSpeechIsAndroid ? null : appSpeechPauseFor,
       ),
     );
   }
@@ -179,61 +205,6 @@ final class SpeechToTextAppSpeechRecognizer implements AppSpeechRecognizer {
     _sessionErrorListener = null;
     await _speech.cancel();
   }
-}
-
-/// Inserts [transcript] at the current selection/caret of [controller].
-///
-/// When [sessionPrefix]/[sessionSuffix] are provided (captured at listen
-/// start), each call replaces the live dictation span so partial results do
-/// not stack. Surrounding markdown-ish markup outside that span is preserved.
-void insertSpeechTranscript(
-  TextEditingController controller,
-  String transcript, {
-  required String sessionPrefix,
-  required String sessionSuffix,
-}) {
-  final String next = '$sessionPrefix$transcript$sessionSuffix';
-  final int caret = sessionPrefix.length + transcript.length;
-  controller.value = TextEditingValue(
-    text: next,
-    selection: TextSelection.collapsed(offset: caret.clamp(0, next.length)),
-  );
-}
-
-/// Folds a freshly recognized [segment] into the text already dictated in this
-/// session.
-///
-/// Platform recognizers disagree about what each callback carries: some resend
-/// the whole utterance so far, some resend a final that was already delivered,
-/// and some emit only the new phrase. Appending blindly duplicates text in the
-/// first two cases, so overlapping content is absorbed instead of repeated.
-/// [separator] is empty for digit / email style fields where a space would
-/// corrupt the value.
-String mergeSpeechSegments(
-  String committed,
-  String segment, {
-  String separator = ' ',
-}) {
-  if (committed.isEmpty) {
-    return segment;
-  }
-  if (segment.isEmpty) {
-    return committed;
-  }
-  // Recognizer resent the running utterance (web/iOS accumulate).
-  if (segment.startsWith(committed)) {
-    return segment;
-  }
-  // Recognizer resent a phrase that is already committed (duplicate final).
-  if (committed.endsWith(segment)) {
-    return committed;
-  }
-  if (separator.isEmpty ||
-      committed.endsWith(separator) ||
-      segment.startsWith(separator)) {
-    return '$committed$segment';
-  }
-  return '$committed$separator$segment';
 }
 
 /// Separator used when joining dictated phrases for a backend format mode.
@@ -255,6 +226,451 @@ String appSpeechSegmentSeparatorForFormatMode(String aiFormatMode) {
   final int from = start <= end ? start : end;
   final int to = start <= end ? end : start;
   return (prefix: text.substring(0, from), suffix: text.substring(to));
+}
+
+final RegExp _appSpeechWordChar = RegExp(r'[\p{L}\p{N}]', unicode: true);
+final RegExp _appSpeechLeftJoinChar = RegExp(
+  r'[\p{L}\p{N}.,;:!?)]',
+  unicode: true,
+);
+final RegExp _appSpeechRightJoinChar = RegExp(r'[\p{L}\p{N}(]', unicode: true);
+
+/// Writes [dictated] between [prefix] and [suffix], the text on either side of
+/// the caret when dictation started, and returns the caret after it.
+///
+/// With a [separator] (prose), a space is added where dictation meets a word
+/// on either side. Markup such as `**` or `|` is left touching.
+({String text, int caret}) appSpeechJoinDictation({
+  required String prefix,
+  required String dictated,
+  required String suffix,
+  String separator = ' ',
+}) {
+  if (dictated.isEmpty) {
+    return (text: '$prefix$suffix', caret: prefix.length);
+  }
+  final bool spaced = separator.isNotEmpty;
+  final String lead = spaced && _appSpeechNeedsSpace(prefix, dictated)
+      ? ' '
+      : '';
+  final String trail = spaced && _appSpeechNeedsSpace(dictated, suffix)
+      ? ' '
+      : '';
+  final String before = '$prefix$lead$dictated';
+  return (text: '$before$trail$suffix', caret: before.length);
+}
+
+bool _appSpeechNeedsSpace(String left, String right) {
+  if (left.isEmpty || right.isEmpty) {
+    return false;
+  }
+  return _appSpeechLeftJoinChar.hasMatch(left[left.length - 1]) &&
+      _appSpeechRightJoinChar.hasMatch(right[0]);
+}
+
+const Set<String> _appSpeechAbbreviations = <String>{
+  'approx',
+  'dept',
+  'dr',
+  'e.g',
+  'etc',
+  'i.e',
+  'mr',
+  'mrs',
+  'ms',
+  'no',
+  'prof',
+  'st',
+  'vs',
+};
+
+/// Whether the period at [dotIndex] in [text] closes an abbreviation such as
+/// "Dr." or "e.g." rather than a sentence.
+bool _appSpeechIsAbbreviationDot(String text, int dotIndex) {
+  var start = dotIndex;
+  while (start > 0 &&
+      (_appSpeechWordChar.hasMatch(text[start - 1]) || text[start - 1] == '.')) {
+    start--;
+  }
+  return _appSpeechAbbreviations.contains(
+    text.substring(start, dotIndex).toLowerCase(),
+  );
+}
+
+final RegExp _appSpeechTrailingMarkup = RegExp(
+  '[*_~`"\'”’)\\]]+\$',
+);
+
+/// Whether text written right after [before] starts a new sentence.
+bool appSpeechStartsSentence(String before) {
+  final String text = before.replaceAll(RegExp(r'[ \t]+$'), '');
+  if (text.isEmpty || text.endsWith('\n')) {
+    return true;
+  }
+  final String core = text.replaceAll(_appSpeechTrailingMarkup, '').trimRight();
+  if (core.isEmpty) {
+    return true;
+  }
+  final String last = core[core.length - 1];
+  if (last == '!' || last == '?') {
+    return true;
+  }
+  return last == '.' && !_appSpeechIsAbbreviationDot(core, core.length - 1);
+}
+
+final RegExp _appSpeechSpaceBeforeMark = RegExp(r' +([.,;:!?])');
+final RegExp _appSpeechMarkBeforeLetter = RegExp(
+  r'([,;!?])(?=\p{L})',
+  unicode: true,
+);
+final RegExp _appSpeechLowercaseI = RegExp(
+  "(?<![\\p{L}\\p{N}'’])i(?=(?:['’](?:m|ve|ll|d))?(?![\\p{L}\\p{N}.'’]))",
+  unicode: true,
+);
+final RegExp _appSpeechLetter = RegExp(r'\p{L}', unicode: true);
+final RegExp _appSpeechDigit = RegExp(r'\p{N}', unicode: true);
+
+/// Light offline clean-up for dictated prose: spacing around punctuation, the
+/// pronoun "I", and capital letters where sentences start. It never lowercases
+/// or changes words, so it is safe to apply while the user is still speaking.
+String appSpeechTidyProse(String text, {required bool startsSentence}) {
+  final String spaced = text
+      .replaceAll(RegExp(r'[ \t]+'), ' ')
+      .replaceAllMapped(_appSpeechSpaceBeforeMark, (Match match) => match[1]!)
+      .replaceAllMapped(
+        _appSpeechMarkBeforeLetter,
+        (Match match) => '${match[1]} ',
+      )
+      .replaceAllMapped(_appSpeechLowercaseI, (_) => 'I');
+
+  final StringBuffer buffer = StringBuffer();
+  var capitalizeNext = startsSentence;
+  for (var index = 0; index < spaced.length; index++) {
+    final String char = spaced[index];
+    if (capitalizeNext && _appSpeechLetter.hasMatch(char)) {
+      buffer.write(char.toUpperCase());
+      capitalizeNext = false;
+      continue;
+    }
+    if (_appSpeechDigit.hasMatch(char)) {
+      capitalizeNext = false;
+    }
+    buffer.write(char);
+    if (char == '\n') {
+      capitalizeNext = true;
+    } else if (char == '!' || char == '?' || char == '.') {
+      final bool spaceFollows =
+          index + 1 < spaced.length &&
+          (spaced[index + 1] == ' ' || spaced[index + 1] == '\n');
+      capitalizeNext =
+          spaceFollows &&
+          !(char == '.' && _appSpeechIsAbbreviationDot(spaced, index));
+    }
+  }
+  return buffer.toString();
+}
+
+/// One phrase committed to the dictated text.
+@immutable
+final class AppDictationSegment {
+  const AppDictationSegment({
+    required this.raw,
+    required this.text,
+    this.polished = false,
+    this.formatAttempted = false,
+  });
+
+  /// Words as the recognizer delivered them, used to recognize resends.
+  final String raw;
+
+  /// What the field shows for this phrase.
+  final String text;
+
+  /// True once AI formatting rewrote this phrase; offline clean-up then
+  /// leaves it alone.
+  final bool polished;
+
+  /// True once AI formatting was tried, whatever the outcome.
+  final bool formatAttempted;
+}
+
+/// Builds dictated text from recognizer callbacks so that pauses, recognizer
+/// resets and restarts only ever add words.
+///
+/// Recognizers disagree about what each callback carries:
+/// * web and iOS resend everything heard in the session so far;
+/// * Android ends each phrase with a final (or `intermediate`) result and
+///   starts the next phrase from empty;
+/// * after a pause some engines silently restart the running phrase from
+///   empty without any final result.
+///
+/// A phrase is committed whenever the next callback no longer continues it,
+/// so words already shown are never replaced by the next phrase.
+final class AppDictationTranscript {
+  AppDictationTranscript({
+    required this.transform,
+    this.separator = ' ',
+    this.resendsSession = false,
+    this.pauseGap = const Duration(milliseconds: 1000),
+    DateTime Function()? now,
+  }) : _now = now ?? DateTime.now;
+
+  /// Normalizes recognizer words for the field (spoken punctuation, numbers).
+  final String Function(String raw) transform;
+
+  /// Joins phrases; empty for digit, phone and email style fields.
+  final String separator;
+
+  /// Whether each callback repeats everything heard in the recognizer
+  /// session (web, iOS) rather than only the running phrase (Android).
+  final bool resendsSession;
+
+  /// A callback that arrives after this much silence and does not continue
+  /// the running phrase starts a new one.
+  final Duration pauseGap;
+  final DateTime Function() _now;
+
+  final List<AppDictationSegment> _segments = <AppDictationSegment>[];
+  List<String> _sessionWords = const <String>[];
+  List<String> _frozenLiveWords = const <String>[];
+  List<String> _lastCommittedWords = const <String>[];
+  String _liveRaw = '';
+  String _liveText = '';
+  DateTime? _lastResultAt;
+  int _commitCount = 0;
+
+  List<AppDictationSegment> get segments =>
+      List<AppDictationSegment>.unmodifiable(_segments);
+
+  /// Grows each time a phrase is committed.
+  int get commitCount => _commitCount;
+
+  bool get isEmpty => _segments.isEmpty && _liveRaw.isEmpty;
+
+  /// Applies one recognizer callback.
+  void add(String words, {required bool isFinal}) {
+    final DateTime now = _now();
+    final DateTime? previous = _lastResultAt;
+    final Duration gap = previous == null
+        ? Duration.zero
+        : now.difference(previous);
+    _lastResultAt = now;
+
+    var incoming = _appSpeechWords(words);
+    if (resendsSession &&
+        _sessionWords.isNotEmpty &&
+        _appSpeechCommonWords(incoming, _sessionWords) ==
+            _sessionWords.length) {
+      // Everything already committed this session, resent first.
+      incoming = incoming.sublist(_sessionWords.length);
+    } else if (!resendsSession &&
+        _liveRaw.isEmpty &&
+        _lastCommittedWords.isNotEmpty &&
+        _appSpeechSameWords(incoming, _lastCommittedWords)) {
+      // The engine flushed a final it already delivered.
+      return;
+    }
+
+    if (_frozenLiveWords.isNotEmpty && incoming.isNotEmpty) {
+      if (_continuesPhrase(_frozenLiveWords, incoming, gap)) {
+        // The phrase already frozen into the field keeps growing: skip the
+        // words that are already there.
+        incoming = incoming.sublist(
+          _appSpeechCommonWords(incoming, _frozenLiveWords),
+        );
+      } else {
+        _frozenLiveWords = const <String>[];
+      }
+    }
+
+    final List<String> live = _appSpeechWords(_liveRaw);
+    if (live.isNotEmpty &&
+        incoming.isNotEmpty &&
+        !_continuesPhrase(live, incoming, gap)) {
+      // The engine restarted the phrase: keep what was already shown.
+      commitLive();
+    }
+
+    _liveRaw = incoming.join(' ');
+    _liveText = _liveRaw.isEmpty ? '' : transform(_liveRaw).trim();
+    if (isFinal) {
+      commitLive();
+    }
+  }
+
+  bool _continuesPhrase(List<String> live, List<String> next, Duration gap) {
+    final int common = _appSpeechCommonWords(live, next);
+    if (common == live.length) {
+      return true;
+    }
+    // A revision of the last words keeps most of the phrase's start.
+    if (common > 0 && common * 2 >= live.length) {
+      return true;
+    }
+    if (gap >= pauseGap) {
+      return false;
+    }
+    return next.length >= live.length;
+  }
+
+  /// Commits the running phrase, e.g. before the recognizer restarts.
+  void commitLive() {
+    if (_liveRaw.isEmpty) {
+      return;
+    }
+    final List<String> words = _appSpeechWords(_liveRaw);
+    if (_liveText.isNotEmpty) {
+      _segments.add(AppDictationSegment(raw: _liveRaw, text: _liveText));
+    }
+    if (resendsSession) {
+      _sessionWords = <String>[..._sessionWords, ...words];
+    }
+    _lastCommittedWords = words;
+    _frozenLiveWords = const <String>[];
+    _liveRaw = '';
+    _liveText = '';
+    _commitCount += 1;
+  }
+
+  /// A new recognizer session begins; its callbacks start from scratch.
+  void startSession() {
+    commitLive();
+    _sessionWords = const <String>[];
+    _frozenLiveWords = const <String>[];
+    _lastCommittedWords = const <String>[];
+    _lastResultAt = null;
+  }
+
+  /// The user edited the field: everything shown so far is now plain field
+  /// text. Later callbacks that resend it are skipped.
+  void freeze() {
+    final List<String> live = _appSpeechWords(_liveRaw);
+    if (resendsSession) {
+      _sessionWords = <String>[..._sessionWords, ...live];
+    } else if (live.isNotEmpty) {
+      _frozenLiveWords = <String>[..._frozenLiveWords, ...live];
+    }
+    _segments.clear();
+    _liveRaw = '';
+    _liveText = '';
+  }
+
+  /// Trailing phrases AI formatting has not seen yet.
+  List<AppDictationSegment> get unformattedTail {
+    var start = _segments.length;
+    while (start > 0 && !_segments[start - 1].formatAttempted) {
+      start--;
+    }
+    return List<AppDictationSegment>.unmodifiable(_segments.sublist(start));
+  }
+
+  /// Swaps [window] (still in place, unchanged) for its formatted text, or
+  /// only marks it as tried when [formatted] is null. Returns false when the
+  /// window is gone.
+  bool replaceFormatted(
+    List<AppDictationSegment> window, {
+    required String? formatted,
+  }) {
+    if (window.isEmpty) {
+      return false;
+    }
+    final int start = _segments.indexWhere(
+      (AppDictationSegment segment) => identical(segment, window.first),
+    );
+    if (start < 0 || start + window.length > _segments.length) {
+      return false;
+    }
+    for (var offset = 0; offset < window.length; offset++) {
+      if (!identical(_segments[start + offset], window[offset])) {
+        return false;
+      }
+    }
+    final List<AppDictationSegment> replacement = formatted == null
+        ? <AppDictationSegment>[
+            for (final AppDictationSegment segment in window)
+              AppDictationSegment(
+                raw: segment.raw,
+                text: segment.text,
+                polished: segment.polished,
+                formatAttempted: true,
+              ),
+          ]
+        : <AppDictationSegment>[
+            AppDictationSegment(
+              raw: window.map((AppDictationSegment s) => s.raw).join(' '),
+              text: formatted,
+              polished: true,
+              formatAttempted: true,
+            ),
+          ];
+    _segments.replaceRange(start, start + window.length, replacement);
+    return true;
+  }
+
+  /// The dictated text: committed phrases, then the running one. [end] stops
+  /// before that segment and leaves out the running phrase. [prose] applies
+  /// [appSpeechTidyProse] to phrases AI formatting has not rewritten.
+  String render({
+    bool prose = false,
+    bool startsSentence = false,
+    int? end,
+  }) {
+    final StringBuffer out = StringBuffer();
+    var sentenceStart = startsSentence;
+    void write(String text, {required bool polished}) {
+      var piece = text.trim();
+      if (piece.isEmpty) {
+        return;
+      }
+      if (prose && !polished) {
+        piece = appSpeechTidyProse(piece, startsSentence: sentenceStart);
+      }
+      if (out.isNotEmpty &&
+          separator.isNotEmpty &&
+          _appSpeechRightJoinChar.hasMatch(piece[0])) {
+        out.write(separator);
+      }
+      out.write(piece);
+      sentenceStart = appSpeechStartsSentence(piece);
+    }
+
+    final int stop = end ?? _segments.length;
+    for (var index = 0; index < stop; index++) {
+      final AppDictationSegment segment = _segments[index];
+      write(segment.text, polished: segment.polished);
+    }
+    if (end == null) {
+      write(_liveText, polished: false);
+    }
+    return out.toString();
+  }
+}
+
+List<String> _appSpeechWords(String text) {
+  return text
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((String word) => word.isNotEmpty)
+      .toList(growable: false);
+}
+
+String _appSpeechWordKey(String word) {
+  return word.toLowerCase().replaceAll(RegExp(r'[^\p{L}\p{N}]', unicode: true), '');
+}
+
+/// How many leading words [a] and [b] share, ignoring case and punctuation.
+int _appSpeechCommonWords(List<String> a, List<String> b) {
+  final int limit = a.length < b.length ? a.length : b.length;
+  var count = 0;
+  while (count < limit &&
+      _appSpeechWordKey(a[count]) == _appSpeechWordKey(b[count])) {
+    count++;
+  }
+  return count;
+}
+
+bool _appSpeechSameWords(List<String> a, List<String> b) {
+  return a.length == b.length && _appSpeechCommonWords(a, b) == a.length;
 }
 
 /// Default speech visibility for shared text fields.
@@ -1424,9 +1840,10 @@ AppSpeechErrorKind appSpeechErrorKind(String error) {
   return AppSpeechErrorKind.retryable;
 }
 
-/// Everything needed to (re)start the recognizer for one field.
+/// One mic-on session for a field: its settings, where its text sits in the
+/// field, and what was dictated.
 final class _SpeechDictation {
-  const _SpeechDictation({
+  _SpeechDictation({
     required this.owner,
     required this.controller,
     required this.onChanged,
@@ -1437,6 +1854,8 @@ final class _SpeechDictation {
     required this.aiFormatHint,
     required this.locale,
     required this.separator,
+    required this.longForm,
+    required this.transcript,
   });
 
   final Object owner;
@@ -1450,6 +1869,31 @@ final class _SpeechDictation {
   final String? aiFormatHint;
   final String? locale;
   final String separator;
+
+  /// Sentences and paragraphs: tidy offline, format with context on pauses.
+  final bool longForm;
+  final AppDictationTranscript transcript;
+
+  /// Field text before and after the dictated text.
+  String prefix = '';
+  String suffix = '';
+
+  /// What this dictation last wrote; anything else means the user edited.
+  TextEditingValue? lastWritten;
+  String lastDelivered = '';
+
+  /// Bumped when the user's edit re-anchors dictation; pending formatting of
+  /// the old text is then dropped.
+  int epoch = 0;
+
+  /// No more writes: dictation ended without finishing formatting.
+  bool closed = false;
+  Timer? formatTimer;
+  AppSpeechAiAbort? formatAbort;
+  bool formatInFlight = false;
+  bool formatRequested = false;
+
+  bool get isPlainText => aiFormatMode == 'text';
 }
 
 /// Ensures only one field listens at a time, and keeps that field listening
@@ -1457,10 +1901,17 @@ final class _SpeechDictation {
 ///
 /// Platform recognizers end a session after a phrase or a short silence
 /// (Android in particular). While dictation is on, the coordinator restarts
-/// the recognizer for the same field and re-anchors at the caret, so earlier
-/// words are kept. Dictation only ends on an explicit stop, another field
-/// starting, the owner going away, the app leaving the foreground, lost
-/// permission, an unavailable recognizer, or repeated failures.
+/// the recognizer for the same field; [AppDictationTranscript] keeps every
+/// phrase, so pauses only ever add words. Dictation only ends on an explicit
+/// stop, another field starting, the owner going away, the app leaving the
+/// foreground, lost permission, an unavailable recognizer, or repeated
+/// failures.
+///
+/// Dictated text is cleaned up as it arrives (spacing, capitals for long-form
+/// fields). When an AI formatter is available, each run of new phrases is
+/// rewritten with the text before it as context once the user pauses, and
+/// the rest is formatted when the user turns the mic off. A user edit always
+/// wins: formatting never overwrites text the user changed.
 final class AppSpeechToTextCoordinator extends ChangeNotifier
     with WidgetsBindingObserver {
   AppSpeechToTextCoordinator({
@@ -1468,12 +1919,16 @@ final class AppSpeechToTextCoordinator extends ChangeNotifier
     Duration restartDelay = const Duration(milliseconds: 150),
     Duration failureBackoff = const Duration(milliseconds: 500),
     Duration healthyListenDuration = const Duration(seconds: 1),
+    Duration longFormFormatDelay = const Duration(milliseconds: 1500),
     int maxConsecutiveFailures = 3,
+    DateTime Function()? now,
   }) : _recognizer = recognizer ?? SpeechToTextAppSpeechRecognizer(),
        _restartDelay = restartDelay,
        _failureBackoff = failureBackoff,
        _healthyListenDuration = healthyListenDuration,
-       _maxConsecutiveFailures = maxConsecutiveFailures;
+       _longFormFormatDelay = longFormFormatDelay,
+       _maxConsecutiveFailures = maxConsecutiveFailures,
+       _now = now;
 
   static AppSpeechToTextCoordinator? _instance;
 
@@ -1485,30 +1940,23 @@ final class AppSpeechToTextCoordinator extends ChangeNotifier
     _instance = value;
   }
 
+  /// Longest text before the dictation sent to AI formatting as context.
+  static const int _formatContextChars = 500;
+
   final AppSpeechRecognizer _recognizer;
   final Duration _restartDelay;
   final Duration _failureBackoff;
   final Duration _healthyListenDuration;
+  final Duration _longFormFormatDelay;
   final int _maxConsecutiveFailures;
+  final DateTime Function()? _now;
 
   /// The user's intent: non-null while dictation is on for a field.
   _SpeechDictation? _dictation;
-  String _sessionPrefix = '';
-  String _sessionSuffix = '';
 
-  /// Separator still owed before the first phrase after a restart, so the
-  /// next phrase does not run into the previous one.
-  String _pendingJoiner = '';
-
-  /// Bumped each time the span is re-anchored after a recognizer restart.
-  int _spanEpoch = 0;
-
-  /// Phrases already finalized in this recognizer session, as written into
-  /// the span.
-  String _sessionCommitted = '';
-
-  /// What currently occupies the span (committed phrases plus the live one).
-  String _sessionSpan = '';
+  /// Stopped dictations whose last formatting pass is still running.
+  final Set<_SpeechDictation> _finishing = <_SpeechDictation>{};
+  final Set<_SpeechDictation> _formatting = <_SpeechDictation>{};
 
   /// Identifies the recognizer session callbacks belong to.
   int _listenGeneration = 0;
@@ -1525,9 +1973,6 @@ final class AppSpeechToTextCoordinator extends ChangeNotifier
 
   AppSpeechInitStatus _initStatus = AppSpeechInitStatus.unavailable;
   String? _lastError;
-  int _formatGeneration = 0;
-  AppSpeechAiAbort? _activeFormatAbort;
-  Object? _formattingOwner;
 
   Object? get activeOwner => _dictation?.owner;
 
@@ -1536,7 +1981,7 @@ final class AppSpeechToTextCoordinator extends ChangeNotifier
   bool get isListening => _dictation != null;
   AppSpeechInitStatus get initStatus => _initStatus;
   String? get lastError => _lastError;
-  bool get isFormatting => _formattingOwner != null;
+  bool get isFormatting => _formatting.isNotEmpty;
 
   /// The most recent dictation that ended on its own (lost permission,
   /// unavailable recognizer, repeated failures). [serial] grows with each one.
@@ -1545,19 +1990,8 @@ final class AppSpeechToTextCoordinator extends ChangeNotifier
 
   bool isListeningFor(Object owner) => _dictation?.owner == owner;
 
-  bool isFormattingFor(Object owner) => _formattingOwner == owner;
-
-  void _cancelInFlightFormat({bool notify = true}) {
-    _formatGeneration += 1;
-    _activeFormatAbort?.abort();
-    _activeFormatAbort = null;
-    if (_formattingOwner != null) {
-      _formattingOwner = null;
-      if (notify) {
-        notifyListeners();
-      }
-    }
-  }
+  bool isFormattingFor(Object owner) =>
+      _formatting.any((_SpeechDictation dictation) => dictation.owner == owner);
 
   Future<AppSpeechInitStatus> ensureReady() async {
     _initStatus = await _recognizer.ensureReady(
@@ -1577,6 +2011,10 @@ final class AppSpeechToTextCoordinator extends ChangeNotifier
   /// When [onSpeechResult] is provided, transformed transcripts are delivered
   /// there instead of being inserted into [controller]. Use this for composite
   /// fields (e.g. date parts) that distribute a single utterance.
+  ///
+  /// [longForm] is for sentences and paragraphs (multi-line and rich text):
+  /// dictation gets sentence capitals as it arrives and is AI formatted with
+  /// context when the user pauses.
   Future<({bool started, bool stoppedOther})> start({
     required Object owner,
     required TextEditingController controller,
@@ -1588,6 +2026,7 @@ final class AppSpeechToTextCoordinator extends ChangeNotifier
     String? aiFormatHint,
     String? locale,
     String segmentSeparator = ' ',
+    bool longForm = false,
   }) async {
     var stoppedOther = false;
     final Object? previousOwner = _dictation?.owner;
@@ -1595,33 +2034,36 @@ final class AppSpeechToTextCoordinator extends ChangeNotifier
       await stop(owner: previousOwner);
       stoppedOther = true;
     }
-    _cancelInFlightFormat();
+    _closeFinishing(owner);
 
     final AppSpeechInitStatus status = await ensureReady();
     if (status != AppSpeechInitStatus.ready) {
       return (started: false, stoppedOther: stoppedOther);
     }
 
+    final String Function(String transcript) transform =
+        transcriptTransform ?? appSpeechTextTranscript;
     final _SpeechDictation dictation = _SpeechDictation(
       owner: owner,
       controller: controller,
       onChanged: onChanged,
-      transcriptTransform: transcriptTransform ?? appSpeechTextTranscript,
+      transcriptTransform: transform,
       onSpeechResult: onSpeechResult,
       aiFormatter: aiFormatter,
       aiFormatMode: aiFormatMode,
       aiFormatHint: aiFormatHint,
       locale: locale,
       separator: segmentSeparator,
+      longForm: longForm,
+      transcript: AppDictationTranscript(
+        transform: transform,
+        separator: segmentSeparator,
+        resendsSession: _recognizer.resendsSessionTranscript,
+        now: _now,
+      ),
     );
-    final ({String prefix, String suffix}) bounds =
-        captureSpeechSessionBounds(controller);
+    _anchor(dictation);
     _dictation = dictation;
-    _sessionPrefix = bounds.prefix;
-    _sessionSuffix = bounds.suffix;
-    _pendingJoiner = '';
-    _sessionCommitted = '';
-    _sessionSpan = '';
     _consecutiveFailures = 0;
     _failureCountedGeneration = null;
     _lastError = null;
@@ -1631,6 +2073,7 @@ final class AppSpeechToTextCoordinator extends ChangeNotifier
     if (!await _listen(dictation)) {
       if (identical(_dictation, dictation)) {
         _endDictation();
+        _closeDictation(dictation);
       }
       notifyListeners();
       return (started: false, stoppedOther: stoppedOther);
@@ -1638,6 +2081,47 @@ final class AppSpeechToTextCoordinator extends ChangeNotifier
 
     notifyListeners();
     return (started: true, stoppedOther: stoppedOther);
+  }
+
+  /// Places dictation at the field's current caret (or selection).
+  void _anchor(_SpeechDictation dictation) {
+    if (dictation.onSpeechResult != null) {
+      return;
+    }
+    final ({String prefix, String suffix}) bounds = captureSpeechSessionBounds(
+      dictation.controller,
+    );
+    dictation.prefix = bounds.prefix;
+    dictation.suffix = bounds.suffix;
+    dictation.lastWritten = dictation.controller.value;
+  }
+
+  /// Whether the user changed the text or moved the caret since dictation
+  /// last wrote.
+  bool _userChangedField(_SpeechDictation dictation) {
+    final TextEditingValue? last = dictation.lastWritten;
+    if (dictation.onSpeechResult != null) {
+      return false;
+    }
+    if (last == null) {
+      return true;
+    }
+    final TextEditingValue current = dictation.controller.value;
+    return current.text != last.text ||
+        current.selection.baseOffset != last.selection.baseOffset ||
+        current.selection.extentOffset != last.selection.extentOffset;
+  }
+
+  /// When the user edited the field, keep their version and continue
+  /// dictating at their caret.
+  void _reanchorIfEdited(_SpeechDictation dictation) {
+    if (!_userChangedField(dictation)) {
+      return;
+    }
+    dictation.transcript.freeze();
+    dictation.epoch += 1;
+    _cancelFormat(dictation);
+    _anchor(dictation);
   }
 
   bool _isCurrent(_SpeechDictation dictation, int generation) {
@@ -1699,36 +2183,240 @@ final class AppSpeechToTextCoordinator extends ChangeNotifier
     String words, {
     required bool isFinal,
   }) {
-    final String transcript = dictation.transcriptTransform(words);
-    if (transcript.trim().isNotEmpty) {
+    if (words.trim().isNotEmpty) {
       // Speech is getting through: earlier failures are no longer consecutive.
       _listenHealthy = true;
       _consecutiveFailures = 0;
     }
-    final String committedBefore = _sessionCommitted;
-    final String span = mergeSpeechSegments(
-      committedBefore,
-      transcript,
-      separator: dictation.separator,
-    );
-    if (span == _sessionSpan && !isFinal) {
-      // Recognizer repeated a partial it already delivered.
-      return;
-    }
-    _cancelInFlightFormat();
-    _deliverSpan(dictation, span: span, isFinal: isFinal);
-    if (isFinal) {
-      _sessionCommitted = span;
-      unawaited(
-        _formatFinalTranscript(
-          dictation,
-          transcript: transcript,
-          committedBefore: committedBefore,
-          unformattedSpan: span,
-        ),
-      );
+    _reanchorIfEdited(dictation);
+    final int commits = dictation.transcript.commitCount;
+    dictation.transcript.add(words, isFinal: isFinal);
+    _writeDictation(dictation, isFinal: isFinal);
+    if (dictation.transcript.commitCount != commits) {
+      _scheduleFormat(dictation);
+    } else {
+      _postponeFormat(dictation);
     }
     notifyListeners();
+  }
+
+  /// Writes everything dictated so far between the text around the anchor.
+  void _writeDictation(_SpeechDictation dictation, {required bool isFinal}) {
+    if (dictation.closed) {
+      return;
+    }
+    final String dictated = dictation.transcript.render(
+      prose: dictation.longForm,
+      startsSentence: appSpeechStartsSentence(dictation.prefix),
+    );
+    final void Function(String transcript, {required bool isFinal})?
+    onSpeechResult = dictation.onSpeechResult;
+    if (onSpeechResult != null) {
+      if (dictated == dictation.lastDelivered && !isFinal) {
+        return;
+      }
+      dictation.lastDelivered = dictated;
+      onSpeechResult(dictated, isFinal: isFinal);
+      return;
+    }
+    final ({String text, int caret}) next = appSpeechJoinDictation(
+      prefix: dictation.prefix,
+      dictated: dictated,
+      suffix: dictation.suffix,
+      separator: dictation.separator,
+    );
+    final TextEditingController controller = dictation.controller;
+    if (controller.text == next.text &&
+        controller.selection == TextSelection.collapsed(offset: next.caret)) {
+      dictation.lastWritten = controller.value;
+      return;
+    }
+    controller.value = TextEditingValue(
+      text: next.text,
+      selection: TextSelection.collapsed(offset: next.caret),
+    );
+    dictation.lastWritten = controller.value;
+    dictation.onChanged?.call(controller.text);
+  }
+
+  /// Formats newly committed phrases: right away for short fields, after a
+  /// pause for long-form fields so a sentence is not cut mid-thought.
+  void _scheduleFormat(_SpeechDictation dictation, {bool immediate = false}) {
+    if (dictation.closed || dictation.aiFormatter == null) {
+      return;
+    }
+    dictation.formatTimer?.cancel();
+    dictation.formatTimer = null;
+    if (immediate || !dictation.longForm) {
+      unawaited(_runFormat(dictation));
+      return;
+    }
+    dictation.formatTimer = Timer(_longFormFormatDelay, () {
+      dictation.formatTimer = null;
+      unawaited(_runFormat(dictation));
+    });
+  }
+
+  /// The user is still speaking: hold pending long-form formatting.
+  void _postponeFormat(_SpeechDictation dictation) {
+    if (dictation.formatTimer != null) {
+      _scheduleFormat(dictation);
+    }
+  }
+
+  Future<void> _runFormat(_SpeechDictation dictation) async {
+    final AppSpeechAiFormatter? aiFormatter = dictation.aiFormatter;
+    if (dictation.closed || aiFormatter == null) {
+      return;
+    }
+    if (dictation.formatInFlight) {
+      dictation.formatRequested = true;
+      return;
+    }
+    final List<AppDictationSegment> window =
+        dictation.transcript.unformattedTail;
+    final String transcript = window
+        .map((AppDictationSegment segment) => segment.text)
+        .join(dictation.separator)
+        .trim();
+    if (transcript.isEmpty) {
+      _finishIfDone(dictation);
+      return;
+    }
+
+    final int epoch = dictation.epoch;
+    final AppSpeechAiAbort abort = AppSpeechAiAbort();
+    dictation.formatAbort = abort;
+    dictation.formatInFlight = true;
+    _formatting.add(dictation);
+    notifyListeners();
+
+    String? formatted;
+    try {
+      formatted = await aiFormatter(
+        transcript: transcript,
+        mode: dictation.aiFormatMode,
+        abort: abort,
+        locale: dictation.locale,
+        hint: dictation.aiFormatHint,
+        context: dictation.longForm ? _formatContext(dictation, window) : null,
+      );
+    } on Object {
+      formatted = null;
+    }
+
+    dictation.formatInFlight = false;
+    dictation.formatAbort = null;
+    _formatting.remove(dictation);
+    final bool requested = dictation.formatRequested;
+    dictation.formatRequested = false;
+    if (!dictation.closed && epoch == dictation.epoch) {
+      _applyFormat(dictation, window, transcript, formatted);
+      if (requested) {
+        _scheduleFormat(dictation, immediate: !identical(_dictation, dictation));
+      }
+    }
+    _finishIfDone(dictation);
+    notifyListeners();
+  }
+
+  /// Field text right before [window], so formatting knows how the sentence
+  /// began.
+  String? _formatContext(
+    _SpeechDictation dictation,
+    List<AppDictationSegment> window,
+  ) {
+    final int windowStart = dictation.transcript.segments.indexWhere(
+      (AppDictationSegment segment) => identical(segment, window.first),
+    );
+    final String before = appSpeechJoinDictation(
+      prefix: dictation.prefix,
+      dictated: dictation.transcript.render(
+        prose: true,
+        startsSentence: appSpeechStartsSentence(dictation.prefix),
+        end: windowStart < 0 ? 0 : windowStart,
+      ),
+      suffix: '',
+      separator: dictation.separator,
+    ).text.trimRight();
+    if (before.isEmpty) {
+      return null;
+    }
+    return before.length <= _formatContextChars
+        ? before
+        : before.substring(before.length - _formatContextChars);
+  }
+
+  void _applyFormat(
+    _SpeechDictation dictation,
+    List<AppDictationSegment> window,
+    String transcript,
+    String? formatted,
+  ) {
+    if (_userChangedField(dictation)) {
+      // The user edited meanwhile; the next result re-anchors on their text.
+      return;
+    }
+    final String? next = formatted?.trim();
+    final bool usable =
+        next != null &&
+        next.isNotEmpty &&
+        next != transcript &&
+        (!dictation.isPlainText || _isPlausibleRewrite(transcript, next));
+    if (!dictation.transcript.replaceFormatted(
+          window,
+          formatted: usable ? next : null,
+        ) ||
+        !usable) {
+      return;
+    }
+    _writeDictation(dictation, isFinal: true);
+  }
+
+  /// Guards prose against a formatter that answered something else entirely.
+  static bool _isPlausibleRewrite(String transcript, String formatted) {
+    return formatted.length <= transcript.length * 2 + 40 &&
+        formatted.length * 5 >= transcript.length * 2;
+  }
+
+  void _cancelFormat(_SpeechDictation dictation) {
+    dictation.formatTimer?.cancel();
+    dictation.formatTimer = null;
+    dictation.formatAbort?.abort();
+    dictation.formatAbort = null;
+    dictation.formatInFlight = false;
+    dictation.formatRequested = false;
+    if (_formatting.remove(dictation)) {
+      notifyListeners();
+    }
+  }
+
+  /// A stopped dictation whose formatting is done needs no more writes.
+  void _finishIfDone(_SpeechDictation dictation) {
+    if (_finishing.contains(dictation) &&
+        !dictation.formatInFlight &&
+        dictation.formatTimer == null) {
+      _closeDictation(dictation);
+    }
+  }
+
+  void _closeDictation(_SpeechDictation dictation) {
+    dictation.closed = true;
+    _finishing.remove(dictation);
+    dictation.formatTimer?.cancel();
+    dictation.formatTimer = null;
+    dictation.formatAbort?.abort();
+    dictation.formatAbort = null;
+    _formatting.remove(dictation);
+  }
+
+  /// Stops pending formatting of earlier dictations, for [owner] or all.
+  void _closeFinishing([Object? owner]) {
+    for (final _SpeechDictation dictation in _finishing.toList()) {
+      if (owner == null || dictation.owner == owner) {
+        _closeDictation(dictation);
+      }
+    }
   }
 
   /// The recognizer stopped listening on its own (end of phrase, silence, a
@@ -1798,7 +2486,12 @@ final class AppSpeechToTextCoordinator extends ChangeNotifier
       // The platform kept listening after all; its own end restarts us.
       return;
     }
-    _reanchorSpan(dictation);
+    // The next recognizer session reports from scratch; keep what was said.
+    final int commits = dictation.transcript.commitCount;
+    dictation.transcript.startSession();
+    if (dictation.transcript.commitCount != commits) {
+      _scheduleFormat(dictation);
+    }
     if (await _listen(dictation) || !identical(_dictation, dictation)) {
       return;
     }
@@ -1808,158 +2501,30 @@ final class AppSpeechToTextCoordinator extends ChangeNotifier
     notifyListeners();
   }
 
-  /// Keeps what was dictated so far and anchors the next recognizer session
-  /// at the caret, so it appends instead of rewriting earlier words.
-  void _reanchorSpan(_SpeechDictation dictation) {
-    _sessionCommitted = '';
-    _sessionSpan = '';
-    _spanEpoch += 1;
-    if (dictation.onSpeechResult != null) {
-      _pendingJoiner = '';
-      return;
-    }
-    final ({String prefix, String suffix}) bounds = captureSpeechSessionBounds(
-      dictation.controller,
-    );
-    _sessionPrefix = bounds.prefix;
-    _sessionSuffix = bounds.suffix;
-    _pendingJoiner = _joinerAfter(bounds.prefix, dictation.separator);
-  }
-
-  static String _joinerAfter(String prefix, String separator) {
-    if (separator.isEmpty ||
-        prefix.isEmpty ||
-        RegExp(r'\s$').hasMatch(prefix)) {
-      return '';
-    }
-    return separator;
-  }
-
-  /// Rewrites the dictation span with [span] (everything spoken this
-  /// recognizer session).
-  void _deliverSpan(
-    _SpeechDictation dictation, {
-    required String span,
-    required bool isFinal,
-  }) {
-    _sessionSpan = span;
-    final void Function(String transcript, {required bool isFinal})?
-    onSpeechResult = dictation.onSpeechResult;
-    if (onSpeechResult != null) {
-      onSpeechResult(span, isFinal: isFinal);
-      return;
-    }
-    if (span.isNotEmpty && _pendingJoiner.isNotEmpty) {
-      _sessionPrefix = '$_sessionPrefix$_pendingJoiner';
-      _pendingJoiner = '';
-    }
-    insertSpeechTranscript(
-      dictation.controller,
-      span,
-      sessionPrefix: _sessionPrefix,
-      sessionSuffix: _sessionSuffix,
-    );
-    dictation.onChanged?.call(dictation.controller.text);
-  }
-
-  Future<void> _formatFinalTranscript(
-    _SpeechDictation dictation, {
-    required String transcript,
-    required String committedBefore,
-    required String unformattedSpan,
-  }) async {
-    final AppSpeechAiFormatter? aiFormatter = dictation.aiFormatter;
-    // A host may stop dictation while handling the result (a select field
-    // that matched an option); formatting would then land after the stop.
-    if (aiFormatter == null ||
-        transcript.trim().isEmpty ||
-        !identical(_dictation, dictation)) {
-      return;
-    }
-
-    final int generation = _formatGeneration;
-    final int epoch = _spanEpoch;
-    final String prefix = _sessionPrefix;
-    final String suffix = _sessionSuffix;
-    final AppSpeechAiAbort abort = AppSpeechAiAbort();
-    _activeFormatAbort = abort;
-    _formattingOwner = dictation.owner;
-    notifyListeners();
-
-    final TextEditingController controller = dictation.controller;
-    final String expected = '$prefix$unformattedSpan$suffix';
-    String? formatted;
-    try {
-      formatted = await aiFormatter(
-        transcript: transcript,
-        mode: dictation.aiFormatMode,
-        abort: abort,
-        locale: dictation.locale,
-        hint: dictation.aiFormatHint,
-      );
-    } on Object {
-      formatted = null;
-    }
-
-    if (generation != _formatGeneration) {
-      return;
-    }
-    _activeFormatAbort = null;
-    _formattingOwner = null;
-
-    final String? next = formatted?.trim();
-    if (next == null || next.isEmpty || next == transcript) {
-      notifyListeners();
-      return;
-    }
-    if (dictation.onSpeechResult == null && controller.text != expected) {
-      notifyListeners();
-      return;
-    }
-
-    // Swap the raw phrase for the formatted one without disturbing phrases
-    // that were already committed earlier in this session.
-    final String span = mergeSpeechSegments(
-      committedBefore,
-      next,
-      separator: dictation.separator,
-    );
-    if (epoch != _spanEpoch) {
-      // The recognizer restarted while formatting and re-anchored right after
-      // the raw phrase. Nothing was dictated since (any result cancels this
-      // pass), so swap the phrase in place and re-anchor after it. Bail if the
-      // anchor moved, rather than risk duplicating text.
-      if (dictation.onSpeechResult != null ||
-          _sessionPrefix != '$prefix$unformattedSpan' ||
-          _sessionSuffix != suffix) {
-        notifyListeners();
-        return;
-      }
-      _sessionPrefix = '$prefix$span';
-      _pendingJoiner = _joinerAfter(_sessionPrefix, dictation.separator);
-      insertSpeechTranscript(
-        controller,
-        '',
-        sessionPrefix: _sessionPrefix,
-        sessionSuffix: suffix,
-      );
-      dictation.onChanged?.call(controller.text);
-      notifyListeners();
-      return;
-    }
-    _sessionCommitted = span;
-    _deliverSpan(dictation, span: span, isFinal: true);
-    notifyListeners();
-  }
-
   /// Turns dictation off. With [owner], only if that field is dictating.
-  Future<void> stop({Object? owner}) async {
-    if (owner != null && _dictation != null && _dictation!.owner != owner) {
+  ///
+  /// [finishFormatting] (the user tapped stop) still formats what was just
+  /// said; otherwise (the field or app went away) nothing is written after
+  /// the stop.
+  Future<void> stop({Object? owner, bool finishFormatting = false}) async {
+    final _SpeechDictation? dictation = _dictation;
+    if (owner != null && dictation != null && dictation.owner != owner) {
+      _closeFinishing(owner);
       return;
     }
     // End the intent first so a pending restart can never reopen the mic.
     _endDictation();
-    _cancelInFlightFormat(notify: false);
+    _closeFinishing(owner ?? dictation?.owner);
+    if (dictation != null) {
+      dictation.transcript.commitLive();
+      if (finishFormatting && dictation.aiFormatter != null) {
+        _finishing.add(dictation);
+        _scheduleFormat(dictation, immediate: true);
+        _finishIfDone(dictation);
+      } else {
+        _closeDictation(dictation);
+      }
+    }
     try {
       await _recognizer.stopListening();
     } on Object {
@@ -1969,11 +2534,15 @@ final class AppSpeechToTextCoordinator extends ChangeNotifier
   }
 
   Future<void> cancel({Object? owner}) async {
-    if (owner != null && _dictation != null && _dictation!.owner != owner) {
+    final _SpeechDictation? dictation = _dictation;
+    if (owner != null && dictation != null && dictation.owner != owner) {
       return;
     }
     _endDictation();
-    _cancelInFlightFormat(notify: false);
+    _closeFinishing(owner ?? dictation?.owner);
+    if (dictation != null) {
+      _closeDictation(dictation);
+    }
     try {
       await _recognizer.cancelListening();
     } on Object {
@@ -1991,6 +2560,7 @@ final class AppSpeechToTextCoordinator extends ChangeNotifier
       return;
     }
     _endDictation();
+    _closeDictation(dictation);
     _interruptionSerial += 1;
     _lastInterruption = (
       serial: _interruptionSerial,
@@ -2008,8 +2578,8 @@ final class AppSpeechToTextCoordinator extends ChangeNotifier
     }
   }
 
-  /// Drops session state so the next [start] anchors on a fresh caret span,
-  /// and callbacks from the old recognizer session are ignored.
+  /// Turns the intent off: callbacks from the old recognizer session are
+  /// ignored and no restart can follow.
   void _endDictation() {
     _dictation = null;
     _listenGeneration += 1;
@@ -2017,9 +2587,6 @@ final class AppSpeechToTextCoordinator extends ChangeNotifier
     _restartTimer = null;
     _healthyTimer?.cancel();
     _healthyTimer = null;
-    _sessionCommitted = '';
-    _sessionSpan = '';
-    _pendingJoiner = '';
     _consecutiveFailures = 0;
     _failureCountedGeneration = null;
     _detachLifecycle();
@@ -2058,8 +2625,12 @@ final class AppSpeechToTextCoordinator extends ChangeNotifier
 
   @override
   void dispose() {
+    final _SpeechDictation? dictation = _dictation;
     _endDictation();
-    _cancelInFlightFormat(notify: false);
+    if (dictation != null) {
+      _closeDictation(dictation);
+    }
+    _closeFinishing();
     super.dispose();
   }
 }
@@ -2094,6 +2665,7 @@ class AppSpeechToTextButton extends ConsumerStatefulWidget {
     this.aiFormatHint,
     this.coordinator,
     this.dense = false,
+    this.longForm = false,
     super.key,
   });
 
@@ -2113,6 +2685,10 @@ class AppSpeechToTextButton extends ConsumerStatefulWidget {
   final String? aiFormatHint;
   final AppSpeechToTextCoordinator? coordinator;
   final bool dense;
+
+  /// Sentences and paragraphs (multi-line or rich text): dictation is
+  /// capitalized as it arrives and formatted with context on pauses.
+  final bool longForm;
 
   @override
   ConsumerState<AppSpeechToTextButton> createState() =>
@@ -2147,7 +2723,10 @@ class _AppSpeechToTextButtonState extends ConsumerState<AppSpeechToTextButton> {
 
   @override
   void dispose() {
-    if (_coordinator.isListeningFor(widget.controller)) {
+    // Also drops a last formatting pass, which must not write to a field
+    // that is going away.
+    if (_coordinator.isListeningFor(widget.controller) ||
+        _coordinator.isFormattingFor(widget.controller)) {
       _coordinator.stop(owner: widget.controller);
     }
     _coordinator.removeListener(_handleCoordinatorChanged);
@@ -2226,7 +2805,10 @@ class _AppSpeechToTextButtonState extends ConsumerState<AppSpeechToTextButton> {
     final AppLocalizations l10n = context.l10n;
     final bool listening = _coordinator.isListeningFor(widget.controller);
     if (listening) {
-      await _coordinator.stop(owner: widget.controller);
+      await _coordinator.stop(
+        owner: widget.controller,
+        finishFormatting: true,
+      );
       return;
     }
 
@@ -2256,6 +2838,7 @@ class _AppSpeechToTextButtonState extends ConsumerState<AppSpeechToTextButton> {
       segmentSeparator: appSpeechSegmentSeparatorForFormatMode(
         widget.aiFormatMode,
       ),
+      longForm: widget.longForm,
     );
     if (!mounted) {
       return;

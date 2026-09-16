@@ -162,6 +162,34 @@ void main() {
     expect(formatted, 'name@hospital.com');
     expect(remote.lastTaskKey, 'speech_format');
     expect(remote.lastBody?['mode'], 'email');
+    expect(remote.lastBody?.containsKey('context_before'), isFalse);
+  });
+
+  test('formatter sends the text before a long-form dictation', () async {
+    final _FakeAiRemoteDataSource remote = _FakeAiRemoteDataSource(
+      taskResult: const Result.success(
+        AiTaskResult(
+          taskKey: 'speech_format',
+          output: <String, Object?>{
+            'formatted_text': 'since yesterday.',
+            'mode': 'text',
+          },
+          degraded: false,
+        ),
+      ),
+    );
+    final formatter = createAiSpeechFormatter(
+      AiRepositoryImpl(remoteDataSource: remote),
+    );
+
+    await formatter(
+      transcript: 'since yesterday',
+      mode: 'text',
+      abort: AppSpeechAiAbort(),
+      context: 'The patient has had a fever',
+    );
+
+    expect(remote.lastBody?['context_before'], 'The patient has had a fever');
   });
 
   test('clinical note formatter calls clinical_note_format', () async {

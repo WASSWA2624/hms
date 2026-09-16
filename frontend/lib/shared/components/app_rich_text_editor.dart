@@ -582,6 +582,7 @@ class _AppRichTextEditorState extends ConsumerState<AppRichTextEditor> {
                   dense: true,
                   transcriptTransform: appSpeechTextTranscript,
                   aiFormatMode: 'text',
+                  longForm: true,
                   onChanged: widget.onChanged,
                 ),
             ],

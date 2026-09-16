@@ -18,6 +18,10 @@ import 'component_test_app.dart';
 final class _FakeSpeechRecognizer implements AppSpeechRecognizer {
   AppSpeechInitStatus initStatus = AppSpeechInitStatus.ready;
   bool _listening = false;
+
+  /// Android-like by default: each result carries only the running phrase.
+  @override
+  bool resendsSessionTranscript = false;
   int startCount = 0;
   int stopCount = 0;
   void Function(String words, {required bool isFinal})? onResult;
@@ -82,10 +86,16 @@ void main() {
 
   late _FakeSpeechRecognizer recognizer;
   late AppSpeechToTextCoordinator coordinator;
+  // Recognizer callbacks are timed with this clock, so a test can pause.
+  late DateTime now;
 
   setUp(() {
+    now = DateTime(2026, 9, 16, 9);
     recognizer = _FakeSpeechRecognizer();
-    coordinator = AppSpeechToTextCoordinator(recognizer: recognizer);
+    coordinator = AppSpeechToTextCoordinator(
+      recognizer: recognizer,
+      now: () => now,
+    );
     AppSpeechToTextCoordinator.debugInstance = coordinator;
   });
 
@@ -119,7 +129,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
   }
 
-  test('insertSpeechTranscript preserves surrounding markup markers', () {
+  test('appSpeechJoinDictation preserves surrounding markup markers', () {
     final TextEditingController controller = TextEditingController(
       text: '**bold** middle __under__',
     );
@@ -127,31 +137,34 @@ void main() {
 
     final ({String prefix, String suffix}) bounds =
         captureSpeechSessionBounds(controller);
-    insertSpeechTranscript(
-      controller,
-      'spoken',
-      sessionPrefix: bounds.prefix,
-      sessionSuffix: bounds.suffix,
+    final ({String text, int caret}) joined = appSpeechJoinDictation(
+      prefix: bounds.prefix,
+      dictated: 'spoken',
+      suffix: bounds.suffix,
     );
 
-    expect(controller.text, '**bold** spoken __under__');
-    expect(controller.selection.baseOffset, '**bold** spoken'.length);
+    expect(joined.text, '**bold** spoken __under__');
+    expect(joined.caret, '**bold** spoken'.length);
   });
 
-  test('mergeSpeechSegments absorbs resent phrases instead of repeating', () {
-    // Recognizer resends the running utterance (web / iOS accumulate).
+  test('appSpeechJoinDictation spaces prose against words only', () {
     expect(
-      mergeSpeechSegments('hello', 'hello world'),
-      'hello world',
+      appSpeechJoinDictation(prefix: 'Hello', dictated: 'world', suffix: 'Z'),
+      (text: 'Hello world Z', caret: 'Hello world'.length),
     );
-    // Recognizer resends a final that was already committed.
-    expect(mergeSpeechSegments('hello world', 'world'), 'hello world');
-    expect(mergeSpeechSegments('hello world', 'hello world'), 'hello world');
-    // Genuinely new phrase is appended with the mode separator.
-    expect(mergeSpeechSegments('hello', 'there'), 'hello there');
-    expect(mergeSpeechSegments('070', '1234', separator: ''), '0701234');
-    expect(mergeSpeechSegments('', 'hello'), 'hello');
-    expect(mergeSpeechSegments('hello', ''), 'hello');
+    expect(
+      appSpeechJoinDictation(prefix: '**', dictated: 'bold', suffix: '**'),
+      (text: '**bold**', caret: 6),
+    );
+    expect(
+      appSpeechJoinDictation(
+        prefix: '070',
+        dictated: '1234',
+        suffix: '',
+        separator: '',
+      ),
+      (text: '0701234', caret: 7),
+    );
   });
 
   test('appSpeechSegmentSeparatorForFormatMode spaces prose only', () {
@@ -437,6 +450,7 @@ void main() {
             required AppSpeechAiAbort abort,
             String? locale,
             String? hint,
+            String? context,
           }) async {
             formatCalls.add('$mode:$transcript');
             return 'name@hospital.com';
@@ -485,6 +499,7 @@ void main() {
             required AppSpeechAiAbort abort,
             String? locale,
             String? hint,
+            String? context,
           }) {
             return completer.future;
           },
@@ -1109,6 +1124,7 @@ void main() {
               required AppSpeechAiAbort abort,
               String? locale,
               String? hint,
+              String? context,
             }) {
               formatCalls += 1;
               return formatCalls == 1
@@ -1152,6 +1168,321 @@ void main() {
         appSpeechErrorKind('error_unknown (42)'),
         AppSpeechErrorKind.retryable,
       );
+    });
+  });
+
+  group('dictated text across pauses', () {
+    String same(String raw) => raw;
+
+    test('keeps each phrase when the recognizer starts the next from empty', () {
+      final AppDictationTranscript transcript = AppDictationTranscript(
+        transform: same,
+      );
+
+      transcript.add('the patient', isFinal: false);
+      // Android closes the phrase (final or `intermediate`).
+      transcript.add('the patient has a fever', isFinal: true);
+      transcript.add('since', isFinal: false);
+      expect(transcript.render(), 'the patient has a fever since');
+
+      transcript.add('since yesterday', isFinal: true);
+      // Engines sometimes flush the same final again.
+      transcript.add('since yesterday', isFinal: true);
+      expect(transcript.render(), 'the patient has a fever since yesterday');
+    });
+
+    test('keeps the phrase when the engine restarts it after a pause', () {
+      DateTime clock = DateTime(2026, 9, 16);
+      final AppDictationTranscript transcript = AppDictationTranscript(
+        transform: same,
+        now: () => clock,
+      );
+
+      transcript.add('the patient has a fever', isFinal: false);
+      clock = clock.add(const Duration(seconds: 2));
+      // No final: the engine silently restarted the running phrase.
+      transcript.add('since', isFinal: false);
+      clock = clock.add(const Duration(milliseconds: 200));
+      transcript.add('since yesterday', isFinal: false);
+
+      expect(transcript.render(), 'the patient has a fever since yesterday');
+    });
+
+    test('a revision while speaking replaces only the running phrase', () {
+      DateTime clock = DateTime(2026, 9, 16);
+      final AppDictationTranscript transcript = AppDictationTranscript(
+        transform: same,
+        now: () => clock,
+      );
+
+      transcript.add('by', isFinal: false);
+      clock = clock.add(const Duration(milliseconds: 150));
+      transcript.add('buy a', isFinal: false);
+      clock = clock.add(const Duration(milliseconds: 150));
+      transcript.add('buy a new one', isFinal: false);
+      clock = clock.add(const Duration(milliseconds: 150));
+      transcript.add('buy a new one for the ward', isFinal: false);
+
+      expect(transcript.render(), 'buy a new one for the ward');
+    });
+
+    test('recognizers that resend the session keep earlier sentences', () {
+      DateTime clock = DateTime(2026, 9, 16);
+      final AppDictationTranscript transcript = AppDictationTranscript(
+        transform: same,
+        resendsSession: true,
+        now: () => clock,
+      );
+
+      transcript.add('hello', isFinal: false);
+      transcript.add('hello world', isFinal: true);
+      transcript.add('hello world how are you', isFinal: false);
+      expect(transcript.render(), 'hello world how are you');
+
+      // iOS may drop everything after a long pause.
+      clock = clock.add(const Duration(seconds: 3));
+      transcript.add('fine thanks', isFinal: false);
+      expect(transcript.render(), 'hello world how are you fine thanks');
+    });
+
+    test('after a user edit, a resent phrase adds only the new words', () {
+      final AppDictationTranscript transcript = AppDictationTranscript(
+        transform: same,
+      );
+
+      transcript.add('i want to', isFinal: false);
+      transcript.freeze();
+      transcript.add('i want to go home', isFinal: false);
+
+      expect(transcript.render(), 'go home');
+    });
+
+    test('appSpeechTidyProse capitalizes sentences and fixes spacing', () {
+      expect(
+        appSpeechTidyProse(
+          'hello  world . how are you ? i am fine,thanks and i\'m ok',
+          startsSentence: true,
+        ),
+        "Hello world. How are you? I am fine, thanks and I'm ok",
+      );
+      expect(
+        appSpeechTidyProse('first line\nsecond line', startsSentence: false),
+        'first line\nSecond line',
+      );
+    });
+
+    test('appSpeechTidyProse leaves abbreviations, decimals and links', () {
+      const String text =
+          'dose is 12.5 mg e.g. twice daily, i.e. with dr. smith at hospital.com';
+      expect(appSpeechTidyProse(text, startsSentence: false), text);
+    });
+
+    test('appSpeechStartsSentence reads the text before the caret', () {
+      expect(appSpeechStartsSentence(''), isTrue);
+      expect(appSpeechStartsSentence('Done. '), isTrue);
+      expect(appSpeechStartsSentence('Line one\n'), isTrue);
+      expect(appSpeechStartsSentence('**Note.** '), isTrue);
+      expect(appSpeechStartsSentence('The patient '), isFalse);
+      expect(appSpeechStartsSentence('Seen by Dr. '), isFalse);
+    });
+
+    testWidgets('pausing in a multi-line field keeps and extends the text', (
+      WidgetTester tester,
+    ) async {
+      final TextEditingController controller = TextEditingController();
+      await pumpSpeechApp(
+        tester,
+        AppTextField(
+          controller: controller,
+          labelText: 'Details',
+          keyboardType: TextInputType.multiline,
+          minLines: 5,
+          maxLines: 10,
+        ),
+      );
+      final AppLocalizations l10n = AppLocalizations.of(
+        tester.element(find.byType(AppTextField)),
+      );
+      await tester.tap(find.byTooltip(l10n.speechToTextStartTooltip));
+      await tester.pump(const Duration(milliseconds: 50));
+
+      recognizer.emit('the report page');
+      await tester.pump();
+      recognizer.emit('the report page is slow');
+      await tester.pump();
+
+      // Pause, then the engine starts the next phrase from empty.
+      now = now.add(const Duration(seconds: 3));
+      recognizer.emit('when i');
+      await tester.pump();
+      recognizer.emit('when i open it');
+      await tester.pump();
+      expect(controller.text, 'The report page is slow when I open it');
+
+      // Android ends the phrase, restarts, and the next sentence appends.
+      recognizer.emit('when i open it period', isFinal: true);
+      recognizer.finish();
+      await tester.pump(const Duration(milliseconds: 200));
+      now = now.add(const Duration(seconds: 2));
+      recognizer.emit('it takes a minute', isFinal: true);
+      await tester.pump();
+
+      expect(
+        controller.text,
+        'The report page is slow when I open it. It takes a minute',
+      );
+      expect(find.byTooltip(l10n.speechToTextListeningTooltip), findsOneWidget);
+    });
+
+    testWidgets('an edit made during a pause is kept', (
+      WidgetTester tester,
+    ) async {
+      final TextEditingController controller = TextEditingController();
+      await coordinator.start(
+        owner: controller,
+        controller: controller,
+        onChanged: null,
+        longForm: true,
+      );
+
+      recognizer.emit('the first part', isFinal: true);
+      expect(controller.text, 'The first part');
+
+      // The user fixes a word and leaves the caret at the end.
+      controller.value = const TextEditingValue(
+        text: 'The opening part',
+        selection: TextSelection.collapsed(offset: 16),
+      );
+      now = now.add(const Duration(seconds: 2));
+      recognizer.emit('and more');
+      recognizer.emit('and more words', isFinal: true);
+
+      expect(controller.text, 'The opening part and more words');
+      await coordinator.stop();
+    });
+
+    testWidgets('long-form formatting waits for a pause and uses context', (
+      WidgetTester tester,
+    ) async {
+      final TextEditingController controller = TextEditingController(
+        text: 'Intro sentence. ',
+      );
+      controller.selection = const TextSelection.collapsed(offset: 16);
+      final List<({String transcript, String? context})> calls =
+          <({String transcript, String? context})>[];
+
+      await coordinator.start(
+        owner: controller,
+        controller: controller,
+        onChanged: null,
+        longForm: true,
+        aiFormatter:
+            ({
+              required String transcript,
+              required String mode,
+              required AppSpeechAiAbort abort,
+              String? locale,
+              String? hint,
+              String? context,
+            }) async {
+              calls.add((transcript: transcript, context: context));
+              return 'The patient has had a fever since yesterday.';
+            },
+      );
+
+      recognizer.emit(
+        'the patient has had a fever since yesterday',
+        isFinal: true,
+      );
+      expect(
+        controller.text,
+        'Intro sentence. The patient has had a fever since yesterday',
+      );
+
+      // Still speaking: formatting holds off.
+      await tester.pump(const Duration(milliseconds: 800));
+      recognizer.emit('and');
+      await tester.pump(const Duration(milliseconds: 800));
+      expect(calls, isEmpty);
+
+      await tester.pump(const Duration(milliseconds: 800));
+      expect(calls, hasLength(1));
+      expect(
+        calls.single.transcript,
+        'the patient has had a fever since yesterday',
+      );
+      expect(calls.single.context, 'Intro sentence.');
+      expect(
+        controller.text,
+        'Intro sentence. The patient has had a fever since yesterday. And',
+      );
+      await coordinator.stop();
+    });
+
+    test('stopping formats what was just said', () async {
+      final TextEditingController controller = TextEditingController();
+      final List<String> transcripts = <String>[];
+
+      await coordinator.start(
+        owner: controller,
+        controller: controller,
+        onChanged: null,
+        longForm: true,
+        aiFormatter:
+            ({
+              required String transcript,
+              required String mode,
+              required AppSpeechAiAbort abort,
+              String? locale,
+              String? hint,
+              String? context,
+            }) async {
+              transcripts.add(transcript);
+              return 'Please review the chart before rounds.';
+            },
+      );
+
+      recognizer.emit('please review the chart before rounds');
+      expect(controller.text, 'Please review the chart before rounds');
+
+      await coordinator.stop(owner: controller, finishFormatting: true);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(transcripts, <String>['please review the chart before rounds']);
+      expect(controller.text, 'Please review the chart before rounds.');
+      expect(coordinator.isFormatting, isFalse);
+    });
+
+    test('a field that goes away drops its last formatting pass', () async {
+      final TextEditingController controller = TextEditingController();
+      final Completer<String?> format = Completer<String?>();
+
+      await coordinator.start(
+        owner: controller,
+        controller: controller,
+        onChanged: null,
+        longForm: true,
+        aiFormatter:
+            ({
+              required String transcript,
+              required String mode,
+              required AppSpeechAiAbort abort,
+              String? locale,
+              String? hint,
+              String? context,
+            }) => format.future,
+      );
+      recognizer.emit('closing the dialog now', isFinal: true);
+      await coordinator.stop(owner: controller, finishFormatting: true);
+      expect(coordinator.isFormattingFor(controller), isTrue);
+
+      // What the speech button does when its field is disposed.
+      await coordinator.stop(owner: controller);
+      controller.dispose();
+      format.complete('Closing the dialog now.');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(coordinator.isFormatting, isFalse);
     });
   });
 }

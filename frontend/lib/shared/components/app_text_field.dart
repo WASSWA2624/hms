@@ -416,6 +416,9 @@ class _AppTextFieldState extends State<AppTextField> {
             onChanged: widget.onChanged,
             transcriptTransform: _speechTranscriptTransform,
             aiFormatMode: appSpeechAiFormatModeForKeyboard(widget.keyboardType),
+            longForm:
+                widget.keyboardType == TextInputType.multiline ||
+                (widget.maxLines ?? 2) > 1,
           )
         : null;
 
