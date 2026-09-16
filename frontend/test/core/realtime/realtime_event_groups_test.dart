@@ -18,6 +18,22 @@ void main() {
         RealtimeEventGroups.patientRegistry,
         contains(RealtimeEvents.patientDeleted),
       );
+      expect(
+        RealtimeEventGroups.patients,
+        contains(RealtimeEvents.patientRestored),
+      );
+      expect(
+        RealtimeEventGroups.patients,
+        contains(RealtimeEvents.patientPermanentlyDeleted),
+      );
+      expect(
+        RealtimeEventGroups.patientRegistry,
+        contains(RealtimeEvents.patientRestored),
+      );
+      expect(
+        RealtimeEventGroups.patientRegistry,
+        contains(RealtimeEvents.patientPermanentlyDeleted),
+      );
     });
 
     test('routes encounter and visit queue events to OPD workspace', () {

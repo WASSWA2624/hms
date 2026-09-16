@@ -85,6 +85,8 @@ const listPatients = asyncHandler(async (req, res) => {
     has_active_admission,
     has_outstanding_balance,
     search,
+    include_deleted,
+    record_state,
     page = DEFAULT_PAGE,
     limit = DEFAULT_PAGE_LIMIT,
     sort_by,
@@ -115,7 +117,9 @@ const listPatients = asyncHandler(async (req, res) => {
     consent_state,
     has_active_admission,
     has_outstanding_balance,
-    search
+    search,
+    include_deleted,
+    record_state
   };
   const scopedFilters = {
     ...filters,
@@ -212,7 +216,7 @@ const updatePatient = asyncHandler(async (req, res) => {
 });
 
 /**
- * Delete patient (soft delete)
+ * Delete patient (soft delete cascade)
  * DELETE /api/v1/patients/:id
  *
  * @param {Object} req - Express request
@@ -224,6 +228,64 @@ const deletePatient = asyncHandler(async (req, res) => {
   const ipAddress = req.ip;
 
   await patientService.deletePatient(id, userId, ipAddress, buildPatientScope(req));
+
+  sendNoContent(res);
+});
+
+/**
+ * Preview cascade soft-delete impact
+ * GET /api/v1/patients/:id/deletion-impact
+ */
+const getPatientDeletionImpact = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user?.id;
+  const ipAddress = req.ip;
+
+  const result = await patientService.getPatientDeletionImpact(
+    id,
+    userId,
+    ipAddress,
+    buildPatientScope(req)
+  );
+
+  sendSuccess(res, 200, 'messages.patient.deletion_impact.success', result);
+});
+
+/**
+ * Restore soft-deleted patient
+ * POST /api/v1/patients/:id/restore
+ */
+const restorePatient = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user?.id;
+  const ipAddress = req.ip;
+
+  const patient = await patientService.restorePatient(
+    id,
+    userId,
+    ipAddress,
+    buildPatientScope(req)
+  );
+
+  sendSuccess(res, 200, 'messages.patient.restore.success', patient);
+});
+
+/**
+ * Permanently delete soft-deleted patient
+ * DELETE /api/v1/patients/:id/permanent
+ */
+const permanentDeletePatient = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user?.id;
+  const ipAddress = req.ip;
+
+  await patientService.permanentDeletePatient(
+    id,
+    userId,
+    ipAddress,
+    buildPatientScope(req),
+    { confirm: req.body?.confirm === true, actor: req.user || {} }
+  );
 
   sendNoContent(res);
 });
@@ -628,6 +690,9 @@ module.exports = {
   createPatient,
   updatePatient,
   deletePatient,
+  getPatientDeletionImpact,
+  restorePatient,
+  permanentDeletePatient,
   getPatientIdentifiers,
   getPatientContacts,
   getPatientGuardians,

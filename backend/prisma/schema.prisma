@@ -1171,6 +1171,7 @@ model tenant {
   report_runs                            report_run[]
   report_schedules                       report_schedule[]
   patient_report_jobs                    patient_report_job[]
+  patient_deletion_batches               patient_deletion_batch[]
   dashboards                             dashboard_widget[]
   kpi_snapshots                          kpi_snapshot[]
   analytics_events                       analytics_event[]
@@ -1346,6 +1347,7 @@ model facility {
   custody_snapshots                      custody_snapshot[]
   closeout_packs                         closeout_pack[]
   patient_report_jobs                    patient_report_job[]
+  patient_deletion_batches               patient_deletion_batch[]
   unit_management_assignments            unit_management_assignment[]
   mortuary_deceased_profiles             mortuary_deceased_profile[]
   mortuary_cases                         mortuary_case[]
@@ -1699,6 +1701,7 @@ model user {
   custody_snapshots_captured    custody_snapshot[]           @relation("custody_snapshot_captured_by")
   closeout_packs_generated      closeout_pack[]              @relation("closeout_pack_generated_by")
   patient_report_jobs_requested patient_report_job[]         @relation("patient_report_job_requested_by")
+  patient_deletion_batches      patient_deletion_batch[]     @relation("patient_deletion_batch_deleted_by")
   unit_management_assignments   unit_management_assignment[]
   radiology_orders_assigned     radiology_order[]            @relation("radiology_order_assigned_user")
   fiscal_periods_reopened       fiscal_period[]              @relation("FiscalPeriodReopenedBy")
@@ -2165,6 +2168,7 @@ model patient {
   pre_authorizations         pre_authorization[]
   insurance_enrollments      patient_insurance_enrollment[]
   patient_report_jobs        patient_report_job[]
+  deletion_batches           patient_deletion_batch[]
 
   @@unique([facility_id, human_friendly_id])
   @@unique([tenant_id, human_friendly_id])
@@ -2174,6 +2178,52 @@ model patient {
   @@index([configuration_version_id])
   @@index([deleted_at])
   @@index([human_friendly_id])
+}
+
+/// Manifest of a patient cascade soft-delete so restore can reverse exactly.
+/// Soft-delete of the batch row uses `batch_deleted_at` (not `deleted_at`).
+model patient_deletion_batch {
+  id                       String    @id @default(uuid()) @db.VarChar(36)
+  human_friendly_id        String?   @unique @db.VarChar(32)
+  tenant_id                String    @db.VarChar(36)
+  facility_id              String?   @db.VarChar(36)
+  patient_id               String    @db.VarChar(36)
+  deleted_by_user_id       String?   @db.VarChar(36)
+  deleted_at               DateTime
+  restored_at              DateTime?
+  permanently_deleted_at   DateTime?
+  counts_json              Json?
+  created_at               DateTime  @default(now())
+  updated_at               DateTime  @updatedAt
+  batch_deleted_at         DateTime?
+  version                  Int       @default(1)
+
+  tenant     tenant                       @relation(fields: [tenant_id], references: [id])
+  facility   facility?                    @relation(fields: [facility_id], references: [id])
+  patient    patient                      @relation(fields: [patient_id], references: [id])
+  deleted_by user?                        @relation("patient_deletion_batch_deleted_by", fields: [deleted_by_user_id], references: [id])
+  items      patient_deletion_batch_item[]
+
+  @@index([tenant_id])
+  @@index([facility_id])
+  @@index([patient_id])
+  @@index([deleted_at])
+  @@index([restored_at])
+  @@index([permanently_deleted_at])
+  @@index([batch_deleted_at])
+}
+
+model patient_deletion_batch_item {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  batch_id     String   @db.VarChar(36)
+  entity_model String   @db.VarChar(80)
+  entity_id    String   @db.VarChar(36)
+  created_at   DateTime @default(now())
+
+  batch patient_deletion_batch @relation(fields: [batch_id], references: [id], onDelete: Cascade)
+
+  @@index([batch_id])
+  @@index([entity_model, entity_id])
 }
 
 model patient_identifier {

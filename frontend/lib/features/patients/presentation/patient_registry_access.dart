@@ -54,6 +54,22 @@ const AccessRequirement patientRegistryDeleteRequirement = AccessRequirement(
 const AccessRequirement patientDeleteRequirement =
     patientRegistryDeleteRequirement;
 
+/// Soft-delete restore uses the same `patient:delete` gate.
+const AccessRequirement patientRegistryRestoreRequirement =
+    patientRegistryDeleteRequirement;
+
+/// Permanent purge: `patient:delete` ∩ any admin grant.
+const AccessRequirement patientRegistryPermanentDeleteRequirement =
+    AccessRequirement(
+      allPermissions: <AppPermission>[AppPermissions.patientDelete],
+      anyPermissions: <AppPermission>[
+        AppPermissions.facilityAdmin,
+        AppPermissions.tenantAdmin,
+        AppPermissions.platformAdmin,
+        AppPermissions.platformOwner,
+      ],
+    );
+
 /// Schedule appointment / appointment Active Work continue (source ∩ write).
 const AccessRequirement patientAppointmentWriteRequirement =
     patientRegistryWriteRequirement;
@@ -192,6 +208,14 @@ bool canWritePatientRegistry(AppAccessPolicy policy) {
 
 bool canDeletePatientRegistry(AppAccessPolicy policy) {
   return patientRegistryDeleteRequirement.isAllowed(policy);
+}
+
+bool canRestorePatientRegistry(AppAccessPolicy policy) {
+  return patientRegistryRestoreRequirement.isAllowed(policy);
+}
+
+bool canPermanentlyDeletePatientRegistry(AppAccessPolicy policy) {
+  return patientRegistryPermanentDeleteRequirement.isAllowed(policy);
 }
 
 bool canEnterPatientRegistry(AppAccessPolicy policy) {
@@ -572,6 +596,8 @@ PatientRegistrySection? patientRegistryFallbackSection(
 /// | Next action Open record (label) | progressive disclosure | read ∩ |
 /// | Detail Edit | update | write ∩ |
 /// | Detail Delete | delete | delete ∩ `patient:delete` |
+/// | Detail Restore | update | delete ∩ `patient:delete` |
+/// | Detail Permanent delete | delete | delete ∩ + admin grant |
 /// | Active Work Continue (appointment) | update | write ∩ |
 /// | Active Work Continue (OPD) | update / navigate | OPD encounter source |
 /// | Active Work Continue (admission) | update | clinical write + IPD module |
@@ -612,6 +638,9 @@ abstract final class PatientAllAtomPermissions {
   static const AccessRequirement create = patientRegistryWriteRequirement;
   static const AccessRequirement update = patientRegistryWriteRequirement;
   static const AccessRequirement delete = patientRegistryDeleteRequirement;
+  static const AccessRequirement restore = patientRegistryRestoreRequirement;
+  static const AccessRequirement permanentDelete =
+      patientRegistryPermanentDeleteRequirement;
   static const AccessRequirement write = patientRegistryWriteRequirement;
   static const AccessRequirement register = patientRegistryWriteRequirement;
   static const AccessRequirement duplicateReview =
@@ -685,6 +714,8 @@ abstract final class PatientAllAtomPermissions {
 /// | Next action Open record (label) | progressive disclosure | read ∩ |
 /// | Detail Edit | update | write ∩ |
 /// | Detail Delete | delete | delete ∩ `patient:delete` |
+/// | Detail Restore | update | delete ∩ `patient:delete` |
+/// | Detail Permanent delete | delete | delete ∩ + admin grant |
 /// | Active Work Continue (appointment) | update | write ∩ |
 /// | Active Work Continue (OPD) | update / navigate | OPD encounter source |
 /// | Active Work Continue (admission) | update | clinical write + IPD module |
@@ -725,6 +756,9 @@ abstract final class PatientActiveAtomPermissions {
   static const AccessRequirement create = patientRegistryWriteRequirement;
   static const AccessRequirement update = patientRegistryWriteRequirement;
   static const AccessRequirement delete = patientRegistryDeleteRequirement;
+  static const AccessRequirement restore = patientRegistryRestoreRequirement;
+  static const AccessRequirement permanentDelete =
+      patientRegistryPermanentDeleteRequirement;
   static const AccessRequirement write = patientRegistryWriteRequirement;
   static const AccessRequirement register = patientRegistryWriteRequirement;
   static const AccessRequirement duplicateReview =
@@ -843,6 +877,9 @@ abstract final class PatientAdmittedAtomPermissions {
   static const AccessRequirement create = patientRegistryWriteRequirement;
   static const AccessRequirement update = patientRegistryWriteRequirement;
   static const AccessRequirement delete = patientRegistryDeleteRequirement;
+  static const AccessRequirement restore = patientRegistryRestoreRequirement;
+  static const AccessRequirement permanentDelete =
+      patientRegistryPermanentDeleteRequirement;
   static const AccessRequirement write = patientRegistryWriteRequirement;
   static const AccessRequirement register = patientRegistryWriteRequirement;
   static const AccessRequirement duplicateReview =
@@ -966,6 +1003,9 @@ abstract final class PatientBalanceDueAtomPermissions {
   static const AccessRequirement create = patientRegistryWriteRequirement;
   static const AccessRequirement update = patientRegistryWriteRequirement;
   static const AccessRequirement delete = patientRegistryDeleteRequirement;
+  static const AccessRequirement restore = patientRegistryRestoreRequirement;
+  static const AccessRequirement permanentDelete =
+      patientRegistryPermanentDeleteRequirement;
   static const AccessRequirement write = patientRegistryWriteRequirement;
   static const AccessRequirement register = patientRegistryWriteRequirement;
   static const AccessRequirement duplicateReview =

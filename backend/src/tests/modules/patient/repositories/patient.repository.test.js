@@ -40,7 +40,8 @@ describe('Patient Repository', () => {
       expect(prisma.patient.findFirst).toHaveBeenCalledWith({
         where: {
           id: '550e8400-e29b-41d4-a716-446655440001',
-          deleted_at: null
+          deleted_at: null,
+          AND: [{ NOT: { first_name: 'Deleted patient' } }],
         },
         include: undefined
       });
@@ -71,7 +72,8 @@ describe('Patient Repository', () => {
           human_friendly_id: 'PAT0000001',
           deleted_at: null,
           tenant_id: '550e8400-e29b-41d4-a716-446655440010',
-          facility_id: '550e8400-e29b-41d4-a716-446655440011'
+          facility_id: '550e8400-e29b-41d4-a716-446655440011',
+          AND: [{ NOT: { first_name: 'Deleted patient' } }],
         },
         include: undefined
       });
@@ -96,7 +98,8 @@ describe('Patient Repository', () => {
           human_friendly_id: 'PAT0000001',
           deleted_at: null,
           tenant_id: '550e8400-e29b-41d4-a716-446655440010',
-          facility_id: '550e8400-e29b-41d4-a716-446655440011'
+          facility_id: '550e8400-e29b-41d4-a716-446655440011',
+          AND: [{ NOT: { first_name: 'Deleted patient' } }],
         },
         include: undefined
       });
@@ -125,7 +128,8 @@ describe('Patient Repository', () => {
           },
           facility: {
             human_friendly_id: 'FAC0000001'
-          }
+          },
+          AND: [{ NOT: { first_name: 'Deleted patient' } }],
         },
         include: undefined
       });

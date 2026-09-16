@@ -40461,6 +40461,8 @@ paths:
           $ref: '#/components/responses/ForbiddenProblem'
         '404':
           $ref: '#/components/responses/NotFoundProblem'
+        '409':
+          $ref: '#/components/responses/ConflictProblem'
         '422':
           $ref: '#/components/responses/ValidationProblem'
         '500':
@@ -40468,12 +40470,164 @@ paths:
       x-route-family: patients
       x-offline-policy: no-store
       x-route-source: src/modules/patient/routes/patient.routes.js
+  /api/v1/patients/{id}/deletion-impact:
+    get:
+      tags:
+        - Patients
+      summary: Get Patient Deletion Impact
+      description: |-
+        Preview cascade soft-delete counts and live-state blockers for a patient.
+
+        Offline policy: `no-store`.
+      operationId: get_api_v1_patients_id_deletion_impact
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          description: Patient UUID or human-friendly id.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response envelope.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-Offline-Policy:
+              $ref: '#/components/headers/XOfflinePolicy'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResourceEnvelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/GenericRecord'
+        '401':
+          $ref: '#/components/responses/UnauthorizedProblem'
+        '403':
+          $ref: '#/components/responses/ForbiddenProblem'
+        '404':
+          $ref: '#/components/responses/NotFoundProblem'
+        '422':
+          $ref: '#/components/responses/ValidationProblem'
+        '500':
+          $ref: '#/components/responses/InternalProblem'
+      x-route-family: patients
+      x-offline-policy: no-store
+      x-route-source: src/modules/patient/routes/patient.routes.js
+  /api/v1/patients/{id}/restore:
+    post:
+      tags:
+        - Patients
+      summary: Restore Patient
+      description: |-
+        Restore a soft-deleted patient and only the rows in the latest deletion manifest.
+
+        Offline policy: `no-store`.
+      operationId: post_api_v1_patients_id_restore
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          description: Patient UUID or human-friendly id.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response envelope.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-Offline-Policy:
+              $ref: '#/components/headers/XOfflinePolicy'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResourceEnvelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/GenericRecord'
+        '401':
+          $ref: '#/components/responses/UnauthorizedProblem'
+        '403':
+          $ref: '#/components/responses/ForbiddenProblem'
+        '404':
+          $ref: '#/components/responses/NotFoundProblem'
+        '409':
+          $ref: '#/components/responses/ConflictProblem'
+        '422':
+          $ref: '#/components/responses/ValidationProblem'
+        '500':
+          $ref: '#/components/responses/InternalProblem'
+      x-route-family: patients
+      x-offline-policy: no-store
+      x-route-source: src/modules/patient/routes/patient.routes.js
+  /api/v1/patients/{id}/permanent:
+    delete:
+      tags:
+        - Patients
+      summary: Permanently Delete Patient
+      description: |-
+        Permanently purge a soft-deleted patient. Requires `confirm: true` and an
+        admin grant (`facility:admin`, `tenant:admin`, `platform:admin`, or
+        `platform:owner`) in addition to `patient:delete`.
+
+        Offline policy: `no-store`.
+      operationId: delete_api_v1_patients_id_permanent
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          description: Patient UUID or human-friendly id.
+          schema:
+            type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericMutationRequest'
+              type: object
+              required:
+                - confirm
+              properties:
+                confirm:
+                  type: boolean
+                  enum:
+                    - true
+      responses:
+        '204':
+          description: Patient permanently deleted.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-Offline-Policy:
+              $ref: '#/components/headers/XOfflinePolicy'
+        '400':
+          $ref: '#/components/responses/ValidationProblem'
+        '401':
+          $ref: '#/components/responses/UnauthorizedProblem'
+        '403':
+          $ref: '#/components/responses/ForbiddenProblem'
+        '404':
+          $ref: '#/components/responses/NotFoundProblem'
+        '422':
+          $ref: '#/components/responses/ValidationProblem'
+        '500':
+          $ref: '#/components/responses/InternalProblem'
+      x-route-family: patients
+      x-offline-policy: no-store
+      x-route-source: src/modules/patient/routes/patient.routes.js
   /api/v1/patients/{id}/identifiers:
     get:
       tags:

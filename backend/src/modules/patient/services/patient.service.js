@@ -8,6 +8,7 @@
  */
 
 const patientRepository = require('@repositories/patient/patient.repository');
+const patientDeletionRepository = require('@repositories/patient/patient-deletion.repository');
 const patientContactRepository = require('@repositories/patient-contact/patient-contact.repository');
 const patientIdentifierRepository = require('@repositories/patient-identifier/patient-identifier.repository');
 const prisma = require('@prisma/client');
@@ -16,11 +17,30 @@ const { HttpError } = require('@lib/errors');
 const { logger } = require('@lib/logging');
 const { publishDomainEvent, PATIENT_EVENTS } = require('@lib/websocket');
 const { ROLES } = require('@config/roles');
+const { PERMISSIONS } = require('@config/permissions');
+const { createStorageService } = require('@lib/storage');
+const { findLiveStateBlockers } = require('@lib/patient/patient-cascade');
+const {
+  isPurgedPatient,
+} = require('@lib/patient/purged-patient');
 const {
   sanitizeIdentifier,
   resolvePublicIdentifier,
   resolveIdentifierForFilter,
   resolveIdentifierForPayload} = require('@lib/billing/identifiers');
+
+const PATIENT_PURGE_ADMIN_PERMISSIONS = Object.freeze([
+  PERMISSIONS.FACILITY_ADMIN,
+  PERMISSIONS.TENANT_ADMIN,
+  PERMISSIONS.PLATFORM_ADMIN,
+  PERMISSIONS.PLATFORM_OWNER,
+]);
+
+const LIFECYCLE_REALTIME_EVENTS = new Set([
+  PATIENT_EVENTS.PATIENT_DELETED,
+  PATIENT_EVENTS.PATIENT_RESTORED,
+  PATIENT_EVENTS.PATIENT_PERMANENTLY_DELETED,
+]);
 
 const MAX_SEARCH_TOKENS = 5;
 const CONTACT_TYPE_VALUES = new Set([
@@ -76,6 +96,37 @@ const PATIENT_REALTIME_RECIPIENT_ROLES = Object.freeze([
 
 const compactId = (value) => String(value || '').trim() || null;
 
+const actorPermissionSet = (actor = {}) => {
+  const values = [
+    ...(Array.isArray(actor.permissions) ? actor.permissions : []),
+    ...(Array.isArray(actor.permissionNames) ? actor.permissionNames : []),
+  ]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  return new Set(values);
+};
+
+const assertActorCanPermanentlyDeletePatient = (actor = {}) => {
+  const permissions = actorPermissionSet(actor);
+  const allowed = PATIENT_PURGE_ADMIN_PERMISSIONS.some((permission) =>
+    permissions.has(permission)
+  );
+  if (!allowed) {
+    throw new HttpError('errors.patient.purge_forbidden', 403);
+  }
+};
+
+const resolveListRecordState = (filters = {}) => {
+  const recordState = String(filters.record_state || '').trim().toLowerCase();
+  if (recordState === 'current' || recordState === 'deleted' || recordState === 'all') {
+    return recordState;
+  }
+  if (filters.include_deleted === true || filters.include_deleted === 'true') {
+    return 'all';
+  }
+  return 'current';
+};
+
 const publishPatientRealtimeEvent = async (event, patient = {}, actorUserId = null) => {
   try {
     const tenantId = compactId(patient?.tenant_id);
@@ -88,7 +139,8 @@ const publishPatientRealtimeEvent = async (event, patient = {}, actorUserId = nu
       patient?.patient_public_id,
       patient?.display_id,
       patient?.human_friendly_id,
-      patientId
+      // Lifecycle events must not leak internal UUIDs in the payload.
+      LIFECYCLE_REALTIME_EVENTS.has(event) ? null : patientId
     );
     const recipientUserIds = await patientRepository.findRealtimeRecipientUserIds({
       tenantId,
@@ -97,26 +149,46 @@ const publishPatientRealtimeEvent = async (event, patient = {}, actorUserId = nu
       extraUserIds: [actorUserId]
     });
 
+    const lifecycleOnly = LIFECYCLE_REALTIME_EVENTS.has(event);
+    const publicHumanId =
+      compactId(patient?.human_friendly_id) ||
+      compactId(patient?.patient_public_id) ||
+      compactId(patient?.display_id) ||
+      null;
+
     publishDomainEvent({
       event,
       tenant_id: tenantId,
       facility_id: facilityId,
       actor_user_id: actorUserId,
       resource_type: 'patient',
-      resource_id: patientId,
-      affected: { patient_id: patientId },
+      resource_id: lifecycleOnly ? publicHumanId : patientId,
+      affected: lifecycleOnly
+        ? { human_friendly_id: publicHumanId }
+        : { patient_id: patientId },
       recipient_user_ids: recipientUserIds,
-      payload: {
-        patient_id: patientId,
-        patient_public_id: patientPublicId,
-        tenant_id: tenantId,
-        facility_id: facilityId,
-        status: patient?.status || null,
-        is_active: patient?.is_active !== undefined ? patient.is_active : patient?.isActive,
-        actor_user_id: actorUserId || null,
-        target_path: patientPublicId ? `/patients?id=${encodeURIComponent(patientPublicId)}` : '/patients',
-        occurred_at: occurredAt
-      }
+      payload: lifecycleOnly
+        ? {
+            human_friendly_id: publicHumanId,
+            tenant_id: tenantId,
+            facility_id: facilityId,
+            actor_user_id: actorUserId || null,
+            target_path: publicHumanId
+              ? `/patients?id=${encodeURIComponent(publicHumanId)}`
+              : '/patients',
+            occurred_at: occurredAt
+          }
+        : {
+            patient_id: patientId,
+            patient_public_id: patientPublicId,
+            tenant_id: tenantId,
+            facility_id: facilityId,
+            status: patient?.status || null,
+            is_active: patient?.is_active !== undefined ? patient.is_active : patient?.isActive,
+            actor_user_id: actorUserId || null,
+            target_path: patientPublicId ? `/patients?id=${encodeURIComponent(patientPublicId)}` : '/patients',
+            occurred_at: occurredAt
+          }
     });
   } catch (error) {
     logger.error('Failed to publish patient realtime event', {
@@ -998,6 +1070,8 @@ const listPatients = async (filters, page, limit, sortBy, order, userId, ipAddre
       else delete scopedFilters.facility_id;
     }
     const whereClause = buildPatientWhereClause(scopedFilters);
+    const recordState = resolveListRecordState(scopedFilters);
+    const listOptions = { recordState, includeDeleted: recordState !== 'current' };
 
     const [patients, total] = await Promise.all([
       patientRepository.findMany(
@@ -1005,9 +1079,11 @@ const listPatients = async (filters, page, limit, sortBy, order, userId, ipAddre
         skip,
         limit,
         orderBy,
-        PATIENT_RELATION_CONTEXT_INCLUDE
+        PATIENT_RELATION_CONTEXT_INCLUDE,
+        prisma,
+        listOptions
       ),
-      patientRepository.count(whereClause)
+      patientRepository.count(whereClause, prisma, listOptions)
     ]);
     const normalizedPatients = patients.map(decoratePatientContext);
 
@@ -1399,12 +1475,13 @@ const updatePatient = async (id, data, userId, ipAddress, scope = {}) => {
 };
 
 /**
- * Delete patient (soft delete)
- * Per prisma.mdc: Mutations must create audit logs
+ * Soft-delete patient with cascade + deletion manifest.
+ * Refuses with 409 when live operational state blocks deletion.
  *
  * @param {string} id - Patient ID
  * @param {string} userId - User ID for audit
  * @param {string} ipAddress - User IP for audit
+ * @param {Object} [scope]
  * @returns {Promise<void>}
  */
 const deletePatient = async (id, userId, ipAddress, scope = {}) => {
@@ -1414,36 +1491,252 @@ const deletePatient = async (id, userId, ipAddress, scope = {}) => {
       throw new HttpError('errors.patient.not_found', 404);
     }
 
-    // Get current state for audit
     const before = await patientRepository.findById(id, {}, patientScope);
 
-    if (!before) {
+    if (!before || isPurgedPatient(before)) {
       throw new HttpError('errors.patient.not_found', 404);
     }
 
-    const deletedAt = new Date();
-    await prisma.$transaction(async (tx) => {
-      await patientRepository.softDelete(before.id, patientScope, tx);
-      await tx.visit_queue.updateMany({
-        where: {
-          patient_id: before.id,
-          deleted_at: null},
-        data: {
-          deleted_at: deletedAt}});
-    });
+    const blockers = await findLiveStateBlockers(prisma, before.id);
+    if (blockers.length > 0) {
+      throw new HttpError('errors.patient.live_state_blocked', 409, blockers);
+    }
 
-    // Create audit log (non-blocking)
+    const deletedAt = new Date();
+    const { batch, counts } = await prisma.$transaction(
+      async (tx) =>
+        patientDeletionRepository.softDeleteCascadeInTx(tx, {
+          patient: before,
+          deletedByUserId: userId || null,
+          deletedAt,
+        }),
+      { timeout: 60000 }
+    );
+
     createAuditLog({
       tenant_id: before.tenant_id,
+      facility_id: before.facility_id || null,
       user_id: userId,
-      action: 'DELETE',
+      action: 'PATIENT_SOFT_DELETED',
       entity: 'patient',
       entity_id: before.id,
-      diff: { before },
+      diff: {
+        human_friendly_id: before.human_friendly_id || null,
+        batch_id: batch.id,
+        batch_human_friendly_id: batch.human_friendly_id || null,
+        counts,
+      },
       ip_address: ipAddress
     }).catch(() => {});
 
     await publishPatientRealtimeEvent(PATIENT_EVENTS.PATIENT_DELETED, before, userId);
+  } catch (error) {
+    if (error instanceof HttpError) throw error;
+    const mapped = mapPrismaError(error);
+    if (mapped) throw mapped;
+    throw new HttpError('errors.server.unexpected', 500, [{ originalError: error.message }]);
+  }
+};
+
+/**
+ * Preview cascade impact counts for soft-delete confirm UI.
+ */
+const getPatientDeletionImpact = async (id, userId, ipAddress, scope = {}) => {
+  try {
+    const patientScope = await resolvePatientScope(scope);
+    if (patientScope.__empty__) {
+      throw new HttpError('errors.patient.not_found', 404);
+    }
+
+    const patient = await patientRepository.findById(id, {}, patientScope);
+    if (!patient || isPurgedPatient(patient)) {
+      throw new HttpError('errors.patient.not_found', 404);
+    }
+
+    const blockers = await findLiveStateBlockers(prisma, patient.id);
+    const impact = await patientDeletionRepository.countDeletionImpact(patient.id);
+
+    return {
+      patient_id: resolvePublicIdentifier(patient.human_friendly_id, patient.id),
+      human_friendly_id: patient.human_friendly_id || null,
+      blockers,
+      counts: impact,
+    };
+  } catch (error) {
+    if (error instanceof HttpError) throw error;
+    const mapped = mapPrismaError(error);
+    if (mapped) throw mapped;
+    throw new HttpError('errors.server.unexpected', 500, [{ originalError: error.message }]);
+  }
+};
+
+/**
+ * Restore a soft-deleted patient using the latest unrestored deletion manifest.
+ */
+const restorePatient = async (id, userId, ipAddress, scope = {}) => {
+  try {
+    const patientScope = await resolvePatientScope(scope);
+    if (patientScope.__empty__) {
+      throw new HttpError('errors.patient.not_found', 404);
+    }
+
+    const before = await patientRepository.findByIdIncludingDeleted(
+      id,
+      {},
+      patientScope
+    );
+    if (!before || isPurgedPatient(before)) {
+      throw new HttpError('errors.patient.not_found', 404);
+    }
+    if (!before.deleted_at) {
+      throw new HttpError('errors.patient.not_soft_deleted', 400);
+    }
+
+    const batch = await patientDeletionRepository.findLatestUnrestoredBatch(before.id);
+    if (!batch) {
+      throw new HttpError('errors.patient.not_soft_deleted', 400);
+    }
+
+    const restored = await prisma.$transaction(
+      async (tx) => {
+        const conflicts = await patientDeletionRepository.findRestoreConflicts(tx, before);
+        if (conflicts.length > 0) {
+          throw new HttpError('errors.patient.restore_conflict', 409, conflicts);
+        }
+        return patientDeletionRepository.restoreCascadeInTx(tx, {
+          patientId: before.id,
+          batch,
+        });
+      },
+      { timeout: 60000 }
+    );
+
+    createAuditLog({
+      tenant_id: before.tenant_id,
+      facility_id: before.facility_id || null,
+      user_id: userId,
+      action: 'PATIENT_RESTORED',
+      entity: 'patient',
+      entity_id: before.id,
+      diff: {
+        human_friendly_id: before.human_friendly_id || null,
+        batch_id: batch.id,
+        batch_human_friendly_id: batch.human_friendly_id || null,
+        counts: batch.counts_json || null,
+      },
+      ip_address: ipAddress
+    }).catch(() => {});
+
+    await publishPatientRealtimeEvent(
+      PATIENT_EVENTS.PATIENT_RESTORED,
+      restored || before,
+      userId
+    );
+
+    return decoratePatientContext(restored || before);
+  } catch (error) {
+    if (error instanceof HttpError) throw error;
+    const mapped = mapPrismaError(error);
+    if (mapped) throw mapped;
+    throw new HttpError('errors.server.unexpected', 500, [{ originalError: error.message }]);
+  }
+};
+
+/**
+ * Permanently delete an already soft-deleted patient (admin grant required).
+ *
+ * @param {string} id
+ * @param {string} userId
+ * @param {string} ipAddress
+ * @param {Object} [scope]
+ * @param {Object} [options]
+ * @param {boolean} [options.confirm]
+ * @param {Object} [options.actor]
+ */
+const permanentDeletePatient = async (
+  id,
+  userId,
+  ipAddress,
+  scope = {},
+  { confirm = false, actor = {} } = {}
+) => {
+  try {
+    if (confirm !== true) {
+      throw new HttpError('errors.patient.permanent_confirm_required', 400);
+    }
+
+    assertActorCanPermanentlyDeletePatient(actor);
+
+    const patientScope = await resolvePatientScope(scope);
+    if (patientScope.__empty__) {
+      throw new HttpError('errors.patient.not_found', 404);
+    }
+
+    const before = await patientRepository.findByIdIncludingDeleted(
+      id,
+      {},
+      patientScope
+    );
+    if (!before || isPurgedPatient(before)) {
+      throw new HttpError('errors.patient.already_purged', 404);
+    }
+    if (!before.deleted_at) {
+      throw new HttpError('errors.patient.not_soft_deleted', 400);
+    }
+
+    const batch =
+      (await patientDeletionRepository.findLatestUnrestoredBatch(before.id)) ||
+      (await patientDeletionRepository.findLatestBatchIncludingRestored(before.id));
+
+    const storage = createStorageService();
+    const result = await prisma.$transaction(
+      async (tx) =>
+        patientDeletionRepository.permanentPurgeInTx(tx, {
+          patient: before,
+          batch,
+        }),
+      { timeout: 120000 }
+    );
+
+    // Blob cleanup after DB commit so a failed storage delete does not roll back
+    // the purge; keys are already detached from rows that were hard-deleted.
+    for (const key of result.storageKeys || []) {
+      try {
+        await storage.delete(key);
+      } catch (error) {
+        logger.error('Failed to delete patient storage object during purge', {
+          patientId: before.id,
+          storageKey: key,
+          error: error.message,
+        });
+      }
+    }
+
+    createAuditLog({
+      tenant_id: before.tenant_id,
+      facility_id: before.facility_id || null,
+      user_id: userId,
+      action: 'PATIENT_PERMANENTLY_DELETED',
+      entity: 'patient',
+      entity_id: before.id,
+      diff: {
+        human_friendly_id: before.human_friendly_id || null,
+        batch_id: batch?.id || null,
+        batch_human_friendly_id: batch?.human_friendly_id || null,
+        irreversible: true,
+        anonymized: result.anonymized,
+        retained_references: result.retained_references,
+        counts: result.counts,
+        storage_keys_removed: (result.storageKeys || []).length,
+      },
+      ip_address: ipAddress
+    }).catch(() => {});
+
+    await publishPatientRealtimeEvent(
+      PATIENT_EVENTS.PATIENT_PERMANENTLY_DELETED,
+      before,
+      userId
+    );
   } catch (error) {
     if (error instanceof HttpError) throw error;
     const mapped = mapPrismaError(error);
@@ -1639,6 +1932,9 @@ module.exports = {
   createPatient,
   updatePatient,
   deletePatient,
+  restorePatient,
+  permanentDeletePatient,
+  getPatientDeletionImpact,
   getPatientIdentifiers,
   getPatientContacts,
   getPatientGuardians,

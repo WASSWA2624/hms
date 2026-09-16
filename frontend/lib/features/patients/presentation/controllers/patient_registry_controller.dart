@@ -410,13 +410,124 @@ final class PatientRegistryController
         .deletePatient(patientId);
     return result.when(
       success: (_) async {
-        final AppPage<Patient> page = _removePatientFromPage(
-          _currentState!.page,
-          patientId,
-        );
+        final PatientRecordState recordState = _currentState!.query.recordState;
+        final Patient softDeleted =
+            (patient ?? Patient(id: patientId)).copyWith(
+              deletedAt: DateTime.now().toUtc(),
+              isActive: false,
+            );
+        if (recordState == PatientRecordState.current) {
+          final AppPage<Patient> page = _removePatientFromPage(
+            _currentState!.page,
+            patientId,
+          );
+          _emit(
+            _currentState!.copyWith(
+              page: page,
+              overview: _removePatientFromOverview(
+                _currentState!.overview,
+                patientId,
+                patient,
+              ),
+              isSaving: false,
+              clearSelectedDetail: true,
+            ),
+          );
+        } else {
+          _emit(
+            _currentState!.copyWith(
+              page: _replacePatientInPage(_currentState!.page, softDeleted),
+              selectedDetail: _currentState!.selectedDetail?.patient.id ==
+                      patientId
+                  ? _currentState!.selectedDetail!.copyWith(patient: softDeleted)
+                  : _currentState!.selectedDetail,
+              isSaving: false,
+            ),
+          );
+        }
+        await _refreshOverviewOnly();
+        await _flushPendingRefresh();
+        return null;
+      },
+      failure: (AppFailure failure) async {
+        _emit(_currentState!.copyWith(isSaving: false, lastFailure: failure));
+        await _flushPendingRefresh();
+        return failure;
+      },
+    );
+  }
+
+  Future<Result<PatientDeletionImpact>> getDeletionImpact(
+    String patientId,
+  ) {
+    return _repository.getDeletionImpact(patientId);
+  }
+
+  Future<AppFailure?> restorePatient(String patientId) async {
+    final PatientRegistryState? current = _currentState;
+    if (current == null) {
+      return refresh();
+    }
+    final Patient? existing = _findPatientInState(current, patientId);
+
+    _emit(current.copyWith(isSaving: true, clearLastFailure: true));
+    final Result<Patient> result = await _repository.restorePatient(patientId);
+    return result.when(
+      success: (Patient restored) async {
+        final PatientRecordState recordState = _currentState!.query.recordState;
+        final Patient applied = restored.id.isNotEmpty
+            ? restored
+            : (existing ?? Patient(id: patientId)).copyWith(
+                clearDeletedAt: true,
+                isActive: true,
+              );
+        if (recordState == PatientRecordState.deleted) {
+          _emit(
+            _currentState!.copyWith(
+              page: _removePatientFromPage(_currentState!.page, patientId),
+              isSaving: false,
+              clearSelectedDetail: true,
+            ),
+          );
+        } else {
+          _emit(
+            _currentState!.copyWith(
+              page: _replacePatientInPage(_currentState!.page, applied),
+              selectedDetail:
+                  _currentState!.selectedDetail?.patient.id == patientId
+                  ? _currentState!.selectedDetail!.copyWith(patient: applied)
+                  : _currentState!.selectedDetail,
+              isSaving: false,
+            ),
+          );
+        }
+        await _refreshOverviewOnly();
+        await _flushPendingRefresh();
+        return null;
+      },
+      failure: (AppFailure failure) async {
+        _emit(_currentState!.copyWith(isSaving: false, lastFailure: failure));
+        await _flushPendingRefresh();
+        return failure;
+      },
+    );
+  }
+
+  Future<AppFailure?> permanentDeletePatient(String patientId) async {
+    final PatientRegistryState? current = _currentState;
+    if (current == null) {
+      return refresh();
+    }
+    final Patient? patient = _findPatientInState(current, patientId);
+
+    _emit(current.copyWith(isSaving: true, clearLastFailure: true));
+    final Result<PatientMutationResult> result = await _repository
+        .permanentDeletePatient(patientId);
+    return result.when(
+      success: (_) async {
         _emit(
           _currentState!.copyWith(
-            page: page,
+            page: _removePatientFromPage(_currentState!.page, patientId),
             overview: _removePatientFromOverview(
               _currentState!.overview,
               patientId,

@@ -10573,6 +10573,102 @@ abstract class AppLocalizations {
   /// **'Patient registry record deleted.'**
   String get patientsDeletedMessage;
 
+  /// Snackbar shown after a soft-deleted patient is restored.
+  ///
+  /// In en, this message translates to:
+  /// **'Patient restored.'**
+  String get patientsRestoredMessage;
+
+  /// Snackbar shown after a patient is permanently purged.
+  ///
+  /// In en, this message translates to:
+  /// **'Patient permanently deleted.'**
+  String get patientsPermanentlyDeletedMessage;
+
+  /// Restore soft-deleted patient action label.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore'**
+  String get patientsRestoreAction;
+
+  /// Permanently delete soft-deleted patient action label.
+  ///
+  /// In en, this message translates to:
+  /// **'Permanent delete'**
+  String get patientsPermanentDeleteAction;
+
+  /// Patient registry record-state filter label.
+  ///
+  /// In en, this message translates to:
+  /// **'Record state'**
+  String get patientsRecordStateLabel;
+
+  /// Patient registry filter for non-deleted patients.
+  ///
+  /// In en, this message translates to:
+  /// **'Current'**
+  String get patientsRecordStateCurrent;
+
+  /// Patient registry filter for soft-deleted patients.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted'**
+  String get patientsRecordStateDeleted;
+
+  /// Patient registry filter for current and deleted patients.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get patientsRecordStateAll;
+
+  /// Soft-delete confirmation body listing cascade category counts.
+  ///
+  /// In en, this message translates to:
+  /// **'Soft-delete {name}? Linked records will be hidden with the patient:\n{countsSummary}'**
+  String patientsSoftDeleteImpactBody(String name, String countsSummary);
+
+  /// Soft-delete confirmation when deletion-impact counts are empty.
+  ///
+  /// In en, this message translates to:
+  /// **'Soft-delete {name}? No linked cascade rows were found; only the patient record will be hidden.'**
+  String patientsSoftDeleteImpactEmptyBody(String name);
+
+  /// Title when soft delete is refused due to live operational state.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot delete patient'**
+  String get patientsDeleteBlockedTitle;
+
+  /// Body listing live-state blockers that refuse soft delete.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear these live operational items before deleting {name}:\n{blockersSummary}'**
+  String patientsDeleteBlockedBody(String name, String blockersSummary);
+
+  /// Restore soft-deleted patient confirmation title.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore patient'**
+  String get patientsRestoreTitle;
+
+  /// Restore soft-deleted patient confirmation body.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore {name} and the linked records from the latest deletion?'**
+  String patientsRestoreBody(String name);
+
+  /// Type-to-confirm warning for permanent patient purge (purged vs retained).
+  ///
+  /// In en, this message translates to:
+  /// **'WARNING: Permanently deleting \"{name}\" will purge personal and clinical data. Financial, insurance, and audit records are retained in anonymized form. This cannot be recovered.'**
+  String patientsPermanentDeleteWarningBody(String name);
+
+  /// Final confirmation body for permanent patient purge.
+  ///
+  /// In en, this message translates to:
+  /// **'Final confirmation: permanently delete patient \"{name}\"? Personal and clinical data will be purged; invoices, payments, claims, and audit evidence remain anonymized. This action is irreversible.'**
+  String patientsPermanentDeleteConfirmationBody(String name);
+
   /// Snackbar shown after patient records are merged.
   ///
   /// In en, this message translates to:

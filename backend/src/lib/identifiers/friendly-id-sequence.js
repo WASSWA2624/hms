@@ -53,6 +53,9 @@ const MODEL_PREFIX_OVERRIDES = Object.freeze({
   // Would otherwise derive DOC and collide with `doctor`.
   document_number_sequence: 'DNS',
   feedback: 'FBK',
+  // Would otherwise derive PAT and collide with `patient`.
+  patient_deletion_batch: 'PDB',
+  patient_deletion_batch_item: 'PDI',
 });
 
 /**

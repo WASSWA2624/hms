@@ -3,6 +3,16 @@ import 'package:hosspi_hms/shared/data/data.dart';
 
 enum PatientRegistrySection { all, active, admitted, balanceDue }
 
+/// Record-state filter for patient list (`record_state` query param).
+enum PatientRecordState { current, deleted, all }
+
+extension PatientRecordStateQuery on PatientRecordState {
+  String get queryValue => name;
+
+  bool get includeDeleted =>
+      this == PatientRecordState.deleted || this == PatientRecordState.all;
+}
+
 extension PatientRegistrySectionFilter on PatientRegistrySection {
   PatientListQuery applyToQuery(PatientListQuery query) {
     switch (this) {
@@ -68,6 +78,8 @@ final class PatientListQuery {
     this.dateOfBirthTo,
     this.hasActiveAdmission,
     this.hasOutstandingBalance,
+    this.recordState = PatientRecordState.current,
+    this.includeDeleted,
     this.pageRequest = const AppPageRequest(),
   });
 
@@ -112,6 +124,27 @@ final class PatientListQuery {
       }
     }
 
+    PatientRecordState parseRecordState(String raw) {
+      switch (raw.trim().toLowerCase()) {
+        case 'deleted':
+          return PatientRecordState.deleted;
+        case 'all':
+          return PatientRecordState.all;
+        default:
+          return PatientRecordState.current;
+      }
+    }
+
+    final bool? includeDeleted = parseBool(
+      pick(<String>['include_deleted', 'includeDeleted']),
+    );
+    final String recordStateRaw = pick(<String>['record_state', 'recordState']);
+    final PatientRecordState recordState = recordStateRaw.isNotEmpty
+        ? parseRecordState(recordStateRaw)
+        : (includeDeleted == true
+              ? PatientRecordState.all
+              : PatientRecordState.current);
+
     return PatientListQuery(
       section: parseSection(pick(<String>['section', 'tab'])),
       search: pick(<String>['search', 'q']),
@@ -127,6 +160,8 @@ final class PatientListQuery {
       hasActiveAdmission: parseBool(
         pick(<String>['has_active_admission', 'hasActiveAdmission']),
       ),
+      recordState: recordState,
+      includeDeleted: includeDeleted,
     );
   }
 
@@ -148,7 +183,13 @@ final class PatientListQuery {
   final DateTime? dateOfBirthTo;
   final bool? hasActiveAdmission;
   final bool? hasOutstandingBalance;
+  final PatientRecordState recordState;
+  /// When set, overrides [recordState.includeDeleted] for the list request.
+  final bool? includeDeleted;
   final AppPageRequest pageRequest;
+
+  bool get effectiveIncludeDeleted =>
+      includeDeleted ?? recordState.includeDeleted;
 
   bool get hasRouteTargeting {
     return section != PatientRegistrySection.all ||
@@ -156,11 +197,12 @@ final class PatientListQuery {
         patientId.trim().isNotEmpty ||
         contact.trim().isNotEmpty ||
         hasOutstandingBalance != null ||
-        hasActiveAdmission != null;
+        hasActiveAdmission != null ||
+        recordState != PatientRecordState.current;
   }
 
   String get signature =>
-      '${section.name}|$search|$patientId|$contact|$hasOutstandingBalance|$hasActiveAdmission';
+      '${section.name}|$search|$patientId|$contact|$hasOutstandingBalance|$hasActiveAdmission|${recordState.name}|$includeDeleted';
 
   PatientListQuery copyWith({
     PatientRegistrySection? section,
@@ -181,6 +223,8 @@ final class PatientListQuery {
     DateTime? dateOfBirthTo,
     bool? hasActiveAdmission,
     bool? hasOutstandingBalance,
+    PatientRecordState? recordState,
+    bool? includeDeleted,
     AppPageRequest? pageRequest,
     bool clearFacilityId = false,
     bool clearGender = false,
@@ -196,6 +240,7 @@ final class PatientListQuery {
     bool clearDateOfBirthTo = false,
     bool clearHasActiveAdmission = false,
     bool clearHasOutstandingBalance = false,
+    bool clearIncludeDeleted = false,
   }) {
     return PatientListQuery(
       section: section ?? this.section,
@@ -228,6 +273,10 @@ final class PatientListQuery {
       hasOutstandingBalance: clearHasOutstandingBalance
           ? null
           : hasOutstandingBalance ?? this.hasOutstandingBalance,
+      recordState: recordState ?? this.recordState,
+      includeDeleted: clearIncludeDeleted
+          ? null
+          : includeDeleted ?? this.includeDeleted,
       pageRequest: pageRequest ?? this.pageRequest,
     );
   }
@@ -322,6 +371,7 @@ final class Patient {
     this.currentVisit,
     this.createdAt,
     this.updatedAt,
+    this.deletedAt,
   });
 
   final String id;
@@ -348,6 +398,9 @@ final class Patient {
   final PatientVisitContext? currentVisit;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final DateTime? deletedAt;
+
+  bool get isDeleted => deletedAt != null;
 
   String get effectiveDisplayName {
     final String first = firstName?.trim() ?? '';
@@ -392,6 +445,7 @@ final class Patient {
     PatientVisitContext? currentVisit,
     DateTime? createdAt,
     DateTime? updatedAt,
+    DateTime? deletedAt,
     bool clearDateOfBirth = false,
     bool clearGender = false,
     bool clearFacilityId = false,
@@ -401,6 +455,7 @@ final class Patient {
     bool clearPrimaryIdentifierValue = false,
     bool clearAllergyAlertLabel = false,
     bool clearCurrentVisit = false,
+    bool clearDeletedAt = false,
   }) {
     return Patient(
       id: id ?? this.id,
@@ -439,6 +494,7 @@ final class Patient {
           : currentVisit ?? this.currentVisit,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: clearDeletedAt ? null : deletedAt ?? this.deletedAt,
     );
   }
 }
@@ -809,6 +865,42 @@ final class PatientMergePreview {
   final String classification;
   final List<String> matchReasons;
   final Map<String, int> transferCounts;
+}
+
+@immutable
+final class PatientDeletionBlocker {
+  const PatientDeletionBlocker({
+    required this.code,
+    this.model,
+    this.count = 0,
+  });
+
+  final String code;
+  final String? model;
+  final int count;
+}
+
+@immutable
+final class PatientDeletionImpact {
+  const PatientDeletionImpact({
+    required this.patientId,
+    this.humanFriendlyId,
+    this.blockers = const <PatientDeletionBlocker>[],
+    this.countsByCategory = const <String, int>{},
+    this.countsByModel = const <String, int>{},
+  });
+
+  final String patientId;
+  final String? humanFriendlyId;
+  final List<PatientDeletionBlocker> blockers;
+  final Map<String, int> countsByCategory;
+  final Map<String, int> countsByModel;
+
+  bool get hasBlockers => blockers.isNotEmpty;
+
+  /// Prefer category totals for soft-delete confirm UI.
+  Map<String, int> get counts =>
+      countsByCategory.isNotEmpty ? countsByCategory : countsByModel;
 }
 
 @immutable

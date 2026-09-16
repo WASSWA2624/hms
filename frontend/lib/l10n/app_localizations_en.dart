@@ -5576,6 +5576,67 @@ class AppLocalizationsEn extends AppLocalizations {
   String get patientsDeletedMessage => 'Patient registry record deleted.';
 
   @override
+  String get patientsRestoredMessage => 'Patient restored.';
+
+  @override
+  String get patientsPermanentlyDeletedMessage =>
+      'Patient permanently deleted.';
+
+  @override
+  String get patientsRestoreAction => 'Restore';
+
+  @override
+  String get patientsPermanentDeleteAction => 'Permanent delete';
+
+  @override
+  String get patientsRecordStateLabel => 'Record state';
+
+  @override
+  String get patientsRecordStateCurrent => 'Current';
+
+  @override
+  String get patientsRecordStateDeleted => 'Deleted';
+
+  @override
+  String get patientsRecordStateAll => 'All';
+
+  @override
+  String patientsSoftDeleteImpactBody(String name, String countsSummary) {
+    return 'Soft-delete $name? Linked records will be hidden with the patient:\n$countsSummary';
+  }
+
+  @override
+  String patientsSoftDeleteImpactEmptyBody(String name) {
+    return 'Soft-delete $name? No linked cascade rows were found; only the patient record will be hidden.';
+  }
+
+  @override
+  String get patientsDeleteBlockedTitle => 'Cannot delete patient';
+
+  @override
+  String patientsDeleteBlockedBody(String name, String blockersSummary) {
+    return 'Clear these live operational items before deleting $name:\n$blockersSummary';
+  }
+
+  @override
+  String get patientsRestoreTitle => 'Restore patient';
+
+  @override
+  String patientsRestoreBody(String name) {
+    return 'Restore $name and the linked records from the latest deletion?';
+  }
+
+  @override
+  String patientsPermanentDeleteWarningBody(String name) {
+    return 'WARNING: Permanently deleting \"$name\" will purge personal and clinical data. Financial, insurance, and audit records are retained in anonymized form. This cannot be recovered.';
+  }
+
+  @override
+  String patientsPermanentDeleteConfirmationBody(String name) {
+    return 'Final confirmation: permanently delete patient \"$name\"? Personal and clinical data will be purged; invoices, payments, claims, and audit evidence remain anonymized. This action is irreversible.';
+  }
+
+  @override
   String get patientsMergedMessage => 'Patient records merged.';
 
   @override

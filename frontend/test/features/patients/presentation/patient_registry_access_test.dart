@@ -200,4 +200,72 @@ void main() {
       expect(canPrintPatientRegistry(policy), isFalse);
     });
   });
+
+  group('patient cascade delete access', () {
+    AppAccessPolicy policyFor({
+      required Set<AppPermission> permissions,
+      List<AppModuleEntitlement> modules = const <AppModuleEntitlement>[
+        AppModuleEntitlement(
+          code: patientRegistryModule,
+          licenseStatus: 'ACTIVE',
+        ),
+      ],
+    }) {
+      return AppAccessPolicy.fromSession(
+        AuthSession(
+          tokens: SessionTokens(accessToken: 'token'),
+          user: const AuthUserProfile(
+            roles: <String>['CUSTOM'],
+            tenantId: 'tenant-1',
+            facilityId: 'facility-1',
+          ),
+          permissions: permissions,
+          moduleEntitlements: modules,
+          isAuthorizationHydrated: true,
+        ),
+      );
+    }
+
+    test('soft delete/restore require patient:delete', () {
+      final AppAccessPolicy doctor = policyFor(
+        permissions: <AppPermission>{
+          AppPermissions.patientRead,
+          AppPermissions.patientWrite,
+        },
+      );
+      expect(canDeletePatientRegistry(doctor), isFalse);
+      expect(canRestorePatientRegistry(doctor), isFalse);
+      expect(PatientAllAtomPermissions.delete.isAllowed(doctor), isFalse);
+      expect(PatientAllAtomPermissions.restore.isAllowed(doctor), isFalse);
+
+      final AppAccessPolicy deleter = policyFor(
+        permissions: <AppPermission>{
+          AppPermissions.patientRead,
+          AppPermissions.patientDelete,
+        },
+      );
+      expect(canDeletePatientRegistry(deleter), isTrue);
+      expect(canRestorePatientRegistry(deleter), isTrue);
+      expect(canPermanentlyDeletePatientRegistry(deleter), isFalse);
+    });
+
+    test('permanent delete needs patient:delete and admin grant', () {
+      final AppAccessPolicy facilityAdmin = policyFor(
+        permissions: <AppPermission>{
+          AppPermissions.patientDelete,
+          AppPermissions.facilityAdmin,
+        },
+      );
+      expect(canPermanentlyDeletePatientRegistry(facilityAdmin), isTrue);
+      expect(
+        PatientAllAtomPermissions.permanentDelete.isAllowed(facilityAdmin),
+        isTrue,
+      );
+
+      final AppAccessPolicy deleteOnly = policyFor(
+        permissions: <AppPermission>{AppPermissions.patientDelete},
+      );
+      expect(canPermanentlyDeletePatientRegistry(deleteOnly), isFalse);
+    });
+  });
 }

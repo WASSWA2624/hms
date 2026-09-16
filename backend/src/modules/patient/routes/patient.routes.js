@@ -27,7 +27,8 @@ const {
   patientDuplicateListQuerySchema,
   patientMergePreviewSchema,
   patientMergeSchema,
-  patientDuplicateDismissSchema} = require('@validations/patient/patient.schema');
+  patientDuplicateDismissSchema,
+  permanentDeletePatientSchema} = require('@validations/patient/patient.schema');
 const { listQuerySchema } = require('@lib/validation/zod');
 
 router.use(authenticate(), denyRoles(STAFF_PATIENT_FLOW_DENIED_ROLES));
@@ -265,6 +266,51 @@ router.get(
 );
 
 /**
+ * @description Preview cascade soft-delete impact for a patient
+ * @method GET
+ * @route /api/v1/patients/:id/deletion-impact
+ * @permissions patient:delete
+ */
+router.get(
+  '/:id/deletion-impact',
+  validateRequest({ params: patientIdParamsSchema }),
+  authenticate(),
+  authorize(PERMISSIONS.PATIENT_DELETE, 'permission'),
+  patientController.getPatientDeletionImpact
+);
+
+/**
+ * @description Restore a soft-deleted patient from the latest deletion manifest
+ * @method POST
+ * @route /api/v1/patients/:id/restore
+ * @permissions patient:delete
+ */
+router.post(
+  '/:id/restore',
+  validateRequest({ params: patientIdParamsSchema }),
+  authenticate(),
+  authorize(PERMISSIONS.PATIENT_DELETE, 'permission'),
+  patientController.restorePatient
+);
+
+/**
+ * @description Permanently delete a soft-deleted patient (admin grant required)
+ * @method DELETE
+ * @route /api/v1/patients/:id/permanent
+ * @permissions patient:delete (+ facility/tenant/platform admin in service)
+ * @bodyParams {boolean} confirm - Must be true
+ */
+router.delete(
+  '/:id/permanent',
+  validateRequest({
+    params: patientIdParamsSchema,
+    body: permanentDeletePatientSchema}),
+  authenticate(),
+  authorize(PERMISSIONS.PATIENT_DELETE, 'permission'),
+  patientController.permanentDeletePatient
+);
+
+/**
  * @description Get patient identifiers
  * @method GET
  * @route /api/v1/patients/:id/identifiers
@@ -423,17 +469,18 @@ router.put(
 );
 
 /**
- * @description Delete patient (soft delete)
+ * @description Delete patient (cascade soft delete)
  * @method DELETE
  * @route /api/v1/patients/:id
  * @authentication Required (JWT)
- * @permissions Authenticated users
+ * @permissions patient:delete
  * @urlParams {string} id - Patient ID (UUID or human-friendly ID)
  * @queryParams None
  * @bodyParams None
  * @returns {void} 204 No Content
  * @throws 401 Unauthorized
  * @throws 404 Patient not found
+ * @throws 409 Live operational state blocks deletion
  */
 router.delete(
   '/:id',

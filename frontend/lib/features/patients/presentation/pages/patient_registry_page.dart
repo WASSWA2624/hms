@@ -9,6 +9,7 @@ import 'package:hosspi_hms/app/router/app_routes.dart';
 import 'package:hosspi_hms/app/theme/app_theme_extensions.dart';
 import 'package:hosspi_hms/core/errors/app_failure.dart';
 import 'package:hosspi_hms/core/errors/result.dart';
+import 'package:hosspi_hms/core/network/app_connectivity_status.dart';
 import 'package:hosspi_hms/core/permissions/access_gate.dart';
 import 'package:hosspi_hms/core/permissions/access_policy.dart';
 import 'package:hosspi_hms/core/permissions/access_requirement.dart';
@@ -32,6 +33,7 @@ import 'package:hosspi_hms/features/patients/presentation/widgets/patient_regist
 import 'package:hosspi_hms/features/patients/presentation/widgets/patient_widgets.dart';
 import 'package:hosspi_hms/l10n/app_localizations.dart';
 import 'package:hosspi_hms/l10n/app_localizations_x.dart';
+import 'package:hosspi_hms/shared/actions/actions.dart';
 import 'package:hosspi_hms/shared/clinical_actions/clinical_actions.dart';
 import 'package:hosspi_hms/shared/components/components.dart';
 import 'package:hosspi_hms/shared/data/data.dart';
@@ -1066,7 +1068,64 @@ class _PatientList extends ConsumerWidget {
         showAdvancedFilterButton: true,
         advancedFilterButtonLabel: l10n.commonFiltersActionLabel,
         advancedFilterTitle: l10n.commonAdvancedFiltersTitle,
-        hasActiveFilters: _hasPatientUserAdvancedFilters(state.query, section),
+        hasActiveFilters:
+            _hasPatientUserAdvancedFilters(state.query, section) ||
+            state.query.recordState != PatientRecordState.current,
+        filterGroups: <AppSearchBarFilterGroup>[
+          AppSearchBarFilterGroup(
+            key: 'record_state',
+            label: l10n.patientsRecordStateLabel,
+            allLabel: l10n.patientsRecordStateAll,
+            choices: <AppSearchBarFilterChoice>[
+              AppSearchBarFilterChoice(
+                value: PatientRecordState.current.queryValue,
+                label: l10n.patientsRecordStateCurrent,
+                icon: Icons.inventory_2_outlined,
+              ),
+              AppSearchBarFilterChoice(
+                value: PatientRecordState.deleted.queryValue,
+                label: l10n.patientsRecordStateDeleted,
+                icon: Icons.delete_outline,
+              ),
+              AppSearchBarFilterChoice(
+                value: PatientRecordState.all.queryValue,
+                label: l10n.patientsRecordStateAll,
+                icon: Icons.list_alt_outlined,
+              ),
+            ],
+          ),
+        ],
+        filterValue: AppSearchBarFilterValue(
+          options: <String, String>{
+            'record_state': state.query.recordState.queryValue,
+          },
+        ),
+        onFilterChanged: (AppSearchBarFilterValue value) {
+          final String raw =
+              value.option('record_state') ??
+              PatientRecordState.current.queryValue;
+          final PatientRecordState recordState = switch (raw) {
+            'deleted' => PatientRecordState.deleted,
+            'all' => PatientRecordState.all,
+            _ => PatientRecordState.current,
+          };
+          unawaited(
+            ref
+                .read(patientRegistryControllerProvider.notifier)
+                .applyQuery(
+                  state.query.copyWith(
+                    recordState: recordState,
+                    clearIncludeDeleted: true,
+                    pageRequest: state.query.pageRequest.copyWith(pageIndex: 0),
+                  ),
+                )
+                .then((AppFailure? failure) async {
+                  if (context.mounted) {
+                    await _showFailureIfNeeded(context, failure);
+                  }
+                }),
+          );
+        },
         onAdvancedFilterPressed: () {
           unawaited(
             _openPatientAdvancedFilters(
@@ -1107,7 +1166,7 @@ class _PatientList extends ConsumerWidget {
             ),
         ],
       ),
-      isLoading: state.isRefreshingList,
+      isLoading: state.isRefreshingList || state.isSaving,
       columns: _defaultPatientColumns(context, ref, section, l10n),
       columnChoices: _optionalPatientColumns(context, ref, section, l10n),
       mobileItemBuilder: (BuildContext context, Patient patient) {
@@ -1261,6 +1320,7 @@ List<AppListTableColumn<Patient>> _defaultPatientColumns(
       'alerts',
       'status',
       'next_action',
+      'actions',
     ],
     PatientRegistrySection.active ||
     PatientRegistrySection.admitted ||
@@ -1270,6 +1330,7 @@ List<AppListTableColumn<Patient>> _defaultPatientColumns(
       'visit',
       'status',
       'next_action',
+      'actions',
     ],
   };
   final List<String> promotionIds = switch (section) {
@@ -1451,6 +1512,17 @@ Map<String, AppListTableColumn<Patient>> _patientColumnDefinitions(
         },
       ),
     ),
+    'actions': AppListTableColumn<Patient>(
+      id: 'actions',
+      label: l10n.accessAdminColumnActions,
+      alwaysVisible: true,
+      exportable: false,
+      cellBuilder: (BuildContext context, Patient patient) =>
+          _PatientRegistryRowActions(
+            patient: patient,
+            section: section,
+          ),
+    ),
     'patient_number': AppListTableColumn<Patient>(
       id: 'patient_number',
       label: l10n.patientsPatientNumberColumnLabel,
@@ -1530,6 +1602,14 @@ AppWorkspaceStatus _patientRegistryStatus(
   AppAccessPolicy? policy,
 }) {
   final AppLocalizations l10n = context.l10n;
+
+  if (patient.isDeleted) {
+    return AppWorkspaceStatus(
+      label: l10n.patientsRecordStateDeleted,
+      tone: AppWorkspaceStatusTone.error,
+      icon: Icons.delete_outline,
+    );
+  }
 
   if (patient.requiresCompletion) {
     return AppWorkspaceStatus(
@@ -1745,6 +1825,9 @@ class _NextActionCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (patient.isDeleted) {
+      return const SizedBox.shrink();
+    }
     final l10n = context.l10n;
     final ThemeData theme = Theme.of(context);
     // Complete records: label-only guidance — row select opens the detail.
@@ -1823,6 +1906,135 @@ class _NextActionCell extends StatelessWidget {
   }
 }
 
+class _PatientRegistryRowActions extends ConsumerWidget {
+  const _PatientRegistryRowActions({
+    required this.patient,
+    required this.section,
+  });
+
+  final Patient patient;
+  final PatientRegistrySection section;
+
+  AccessRequirement get _deleteRequirement {
+    return switch (section) {
+      PatientRegistrySection.all => PatientAllAtomPermissions.delete,
+      PatientRegistrySection.active => PatientActiveAtomPermissions.delete,
+      PatientRegistrySection.admitted => PatientAdmittedAtomPermissions.delete,
+      PatientRegistrySection.balanceDue =>
+        PatientBalanceDueAtomPermissions.delete,
+    };
+  }
+
+  AccessRequirement get _restoreRequirement {
+    return switch (section) {
+      PatientRegistrySection.all => PatientAllAtomPermissions.restore,
+      PatientRegistrySection.active => PatientActiveAtomPermissions.restore,
+      PatientRegistrySection.admitted => PatientAdmittedAtomPermissions.restore,
+      PatientRegistrySection.balanceDue =>
+        PatientBalanceDueAtomPermissions.restore,
+    };
+  }
+
+  AccessRequirement get _permanentDeleteRequirement {
+    return switch (section) {
+      PatientRegistrySection.all => PatientAllAtomPermissions.permanentDelete,
+      PatientRegistrySection.active =>
+        PatientActiveAtomPermissions.permanentDelete,
+      PatientRegistrySection.admitted =>
+        PatientAdmittedAtomPermissions.permanentDelete,
+      PatientRegistrySection.balanceDue =>
+        PatientBalanceDueAtomPermissions.permanentDelete,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final ThemeData theme = Theme.of(context);
+    final bool isSaving =
+        (_readCurrentState(ref)?.isSaving ?? false);
+
+    if (patient.isDeleted) {
+      return Wrap(
+        spacing: theme.spacing.sm,
+        runSpacing: theme.spacing.xs,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: <Widget>[
+          AppAccessActionGate(
+            requirement: _restoreRequirement,
+            builder: (_, bool isAllowed) {
+              if (!isAllowed) {
+                return const SizedBox.shrink();
+              }
+              return AppButton.tertiary(
+                label: l10n.patientsRestoreAction,
+                leadingIcon: Icons.restore_outlined,
+                semanticLabel: l10n.patientsRestoreAction,
+                tooltip: l10n.patientsRestoreAction,
+                isLoading: isSaving,
+                onPressed: () => unawaited(
+                  _confirmRestorePatient(
+                    context,
+                    ref,
+                    patient,
+                    popDetailOnSuccess: false,
+                  ),
+                ),
+              );
+            },
+          ),
+          AppAccessActionGate(
+            requirement: _permanentDeleteRequirement,
+            builder: (_, bool isAllowed) {
+              if (!isAllowed) {
+                return const SizedBox.shrink();
+              }
+              return AppButton.tertiary(
+                label: l10n.patientsPermanentDeleteAction,
+                leadingIcon: Icons.delete_forever_outlined,
+                semanticLabel: l10n.patientsPermanentDeleteAction,
+                tooltip: l10n.patientsPermanentDeleteAction,
+                color: theme.colorScheme.error,
+                isLoading: isSaving,
+                onPressed: () => unawaited(
+                  _confirmPermanentDeletePatient(
+                    context,
+                    ref,
+                    patient,
+                    popDetailOnSuccess: false,
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      );
+    }
+
+    return AppAccessActionGate(
+      requirement: _deleteRequirement,
+      builder: (_, bool isAllowed) {
+        if (!isAllowed) {
+          return const SizedBox.shrink();
+        }
+        return AppButton.tertiary(
+          label: l10n.patientsDeleteAction,
+          leadingIcon: Icons.delete_outline,
+          color: theme.colorScheme.error,
+          isLoading: isSaving,
+          onPressed: () => unawaited(
+            _confirmSoftDeletePatient(
+              context,
+              ref,
+              patient,
+              popDetailOnSuccess: false,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
 
 bool _matchesPatientTableSearch(
   BuildContext context,
@@ -5319,6 +5531,323 @@ class _PatientRelatedRecordDialogState<T>
       },
     };
   }
+}
+
+Future<bool> _ensurePatientLifecycleOnline(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  final AppConnectivityStatus status =
+      ref.read(appConnectivityStatusProvider).value ??
+      AppConnectivityStatus.online;
+  if (status.isOnline) {
+    return true;
+  }
+  await _showFailureIfNeeded(context, const AppFailure.offline());
+  return false;
+}
+
+String _patientDeletionCountsSummary(
+  AppLocalizations l10n,
+  Map<String, int> counts,
+) {
+  final List<MapEntry<String, int>> entries = counts.entries
+      .where((MapEntry<String, int> e) => e.value > 0)
+      .toList(growable: false)
+    ..sort(
+      (MapEntry<String, int> a, MapEntry<String, int> b) =>
+          a.key.compareTo(b.key),
+    );
+  if (entries.isEmpty) {
+    return '';
+  }
+  return entries
+      .map(
+        (MapEntry<String, int> entry) =>
+            '${_patientDeletionCategoryLabel(l10n, entry.key)}: ${entry.value}',
+      )
+      .join('\n');
+}
+
+String _patientDeletionCategoryLabel(AppLocalizations l10n, String raw) {
+  final String normalized = raw.trim().toLowerCase().replaceAll('_', ' ');
+  if (normalized.isEmpty) {
+    return raw;
+  }
+  return normalized
+      .split(' ')
+      .where((String part) => part.isNotEmpty)
+      .map(
+        (String part) =>
+            '${part[0].toUpperCase()}${part.substring(1)}',
+      )
+      .join(' ');
+}
+
+String _patientDeletionBlockersSummary(
+  List<PatientDeletionBlocker> blockers, {
+  List<Map<String, Object?>> conflictEntries = const <Map<String, Object?>>[],
+}) {
+  final List<String> lines = <String>[];
+  for (final PatientDeletionBlocker blocker in blockers) {
+    final String label = blocker.code.replaceAll('_', ' ');
+    lines.add(
+      blocker.count > 0 ? '$label (${blocker.count})' : label,
+    );
+  }
+  for (final Map<String, Object?> entry in conflictEntries) {
+    final String code = (entry['code'] ?? entry['model'] ?? '').toString();
+    if (code.trim().isEmpty) {
+      continue;
+    }
+    final Object? count = entry['count'];
+    lines.add(
+      count == null
+          ? code.replaceAll('_', ' ')
+          : '${code.replaceAll('_', ' ')} ($count)',
+    );
+  }
+  return lines.join('\n');
+}
+
+Future<void> _confirmSoftDeletePatient(
+  BuildContext context,
+  WidgetRef ref,
+  Patient patient, {
+  required bool popDetailOnSuccess,
+}) async {
+  if (!await _ensurePatientLifecycleOnline(context, ref) || !context.mounted) {
+    return;
+  }
+
+  final Result<PatientDeletionImpact> impactResult = await ref
+      .read(patientRegistryControllerProvider.notifier)
+      .getDeletionImpact(patient.id);
+  if (!context.mounted) {
+    return;
+  }
+
+  final AppFailure? impactFailure = impactResult.when(
+    success: (_) => null,
+    failure: (AppFailure failure) => failure,
+  );
+  if (impactFailure != null) {
+    if (impactFailure is ConflictFailure) {
+      await _showPatientDeleteBlockedDialog(
+        context,
+        patient: patient,
+        blockersSummary: _patientDeletionBlockersSummary(
+          const <PatientDeletionBlocker>[],
+          conflictEntries: impactFailure.conflictEntries,
+        ),
+      );
+      return;
+    }
+    await _showFailureIfNeeded(context, impactFailure);
+    return;
+  }
+
+  final PatientDeletionImpact impact =
+      (impactResult as ResultSuccess<PatientDeletionImpact>).value;
+  if (impact.hasBlockers) {
+    await _showPatientDeleteBlockedDialog(
+      context,
+      patient: patient,
+      blockersSummary: _patientDeletionBlockersSummary(impact.blockers),
+    );
+    return;
+  }
+
+  final AppLocalizations l10n = context.l10n;
+  final String countsSummary = _patientDeletionCountsSummary(
+    l10n,
+    impact.counts,
+  );
+  final String body = countsSummary.isEmpty
+      ? l10n.patientsSoftDeleteImpactEmptyBody(patient.effectiveDisplayName)
+      : l10n.patientsSoftDeleteImpactBody(
+          patient.effectiveDisplayName,
+          countsSummary,
+        );
+
+  final bool? confirmed = await showAppDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => AppConfirmActionDialog(
+      title: l10n.patientsDeleteTitle,
+      body: body,
+      highlightedText: patient.effectiveDisplayName,
+      submitLabel: l10n.patientsDeleteAction,
+      destructive: true,
+      icon: const Icon(Icons.delete_outline),
+      onConfirm: () async {
+        return ref
+            .read(patientRegistryControllerProvider.notifier)
+            .deletePatient(patient.id);
+      },
+      shouldPopOnFailure: (AppFailure failure) => failure is ConflictFailure,
+      failurePopValue: false,
+    ),
+  );
+  if (!context.mounted) {
+    return;
+  }
+
+  final Object? lastFailure = _readCurrentState(ref)?.lastFailure;
+  if (lastFailure is ConflictFailure) {
+    await _showPatientDeleteBlockedDialog(
+      context,
+      patient: patient,
+      blockersSummary: _patientDeletionBlockersSummary(
+        const <PatientDeletionBlocker>[],
+        conflictEntries: lastFailure.conflictEntries,
+      ),
+    );
+    return;
+  }
+
+  if (confirmed == true) {
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    final String message = l10n.patientsDeletedMessage;
+    if (popDetailOnSuccess) {
+      await Navigator.of(context).maybePop();
+    }
+    messenger.showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+Future<void> _showPatientDeleteBlockedDialog(
+  BuildContext context, {
+  required Patient patient,
+  required String blockersSummary,
+}) {
+  final AppLocalizations l10n = context.l10n;
+  return showAppDialog<void>(
+    context: context,
+    builder: (_) => AppDialog(
+      title: Text(l10n.patientsDeleteBlockedTitle),
+      icon: const Icon(Icons.warning_amber_outlined),
+      content: Text(
+        l10n.patientsDeleteBlockedBody(
+          patient.effectiveDisplayName,
+          blockersSummary.isEmpty ? '—' : blockersSummary,
+        ),
+      ),
+      actions: <Widget>[
+        AppButton.close(
+          label: l10n.commonCloseActionLabel,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
+    ),
+  );
+}
+
+Future<void> _confirmRestorePatient(
+  BuildContext context,
+  WidgetRef ref,
+  Patient patient, {
+  required bool popDetailOnSuccess,
+}) async {
+  if (!await _ensurePatientLifecycleOnline(context, ref) || !context.mounted) {
+    return;
+  }
+  final AppLocalizations l10n = context.l10n;
+  final bool? confirmed = await showAppDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => AppConfirmActionDialog(
+      title: l10n.patientsRestoreTitle,
+      body: l10n.patientsRestoreBody(patient.effectiveDisplayName),
+      highlightedText: patient.effectiveDisplayName,
+      submitLabel: l10n.patientsRestoreAction,
+      icon: const Icon(Icons.restore_outlined),
+      onConfirm: () {
+        return ref
+            .read(patientRegistryControllerProvider.notifier)
+            .restorePatient(patient.id);
+      },
+    ),
+  );
+  if (!context.mounted || confirmed != true) {
+    return;
+  }
+  final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+  final String message = l10n.patientsRestoredMessage;
+  if (popDetailOnSuccess) {
+    await Navigator.of(context).maybePop();
+  }
+  messenger.showSnackBar(SnackBar(content: Text(message)));
+}
+
+Future<void> _confirmPermanentDeletePatient(
+  BuildContext context,
+  WidgetRef ref,
+  Patient patient, {
+  required bool popDetailOnSuccess,
+}) async {
+  if (!await _ensurePatientLifecycleOnline(context, ref) || !context.mounted) {
+    return;
+  }
+  final AppLocalizations l10n = context.l10n;
+  final String confirmName = patient.effectiveDisplayName.trim().isEmpty
+      ? (patient.publicId ?? patient.id)
+      : patient.effectiveDisplayName.trim();
+
+  final String? typed = await showAppDialog<String>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => AppTextInputActionDialog(
+      title: l10n.tenantFacilityPermanentDeleteConfirmationTitle,
+      description: l10n.patientsPermanentDeleteWarningBody(confirmName),
+      fieldLabel: l10n.tenantFacilityPermanentDeleteConfirmFieldLabel(
+        confirmName,
+      ),
+      submitLabel: l10n.tenantFacilityPermanentDeleteConfirmAction,
+      cancelLabel: l10n.commonCancelActionLabel,
+      requiredMessage: l10n.validationRequired,
+      confirmExactValue: confirmName,
+      confirmMismatchMessage: l10n
+          .tenantFacilityPermanentDeleteConfirmFieldLabel(confirmName),
+      destructive: true,
+      minLines: 1,
+      maxLines: 1,
+      icon: const Icon(Icons.delete_forever_outlined),
+    ),
+  );
+  if (!context.mounted || typed == null) {
+    return;
+  }
+  if (typed.trim().toLowerCase() != confirmName.toLowerCase()) {
+    return;
+  }
+
+  final bool? confirmed = await showAppDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => AppConfirmActionDialog(
+      title: l10n.tenantFacilityPermanentDeleteConfirmationTitle,
+      body: l10n.patientsPermanentDeleteConfirmationBody(confirmName),
+      highlightedText: confirmName,
+      submitLabel: l10n.tenantFacilityPermanentDeleteConfirmAction,
+      destructive: true,
+      icon: const Icon(Icons.delete_forever_outlined),
+      onConfirm: () {
+        return ref
+            .read(patientRegistryControllerProvider.notifier)
+            .permanentDeletePatient(patient.id);
+      },
+    ),
+  );
+  if (!context.mounted || confirmed != true) {
+    return;
+  }
+  final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+  final String message = l10n.patientsPermanentlyDeletedMessage;
+  if (popDetailOnSuccess) {
+    await Navigator.of(context).maybePop();
+  }
+  messenger.showSnackBar(SnackBar(content: Text(message)));
 }
 
 Future<bool?> _showDeleteDialog(

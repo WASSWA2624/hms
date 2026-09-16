@@ -20,6 +20,8 @@ abstract final class RealtimeEventGroups {
     RealtimeEvents.patientCreated,
     RealtimeEvents.patientUpdated,
     RealtimeEvents.patientDeleted,
+    RealtimeEvents.patientRestored,
+    RealtimeEvents.patientPermanentlyDeleted,
   };
 
   static const Set<String> visitQueue = <String>{

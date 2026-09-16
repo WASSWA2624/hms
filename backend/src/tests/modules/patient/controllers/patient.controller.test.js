@@ -254,4 +254,74 @@ describe('Patient Controller', () => {
       expect(sendNoContent).toHaveBeenCalledWith(mockRes);
     });
   });
+
+  describe('restorePatient', () => {
+    it('should call service and send success response', async () => {
+      mockReq.params.id = '123';
+      const mockPatient = { id: '123', first_name: 'John' };
+      patientService.restorePatient.mockResolvedValue(mockPatient);
+
+      await patientController.restorePatient(mockReq, mockRes);
+
+      expect(patientService.restorePatient).toHaveBeenCalledWith(
+        '123',
+        'user-123',
+        '127.0.0.1',
+        {
+          tenant_id: '550e8400-e29b-41d4-a716-446655440040',
+          facility_id: '550e8400-e29b-41d4-a716-446655440041'
+        }
+      );
+      expect(sendSuccess).toHaveBeenCalledWith(
+        mockRes,
+        200,
+        'messages.patient.restore.success',
+        mockPatient
+      );
+    });
+  });
+
+  describe('permanentDeletePatient', () => {
+    it('should call service with confirm and actor', async () => {
+      mockReq.params.id = '123';
+      mockReq.body = { confirm: true };
+      mockReq.user.permissions = ['facility:admin', 'patient:delete'];
+      patientService.permanentDeletePatient.mockResolvedValue();
+
+      await patientController.permanentDeletePatient(mockReq, mockRes);
+
+      expect(patientService.permanentDeletePatient).toHaveBeenCalledWith(
+        '123',
+        'user-123',
+        '127.0.0.1',
+        {
+          tenant_id: '550e8400-e29b-41d4-a716-446655440040',
+          facility_id: '550e8400-e29b-41d4-a716-446655440041'
+        },
+        {
+          confirm: true,
+          actor: mockReq.user
+        }
+      );
+      expect(sendNoContent).toHaveBeenCalledWith(mockRes);
+    });
+  });
+
+  describe('getPatientDeletionImpact', () => {
+    it('should call service and send success response', async () => {
+      mockReq.params.id = '123';
+      const mockImpact = { blockers: [], counts: { by_model: {} } };
+      patientService.getPatientDeletionImpact.mockResolvedValue(mockImpact);
+
+      await patientController.getPatientDeletionImpact(mockReq, mockRes);
+
+      expect(patientService.getPatientDeletionImpact).toHaveBeenCalled();
+      expect(sendSuccess).toHaveBeenCalledWith(
+        mockRes,
+        200,
+        'messages.patient.deletion_impact.success',
+        mockImpact
+      );
+    });
+  });
 });

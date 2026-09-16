@@ -7225,6 +7225,114 @@
   "@patientsDeletedMessage": {
     "description": "Snackbar shown after a patient registry record is deleted."
   },
+  "patientsRestoredMessage": "Patient restored.",
+  "@patientsRestoredMessage": {
+    "description": "Snackbar shown after a soft-deleted patient is restored."
+  },
+  "patientsPermanentlyDeletedMessage": "Patient permanently deleted.",
+  "@patientsPermanentlyDeletedMessage": {
+    "description": "Snackbar shown after a patient is permanently purged."
+  },
+  "patientsRestoreAction": "Restore",
+  "@patientsRestoreAction": {
+    "description": "Restore soft-deleted patient action label."
+  },
+  "patientsPermanentDeleteAction": "Permanent delete",
+  "@patientsPermanentDeleteAction": {
+    "description": "Permanently delete soft-deleted patient action label."
+  },
+  "patientsRecordStateLabel": "Record state",
+  "@patientsRecordStateLabel": {
+    "description": "Patient registry record-state filter label."
+  },
+  "patientsRecordStateCurrent": "Current",
+  "@patientsRecordStateCurrent": {
+    "description": "Patient registry filter for non-deleted patients."
+  },
+  "patientsRecordStateDeleted": "Deleted",
+  "@patientsRecordStateDeleted": {
+    "description": "Patient registry filter for soft-deleted patients."
+  },
+  "patientsRecordStateAll": "All",
+  "@patientsRecordStateAll": {
+    "description": "Patient registry filter for current and deleted patients."
+  },
+  "patientsSoftDeleteImpactBody": "Soft-delete {name}? Linked records will be hidden with the patient:\n{countsSummary}",
+  "@patientsSoftDeleteImpactBody": {
+    "description": "Soft-delete confirmation body listing cascade category counts.",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Jane Doe"
+      },
+      "countsSummary": {
+        "type": "String",
+        "example": "Clinical: 4\nOrders: 2"
+      }
+    }
+  },
+  "patientsSoftDeleteImpactEmptyBody": "Soft-delete {name}? No linked cascade rows were found; only the patient record will be hidden.",
+  "@patientsSoftDeleteImpactEmptyBody": {
+    "description": "Soft-delete confirmation when deletion-impact counts are empty.",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Jane Doe"
+      }
+    }
+  },
+  "patientsDeleteBlockedTitle": "Cannot delete patient",
+  "@patientsDeleteBlockedTitle": {
+    "description": "Title when soft delete is refused due to live operational state."
+  },
+  "patientsDeleteBlockedBody": "Clear these live operational items before deleting {name}:\n{blockersSummary}",
+  "@patientsDeleteBlockedBody": {
+    "description": "Body listing live-state blockers that refuse soft delete.",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Jane Doe"
+      },
+      "blockersSummary": {
+        "type": "String",
+        "example": "Active admission (1)"
+      }
+    }
+  },
+  "patientsRestoreTitle": "Restore patient",
+  "@patientsRestoreTitle": {
+    "description": "Restore soft-deleted patient confirmation title."
+  },
+  "patientsRestoreBody": "Restore {name} and the linked records from the latest deletion?",
+  "@patientsRestoreBody": {
+    "description": "Restore soft-deleted patient confirmation body.",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Jane Doe"
+      }
+    }
+  },
+  "patientsPermanentDeleteWarningBody": "WARNING: Permanently deleting \"{name}\" will purge personal and clinical data. Financial, insurance, and audit records are retained in anonymized form. This cannot be recovered.",
+  "@patientsPermanentDeleteWarningBody": {
+    "description": "Type-to-confirm warning for permanent patient purge (purged vs retained).",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Jane Doe"
+      }
+    }
+  },
+  "patientsPermanentDeleteConfirmationBody": "Final confirmation: permanently delete patient \"{name}\"? Personal and clinical data will be purged; invoices, payments, claims, and audit evidence remain anonymized. This action is irreversible.",
+  "@patientsPermanentDeleteConfirmationBody": {
+    "description": "Final confirmation body for permanent patient purge.",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Jane Doe"
+      }
+    }
+  },
   "patientsMergedMessage": "Patient records merged.",
   "@patientsMergedMessage": {
     "description": "Snackbar shown after patient records are merged."

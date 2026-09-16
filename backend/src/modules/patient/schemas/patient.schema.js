@@ -189,7 +189,13 @@ const listPatientsQuerySchema = listQuerySchema.extend({
   search: searchQuerySchema,
   has_active_admission: optionalBooleanQuerySchema,
   has_outstanding_balance: optionalBooleanQuerySchema,
-  consent_state: z.enum(CONSENT_STATUS_VALUES).optional()});
+  consent_state: z.enum(CONSENT_STATUS_VALUES).optional(),
+  include_deleted: z.enum(['true', 'false']).optional(),
+  record_state: z.enum(['current', 'deleted', 'all']).optional()});
+
+const permanentDeletePatientSchema = z.object({
+  confirm: z.literal(true)
+});
 
 const patientWorkspaceOverviewQuerySchema = listQuerySchema.extend({
   tenant_id: uuidOrFriendlyIdentifierSchema.optional(),
@@ -248,5 +254,6 @@ module.exports = {
   patientDuplicateListQuerySchema,
   patientMergePreviewSchema,
   patientMergeSchema,
-  patientDuplicateDismissSchema};
+  patientDuplicateDismissSchema,
+  permanentDeletePatientSchema};
 

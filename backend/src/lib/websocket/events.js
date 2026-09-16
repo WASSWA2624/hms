@@ -50,6 +50,8 @@ const PATIENT_EVENTS = {
   PATIENT_CREATED: 'patient.created',
   PATIENT_UPDATED: 'patient.updated',
   PATIENT_DELETED: 'patient.deleted',
+  PATIENT_RESTORED: 'patient.restored',
+  PATIENT_PERMANENTLY_DELETED: 'patient.permanently_deleted',
   PATIENT_REPORT_JOB_CREATED: 'patient_report_job.created',
   PATIENT_REPORT_JOB_UPDATED: 'patient_report_job.updated'
 };

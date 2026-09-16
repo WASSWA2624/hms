@@ -129,6 +129,7 @@ final class PatientDto {
           : PatientVisitContextDto(currentVisit).toEntity(),
       createdAt: _date(json['created_at']),
       updatedAt: _date(json['updated_at']),
+      deletedAt: _date(json['deleted_at']),
     ).copyWith(
       primaryPhone: primaryContactIsPhone ? primaryContactValue : null,
     );
@@ -403,6 +404,39 @@ final class PatientMergePreviewDto {
       classification: _string(json['classification']) ?? '',
       matchReasons: _stringList(json['match_reasons']),
       transferCounts: _intMap(json['transfer_counts']),
+    );
+  }
+}
+
+final class PatientDeletionImpactDto {
+  const PatientDeletionImpactDto(this.json);
+
+  final PatientJsonMap json;
+
+  factory PatientDeletionImpactDto.fromResponse(Object? responseData) {
+    return PatientDeletionImpactDto(decodeDataMap(responseData));
+  }
+
+  PatientDeletionImpact toEntity() {
+    final PatientJsonMap counts = _map(json['counts']);
+    return PatientDeletionImpact(
+      patientId:
+          _string(json['patient_id']) ??
+          _string(json['human_friendly_id']) ??
+          '',
+      humanFriendlyId: _string(json['human_friendly_id']),
+      blockers: _list(json['blockers'])
+          .map(
+            (PatientJsonMap entry) => PatientDeletionBlocker(
+              code: _string(entry['code']) ?? '',
+              model: _string(entry['model']),
+              count: _int(entry['count']),
+            ),
+          )
+          .where((PatientDeletionBlocker blocker) => blocker.code.isNotEmpty)
+          .toList(growable: false),
+      countsByCategory: _intMap(counts['by_category']),
+      countsByModel: _intMap(counts['by_model']),
     );
   }
 }

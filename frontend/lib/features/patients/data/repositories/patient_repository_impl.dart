@@ -44,6 +44,8 @@ final class PatientRepositoryImpl implements PatientRepository {
         'date_of_birth_to': _dateOnly(query.dateOfBirthTo),
         'has_active_admission': query.hasActiveAdmission,
         'has_outstanding_balance': query.hasOutstandingBalance,
+        'record_state': query.recordState.queryValue,
+        'include_deleted': query.effectiveIncludeDeleted ? true : null,
         'sort_by': 'updated_at',
         'order': 'desc',
       }),
@@ -312,6 +314,46 @@ final class PatientRepositoryImpl implements PatientRepository {
   Future<Result<PatientMutationResult>> deletePatient(String patientId) {
     return _apiClient.delete<PatientMutationResult>(
       ApiEndpoints.byId(HmsApiResource.patients, patientId),
+      decoder: (_) => PatientMutationResult(patientId: patientId),
+    );
+  }
+
+  @override
+  Future<Result<PatientDeletionImpact>> getDeletionImpact(String patientId) {
+    return _apiClient.get<PatientDeletionImpact>(
+      ApiEndpoints.nested(
+        HmsApiResource.patients,
+        patientId,
+        const <String>['deletion-impact'],
+      ),
+      decoder: (Object? data) =>
+          PatientDeletionImpactDto.fromResponse(data).toEntity(),
+    );
+  }
+
+  @override
+  Future<Result<Patient>> restorePatient(String patientId) {
+    return _apiClient.post<Patient>(
+      ApiEndpoints.nested(
+        HmsApiResource.patients,
+        patientId,
+        const <String>['restore'],
+      ),
+      decoder: (Object? data) => PatientDto(decodeDataMap(data)).toEntity(),
+    );
+  }
+
+  @override
+  Future<Result<PatientMutationResult>> permanentDeletePatient(
+    String patientId,
+  ) {
+    return _apiClient.delete<PatientMutationResult>(
+      ApiEndpoints.nested(
+        HmsApiResource.patients,
+        patientId,
+        const <String>['permanent'],
+      ),
+      data: const <String, Object?>{'confirm': true},
       decoder: (_) => PatientMutationResult(patientId: patientId),
     );
   }

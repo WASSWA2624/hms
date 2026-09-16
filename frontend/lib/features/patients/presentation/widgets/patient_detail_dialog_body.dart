@@ -94,6 +94,30 @@ class PatientDetailDialog extends ConsumerWidget {
     };
   }
 
+  AccessRequirement get _restoreRequirement {
+    return switch (registrySection) {
+      PatientRegistrySection.all => PatientAllAtomPermissions.restore,
+      PatientRegistrySection.active => PatientActiveAtomPermissions.restore,
+      PatientRegistrySection.admitted => PatientAdmittedAtomPermissions.restore,
+      PatientRegistrySection.balanceDue =>
+        PatientBalanceDueAtomPermissions.restore,
+      null => patientRegistryRestoreRequirement,
+    };
+  }
+
+  AccessRequirement get _permanentDeleteRequirement {
+    return switch (registrySection) {
+      PatientRegistrySection.all => PatientAllAtomPermissions.permanentDelete,
+      PatientRegistrySection.active =>
+        PatientActiveAtomPermissions.permanentDelete,
+      PatientRegistrySection.admitted =>
+        PatientAdmittedAtomPermissions.permanentDelete,
+      PatientRegistrySection.balanceDue =>
+        PatientBalanceDueAtomPermissions.permanentDelete,
+      null => patientRegistryPermanentDeleteRequirement,
+    };
+  }
+
   AccessRequirement get _writeRequirement {
     return switch (registrySection) {
       PatientRegistrySection.all => PatientAllAtomPermissions.write,
@@ -193,6 +217,7 @@ class PatientDetailDialog extends ConsumerWidget {
         registrySection == PatientRegistrySection.admitted;
     final bool isBalanceDueSection =
         registrySection == PatientRegistrySection.balanceDue;
+    final bool isSaving = state?.isSaving ?? false;
     // Balance due tab read already requires billing:read; mount invoice/payment
     // chrome for any authorized Balance due viewer so nested write (Open billing
     // ∩ billing:write) is reachable for writers, not only billing-role readers.
@@ -208,33 +233,86 @@ class PatientDetailDialog extends ConsumerWidget {
       maxWidth: 980,
       scrollable: true,
       actions: <Widget>[
-        AppAccessActionGate(
-          requirement: _editRequirement,
-          builder: (_, bool isAllowed) {
-            if (!isAllowed) {
-              return const SizedBox.shrink();
-            }
-            return AppButton.secondary(
-              label: l10n.patientsEditAction,
-              leadingIcon: Icons.edit_outlined,
-              onPressed: () =>
-                  unawaited(showPatientEditDialog(context, ref, patient)),
-            );
-          },
-        ),
-        AppAccessActionGate(
-          requirement: _deleteRequirement,
-          builder: (_, bool isAllowed) {
-            if (!isAllowed) {
-              return const SizedBox.shrink();
-            }
-            return AppButton.tertiary(
-              label: l10n.patientsDeleteAction,
-              leadingIcon: Icons.delete_outline,
-              onPressed: () => _confirmDeletePatient(context, ref, patient),
-            );
-          },
-        ),
+        if (!patient.isDeleted) ...<Widget>[
+          AppAccessActionGate(
+            requirement: _editRequirement,
+            builder: (_, bool isAllowed) {
+              if (!isAllowed) {
+                return const SizedBox.shrink();
+              }
+              return AppButton.secondary(
+                label: l10n.patientsEditAction,
+                leadingIcon: Icons.edit_outlined,
+                onPressed: () =>
+                    unawaited(showPatientEditDialog(context, ref, patient)),
+              );
+            },
+          ),
+          AppAccessActionGate(
+            requirement: _deleteRequirement,
+            builder: (_, bool isAllowed) {
+              if (!isAllowed) {
+                return const SizedBox.shrink();
+              }
+              return AppButton.tertiary(
+                label: l10n.patientsDeleteAction,
+                leadingIcon: Icons.delete_outline,
+                isLoading: isSaving,
+                onPressed: () => unawaited(
+                  _confirmSoftDeletePatient(
+                    context,
+                    ref,
+                    patient,
+                    popDetailOnSuccess: true,
+                  ),
+                ),
+              );
+            },
+          ),
+        ] else ...<Widget>[
+          AppAccessActionGate(
+            requirement: _restoreRequirement,
+            builder: (_, bool isAllowed) {
+              if (!isAllowed) {
+                return const SizedBox.shrink();
+              }
+              return AppButton.secondary(
+                label: l10n.patientsRestoreAction,
+                leadingIcon: Icons.restore_outlined,
+                isLoading: isSaving,
+                onPressed: () => unawaited(
+                  _confirmRestorePatient(
+                    context,
+                    ref,
+                    patient,
+                    popDetailOnSuccess: true,
+                  ),
+                ),
+              );
+            },
+          ),
+          AppAccessActionGate(
+            requirement: _permanentDeleteRequirement,
+            builder: (_, bool isAllowed) {
+              if (!isAllowed) {
+                return const SizedBox.shrink();
+              }
+              return AppButton.tertiary(
+                label: l10n.patientsPermanentDeleteAction,
+                leadingIcon: Icons.delete_forever_outlined,
+                isLoading: isSaving,
+                onPressed: () => unawaited(
+                  _confirmPermanentDeletePatient(
+                    context,
+                    ref,
+                    patient,
+                    popDetailOnSuccess: true,
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
       ],
       content: AnimatedSwitcher(
         duration: const Duration(milliseconds: 220),
@@ -443,33 +521,6 @@ class PatientDetailDialog extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  Future<void> _confirmDeletePatient(
-    BuildContext context,
-    WidgetRef ref,
-    Patient patient,
-  ) async {
-    final bool? confirmed = await _showDeleteDialog(
-      context,
-      title: context.l10n.patientsDeleteTitle,
-      body: context.l10n.patientsDeleteBody(patient.effectiveDisplayName),
-    );
-    if (confirmed != true || !context.mounted) {
-      return;
-    }
-    final AppFailure? failure = await ref
-        .read(patientRegistryControllerProvider.notifier)
-        .deletePatient(patient.id);
-    if (context.mounted && failure == null) {
-      final NavigatorState navigator = Navigator.of(context);
-      final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
-      final String message = context.l10n.patientsDeletedMessage;
-      await navigator.maybePop();
-      messenger.showSnackBar(SnackBar(content: Text(message)));
-    } else if (context.mounted) {
-      await _showFailureIfNeeded(context, failure);
-    }
   }
 
   Future<void> _openRelatedForm<T>(

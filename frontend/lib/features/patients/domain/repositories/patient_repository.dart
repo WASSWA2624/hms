@@ -42,6 +42,12 @@ abstract interface class PatientRepository {
 
   Future<Result<PatientMutationResult>> deletePatient(String patientId);
 
+  Future<Result<PatientDeletionImpact>> getDeletionImpact(String patientId);
+
+  Future<Result<Patient>> restorePatient(String patientId);
+
+  Future<Result<PatientMutationResult>> permanentDeletePatient(String patientId);
+
   Future<Result<void>> createRelatedRecord(
     PatientRelatedResource resource,
     Map<String, Object?> payload,

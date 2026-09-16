@@ -8,16 +8,30 @@
 
 const patientService = require('@services/patient/patient.service');
 const patientRepository = require('@repositories/patient/patient.repository');
+const patientDeletionRepository = require('@repositories/patient/patient-deletion.repository');
 const patientContactRepository = require('@repositories/patient-contact/patient-contact.repository');
 const patientIdentifierRepository = require('@repositories/patient-identifier/patient-identifier.repository');
 const prisma = require('@prisma/client');
 const { createAuditLog } = require('@lib/audit');
 const { HttpError } = require('@lib/errors');
+const { findLiveStateBlockers } = require('@lib/patient/patient-cascade');
+const { createStorageService } = require('@lib/storage');
+const { PERMISSIONS } = require('@config/permissions');
 
 // Mock dependencies
 jest.mock('@repositories/patient/patient.repository');
+jest.mock('@repositories/patient/patient-deletion.repository');
 jest.mock('@repositories/patient-contact/patient-contact.repository');
 jest.mock('@repositories/patient-identifier/patient-identifier.repository');
+jest.mock('@lib/patient/patient-cascade', () => ({
+  ...jest.requireActual('@lib/patient/patient-cascade'),
+  findLiveStateBlockers: jest.fn(),
+}));
+jest.mock('@lib/storage', () => ({
+  createStorageService: jest.fn(() => ({
+    delete: jest.fn().mockResolvedValue(undefined),
+  })),
+}));
 jest.mock('@prisma/client', () => ({
   $transaction: jest.fn(async (callback) => callback({}))
 }));
@@ -26,15 +40,12 @@ jest.mock('@lib/audit');
 describe('Patient Service', () => {
   const mockUserId = 'user-123';
   const mockIpAddress = '127.0.0.1';
-  let mockTransaction;
 
   beforeEach(() => {
     jest.clearAllMocks();
     createAuditLog.mockReturnValue(Promise.resolve());
-    mockTransaction = {
-      visit_queue: {
-        updateMany: jest.fn().mockResolvedValue({ count: 0 })}};
-    prisma.$transaction.mockImplementation(async (callback) => callback(mockTransaction));
+    findLiveStateBlockers.mockResolvedValue([]);
+    prisma.$transaction.mockImplementation(async (callback) => callback({}));
     patientContactRepository.findMany.mockResolvedValue([]);
     patientIdentifierRepository.findMany.mockResolvedValue([]);
   });
@@ -200,7 +211,9 @@ describe('Patient Service', () => {
           tenant: expect.any(Object),
           facility: expect.any(Object),
           contacts: expect.any(Object)
-        })
+        }),
+        expect.anything(),
+        expect.objectContaining({ recordState: 'current' })
       );
       expect(result.patients[0]).toEqual(
         expect.objectContaining({
@@ -676,50 +689,90 @@ describe('Patient Service', () => {
   });
 
   describe('deletePatient', () => {
-    it('should soft delete patient and log audit', async () => {
-      const mockPatient = { id: '123', first_name: 'John' };
+    it('should cascade soft delete patient, write manifest, and log audit', async () => {
+      const mockPatient = {
+        id: '123',
+        first_name: 'John',
+        human_friendly_id: 'PAT0000001',
+        tenant_id: 'tenant-1',
+      };
+      const mockBatch = {
+        id: 'batch-1',
+        human_friendly_id: 'PDB0000001',
+      };
       patientRepository.findById.mockResolvedValue(mockPatient);
-      patientRepository.softDelete.mockResolvedValue({ ...mockPatient, deleted_at: new Date() });
+      patientDeletionRepository.softDeleteCascadeInTx.mockResolvedValue({
+        batch: mockBatch,
+        counts: { by_model: { visit_queue: 1 }, by_category: { clinical: 1 }, patient: 1 },
+        idsByModel: { visit_queue: ['vq-1'] },
+      });
 
       await patientService.deletePatient('123', mockUserId, mockIpAddress);
 
-      expect(patientRepository.softDelete).toHaveBeenCalledWith('123', {}, mockTransaction);
-      expect(mockTransaction.visit_queue.updateMany).toHaveBeenCalledWith({
-        where: {
-          patient_id: '123',
-          deleted_at: null},
-        data: {
-          deleted_at: expect.any(Date)}});
+      expect(findLiveStateBlockers).toHaveBeenCalledWith(prisma, '123');
+      expect(patientDeletionRepository.softDeleteCascadeInTx).toHaveBeenCalledWith(
+        {},
+        expect.objectContaining({
+          patient: mockPatient,
+          deletedByUserId: mockUserId,
+        })
+      );
       expect(createAuditLog).toHaveBeenCalledWith(expect.objectContaining({
-        action: 'DELETE',
+        action: 'PATIENT_SOFT_DELETED',
         entity: 'patient',
-        entity_id: '123'
+        entity_id: '123',
+        diff: expect.objectContaining({
+          human_friendly_id: 'PAT0000001',
+          batch_id: 'batch-1',
+        }),
       }));
     });
 
     it('should resolve human-friendly route id to canonical UUID for delete', async () => {
-      const mockPatient = { id: '550e8400-e29b-41d4-a716-446655440051', first_name: 'John' };
+      const mockPatient = {
+        id: '550e8400-e29b-41d4-a716-446655440051',
+        first_name: 'John',
+        human_friendly_id: 'PAT0000001',
+        tenant_id: 'tenant-1',
+      };
       patientRepository.findById.mockResolvedValue(mockPatient);
-      patientRepository.softDelete.mockResolvedValue({ ...mockPatient, deleted_at: new Date() });
+      patientDeletionRepository.softDeleteCascadeInTx.mockResolvedValue({
+        batch: { id: 'batch-1', human_friendly_id: 'PDB0000001' },
+        counts: { by_model: {}, by_category: {}, patient: 1 },
+        idsByModel: {},
+      });
 
       await patientService.deletePatient('PAT0000001', mockUserId, mockIpAddress);
 
-      expect(patientRepository.softDelete).toHaveBeenCalledWith(
-        '550e8400-e29b-41d4-a716-446655440051',
+      expect(patientDeletionRepository.softDeleteCascadeInTx).toHaveBeenCalledWith(
         {},
-        mockTransaction
-      );
-      expect(mockTransaction.visit_queue.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({
-            patient_id: '550e8400-e29b-41d4-a716-446655440051',
-            deleted_at: null})})
+          patient: expect.objectContaining({
+            id: '550e8400-e29b-41d4-a716-446655440051',
+          }),
+        })
       );
       expect(createAuditLog).toHaveBeenCalledWith(
         expect.objectContaining({
-          entity_id: '550e8400-e29b-41d4-a716-446655440051'
+          entity_id: '550e8400-e29b-41d4-a716-446655440051',
         })
       );
+    });
+
+    it('should refuse soft delete when live state blockers exist', async () => {
+      const mockPatient = { id: '123', first_name: 'John', tenant_id: 'tenant-1' };
+      patientRepository.findById.mockResolvedValue(mockPatient);
+      findLiveStateBlockers.mockResolvedValue([
+        { code: 'active_admission', model: 'admission', count: 1 },
+      ]);
+
+      await expect(
+        patientService.deletePatient('123', mockUserId, mockIpAddress)
+      ).rejects.toMatchObject({
+        messageKey: 'errors.patient.live_state_blocked',
+        statusCode: 409,
+      });
+      expect(patientDeletionRepository.softDeleteCascadeInTx).not.toHaveBeenCalled();
     });
 
     it('should throw HttpError if patient not found', async () => {
@@ -728,6 +781,125 @@ describe('Patient Service', () => {
       await expect(
         patientService.deletePatient('nonexistent', mockUserId, mockIpAddress)
       ).rejects.toThrow(HttpError);
+    });
+  });
+
+  describe('restorePatient', () => {
+    it('should restore from the latest unrestored batch', async () => {
+      const mockPatient = {
+        id: '123',
+        first_name: 'John',
+        human_friendly_id: 'PAT0000001',
+        tenant_id: 'tenant-1',
+        deleted_at: new Date(),
+      };
+      const batch = {
+        id: 'batch-1',
+        human_friendly_id: 'PDB0000001',
+        counts_json: { patient: 1 },
+        items: [{ entity_model: 'patient', entity_id: '123' }],
+      };
+      patientRepository.findByIdIncludingDeleted.mockResolvedValue(mockPatient);
+      patientDeletionRepository.findLatestUnrestoredBatch.mockResolvedValue(batch);
+      patientDeletionRepository.findRestoreConflicts.mockResolvedValue([]);
+      patientDeletionRepository.restoreCascadeInTx.mockResolvedValue({
+        ...mockPatient,
+        deleted_at: null,
+      });
+
+      const result = await patientService.restorePatient('123', mockUserId, mockIpAddress);
+
+      expect(patientDeletionRepository.restoreCascadeInTx).toHaveBeenCalled();
+      expect(result).toEqual(expect.objectContaining({ id: '123', first_name: 'John' }));
+      expect(createAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PATIENT_RESTORED' })
+      );
+    });
+
+    it('should conflict when identifiers are reused', async () => {
+      const mockPatient = {
+        id: '123',
+        first_name: 'John',
+        tenant_id: 'tenant-1',
+        deleted_at: new Date(),
+      };
+      patientRepository.findByIdIncludingDeleted.mockResolvedValue(mockPatient);
+      patientDeletionRepository.findLatestUnrestoredBatch.mockResolvedValue({
+        id: 'batch-1',
+        items: [],
+      });
+      patientDeletionRepository.findRestoreConflicts.mockResolvedValue([
+        { code: 'identifier_in_use', field: 'identifier_value' },
+      ]);
+      prisma.$transaction.mockImplementation(async (callback) => callback({}));
+
+      await expect(
+        patientService.restorePatient('123', mockUserId, mockIpAddress)
+      ).rejects.toMatchObject({
+        messageKey: 'errors.patient.restore_conflict',
+        statusCode: 409,
+      });
+    });
+  });
+
+  describe('permanentDeletePatient', () => {
+    it('should require confirm and an admin grant', async () => {
+      await expect(
+        patientService.permanentDeletePatient('123', mockUserId, mockIpAddress, {}, {
+          confirm: false,
+          actor: { permissions: [PERMISSIONS.FACILITY_ADMIN] },
+        })
+      ).rejects.toMatchObject({
+        messageKey: 'errors.patient.permanent_confirm_required',
+      });
+
+      await expect(
+        patientService.permanentDeletePatient('123', mockUserId, mockIpAddress, {}, {
+          confirm: true,
+          actor: { permissions: [PERMISSIONS.PATIENT_DELETE] },
+        })
+      ).rejects.toMatchObject({
+        messageKey: 'errors.patient.purge_forbidden',
+        statusCode: 403,
+      });
+    });
+
+    it('should purge soft-deleted patient and delete storage keys', async () => {
+      const mockPatient = {
+        id: '123',
+        first_name: 'John',
+        human_friendly_id: 'PAT0000001',
+        tenant_id: 'tenant-1',
+        deleted_at: new Date(),
+      };
+      const storage = { delete: jest.fn().mockResolvedValue(undefined) };
+      createStorageService.mockReturnValue(storage);
+      patientRepository.findByIdIncludingDeleted.mockResolvedValue(mockPatient);
+      patientDeletionRepository.findLatestUnrestoredBatch.mockResolvedValue({
+        id: 'batch-1',
+        human_friendly_id: 'PDB0000001',
+        counts_json: { patient: 1 },
+      });
+      patientDeletionRepository.permanentPurgeInTx.mockResolvedValue({
+        anonymized: true,
+        storageKeys: ['docs/a.pdf'],
+        retained_references: 1,
+        counts: { patient: 1 },
+      });
+
+      await patientService.permanentDeletePatient('123', mockUserId, mockIpAddress, {}, {
+        confirm: true,
+        actor: { permissions: [PERMISSIONS.FACILITY_ADMIN, PERMISSIONS.PATIENT_DELETE] },
+      });
+
+      expect(patientDeletionRepository.permanentPurgeInTx).toHaveBeenCalled();
+      expect(storage.delete).toHaveBeenCalledWith('docs/a.pdf');
+      expect(createAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PATIENT_PERMANENTLY_DELETED',
+          diff: expect.objectContaining({ irreversible: true }),
+        })
+      );
     });
   });
 });
