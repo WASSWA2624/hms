@@ -24357,6 +24357,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get speechToTextStopTooltip => 'Stop dictation';
 
   @override
+  String get speechToTextListeningTooltip => 'Listening — tap to stop';
+
+  @override
   String get speechToTextListeningMessage => 'Listening…';
 
   @override

@@ -18,7 +18,11 @@ import 'component_test_app.dart';
 final class _FakeSpeechRecognizer implements AppSpeechRecognizer {
   AppSpeechInitStatus initStatus = AppSpeechInitStatus.ready;
   bool _listening = false;
+  int startCount = 0;
+  int stopCount = 0;
   void Function(String words, {required bool isFinal})? onResult;
+  void Function(String status)? onStatus;
+  void Function(String error)? onError;
 
   @override
   bool get isListening => _listening;
@@ -37,12 +41,16 @@ final class _FakeSpeechRecognizer implements AppSpeechRecognizer {
     void Function(String status)? onStatus,
     void Function(String error)? onError,
   }) async {
+    startCount += 1;
     this.onResult = onResult;
+    this.onStatus = onStatus;
+    this.onError = onError;
     _listening = true;
   }
 
   @override
   Future<void> stopListening() async {
+    stopCount += 1;
     _listening = false;
   }
 
@@ -54,9 +62,24 @@ final class _FakeSpeechRecognizer implements AppSpeechRecognizer {
   void emit(String words, {bool isFinal = false}) {
     onResult?.call(words, isFinal: isFinal);
   }
+
+  /// The platform ends the recognizer session on its own (end of phrase or
+  /// silence), as Android does.
+  void finish({String status = 'done'}) {
+    _listening = false;
+    onStatus?.call(status);
+  }
+
+  /// The platform reports [error], then stops listening.
+  void fail(String error) {
+    onError?.call(error);
+    finish(status: 'notListening');
+  }
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   late _FakeSpeechRecognizer recognizer;
   late AppSpeechToTextCoordinator coordinator;
 
@@ -68,6 +91,7 @@ void main() {
 
   tearDown(() {
     AppSpeechToTextCoordinator.debugInstance = null;
+    coordinator.dispose();
   });
 
   Future<void> pumpSpeechApp(
@@ -498,7 +522,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.byTooltip(l10n.speechToTextStopTooltip), findsOneWidget);
+    expect(find.byTooltip(l10n.speechToTextListeningTooltip), findsOneWidget);
     expect(find.byIcon(Icons.stop), findsOneWidget);
 
     recognizer.emit('world', isFinal: true);
@@ -506,7 +530,7 @@ void main() {
 
     expect(controller.text, 'Hello world');
 
-    await tester.tap(find.byTooltip(l10n.speechToTextStopTooltip));
+    await tester.tap(find.byTooltip(l10n.speechToTextListeningTooltip));
     await tester.pump();
     expect(find.byIcon(Icons.mic_none_outlined), findsOneWidget);
   });
@@ -844,5 +868,290 @@ void main() {
     expect(coordinator.isListeningFor(first), isFalse);
     expect(coordinator.isListeningFor(second), isTrue);
     expect(find.text(l10n.speechToTextSwitchedFieldMessage), findsOneWidget);
+  });
+
+  group('continuous dictation', () {
+    Future<AppLocalizations> startDictation(
+      WidgetTester tester,
+      TextEditingController controller,
+    ) async {
+      await pumpSpeechApp(
+        tester,
+        AppTextField(
+          controller: controller,
+          labelText: 'Note',
+          enableSpeechToText: true,
+        ),
+      );
+      final AppLocalizations l10n = AppLocalizations.of(
+        tester.element(find.byType(AppTextField)),
+      );
+      await tester.tap(find.byTooltip(l10n.speechToTextStartTooltip));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      return l10n;
+    }
+
+    testWidgets('restarts after the recognizer ends and stays listening', (
+      WidgetTester tester,
+    ) async {
+      final TextEditingController controller = TextEditingController();
+      final AppLocalizations l10n = await startDictation(tester, controller);
+
+      recognizer.emit('hello', isFinal: true);
+      recognizer.finish();
+      await tester.pump();
+
+      // No flicker back to idle while the recognizer restarts.
+      expect(coordinator.isListeningFor(controller), isTrue);
+      expect(find.byTooltip(l10n.speechToTextListeningTooltip), findsOneWidget);
+      expect(find.byIcon(Icons.stop), findsOneWidget);
+
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(recognizer.startCount, 2);
+
+      // After a while of silence the timeout is soft: restart again quietly.
+      await tester.pump(const Duration(seconds: 5));
+      recognizer.fail('error_speech_timeout');
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(recognizer.startCount, 3);
+      expect(find.byTooltip(l10n.speechToTextListeningTooltip), findsOneWidget);
+      expect(find.text(l10n.speechToTextErrorMessage), findsNothing);
+    });
+
+    testWidgets('appends each recognizer session at the caret', (
+      WidgetTester tester,
+    ) async {
+      final TextEditingController controller = TextEditingController(
+        text: 'A  Z',
+      );
+      controller.selection = const TextSelection.collapsed(offset: 2);
+      await startDictation(tester, controller);
+
+      recognizer.emit('alpha');
+      await tester.pump();
+      recognizer.emit('alpha beta', isFinal: true);
+      recognizer.finish();
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(recognizer.startCount, 2);
+
+      // A fresh recognizer session starts its transcript from scratch.
+      recognizer.emit('gamma');
+      await tester.pump();
+      recognizer.emit('gamma delta', isFinal: true);
+      await tester.pump();
+
+      expect(controller.text, 'A alpha beta gamma delta Z');
+      expect(
+        controller.selection,
+        const TextSelection.collapsed(offset: 'A alpha beta gamma delta'.length),
+      );
+    });
+
+    testWidgets('an explicit stop cancels a pending restart', (
+      WidgetTester tester,
+    ) async {
+      final TextEditingController controller = TextEditingController();
+      final AppLocalizations l10n = await startDictation(tester, controller);
+
+      recognizer.finish();
+      await tester.tap(find.byTooltip(l10n.speechToTextListeningTooltip));
+      await tester.pump(const Duration(seconds: 2));
+
+      expect(recognizer.startCount, 1);
+      expect(coordinator.isListening, isFalse);
+      expect(find.byIcon(Icons.mic_none_outlined), findsOneWidget);
+    });
+
+    testWidgets('another field starting takes over without restarting the first', (
+      WidgetTester tester,
+    ) async {
+      final TextEditingController first = TextEditingController();
+      final TextEditingController second = TextEditingController();
+
+      await coordinator.start(owner: first, controller: first, onChanged: null);
+      recognizer.finish();
+      await coordinator.start(
+        owner: second,
+        controller: second,
+        onChanged: null,
+      );
+      await tester.pump(const Duration(seconds: 2));
+
+      expect(recognizer.startCount, 2);
+      expect(coordinator.isListeningFor(first), isFalse);
+      expect(coordinator.isListeningFor(second), isTrue);
+      await coordinator.stop();
+    });
+
+    testWidgets('disposing the owner field ends dictation', (
+      WidgetTester tester,
+    ) async {
+      final TextEditingController controller = TextEditingController();
+      final ValueNotifier<bool> showField = ValueNotifier<bool>(true);
+      addTearDown(showField.dispose);
+
+      await pumpSpeechApp(
+        tester,
+        ValueListenableBuilder<bool>(
+          valueListenable: showField,
+          builder: (BuildContext context, bool visible, _) => visible
+              ? AppTextField(
+                  controller: controller,
+                  labelText: 'Note',
+                  enableSpeechToText: true,
+                )
+              : const SizedBox.shrink(),
+        ),
+      );
+      final AppLocalizations l10n = AppLocalizations.of(
+        tester.element(find.byType(AppTextField)),
+      );
+      await tester.tap(find.byTooltip(l10n.speechToTextStartTooltip));
+      await tester.pump(const Duration(milliseconds: 50));
+      recognizer.finish();
+
+      showField.value = false;
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 2));
+
+      expect(coordinator.isListening, isFalse);
+      expect(recognizer.startCount, 1);
+      expect(recognizer.stopCount, greaterThanOrEqualTo(1));
+    });
+
+    testWidgets('the app leaving the foreground releases the microphone', (
+      WidgetTester tester,
+    ) async {
+      final TextEditingController controller = TextEditingController();
+      await startDictation(tester, controller);
+      addTearDown(
+        () => tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        ),
+      );
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump(const Duration(seconds: 2));
+
+      expect(coordinator.isListening, isFalse);
+      expect(recognizer.stopCount, 1);
+      expect(recognizer.startCount, 1);
+    });
+
+    testWidgets('repeated hard errors end dictation with a localized error', (
+      WidgetTester tester,
+    ) async {
+      final TextEditingController controller = TextEditingController();
+      final AppLocalizations l10n = await startDictation(tester, controller);
+
+      recognizer.fail('error_network');
+      await tester.pump(const Duration(milliseconds: 400));
+      // Backoff: no retry yet.
+      expect(recognizer.startCount, 1);
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(recognizer.startCount, 2);
+
+      recognizer.fail('error_network');
+      await tester.pump(const Duration(milliseconds: 1100));
+      expect(recognizer.startCount, 3);
+      expect(find.byTooltip(l10n.speechToTextListeningTooltip), findsOneWidget);
+
+      recognizer.fail('error_network');
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 5));
+
+      expect(recognizer.startCount, 3);
+      expect(coordinator.isListening, isFalse);
+      expect(find.byIcon(Icons.mic_none_outlined), findsOneWidget);
+      expect(find.text(l10n.speechToTextErrorMessage), findsOneWidget);
+      expect(find.textContaining('error_network'), findsNothing);
+    });
+
+    testWidgets('revoked permission stops at once with a localized message', (
+      WidgetTester tester,
+    ) async {
+      final TextEditingController controller = TextEditingController();
+      final AppLocalizations l10n = await startDictation(tester, controller);
+
+      recognizer.fail('error_permission');
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 2));
+
+      expect(recognizer.startCount, 1);
+      expect(coordinator.isListening, isFalse);
+      expect(
+        find.text(l10n.speechToTextPermissionDeniedMessage),
+        findsOneWidget,
+      );
+    });
+
+    test('AI formatting that finishes after a restart does not duplicate', () async {
+      final _FakeSpeechRecognizer localRecognizer = _FakeSpeechRecognizer();
+      final AppSpeechToTextCoordinator local = AppSpeechToTextCoordinator(
+        recognizer: localRecognizer,
+        restartDelay: Duration.zero,
+      );
+      addTearDown(local.dispose);
+      final TextEditingController controller = TextEditingController();
+      final Completer<String?> firstFormat = Completer<String?>();
+      var formatCalls = 0;
+
+      await local.start(
+        owner: controller,
+        controller: controller,
+        onChanged: null,
+        transcriptTransform: (String value) => value,
+        aiFormatter:
+            ({
+              required String transcript,
+              required String mode,
+              required AppSpeechAiAbort abort,
+              String? locale,
+              String? hint,
+            }) {
+              formatCalls += 1;
+              return formatCalls == 1
+                  ? firstFormat.future
+                  : Future<String?>.value();
+            },
+      );
+
+      localRecognizer.emit('patient stable', isFinal: true);
+      localRecognizer.finish();
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(localRecognizer.startCount, 2);
+
+      firstFormat.complete('Patient is stable.');
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.text, 'Patient is stable.');
+
+      localRecognizer.emit('next', isFinal: true);
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.text, 'Patient is stable. next');
+      await local.stop();
+    });
+
+    test('classifies recognizer errors', () {
+      expect(appSpeechErrorKind('error_no_match'), AppSpeechErrorKind.soft);
+      expect(appSpeechErrorKind('no-speech'), AppSpeechErrorKind.soft);
+      expect(
+        appSpeechErrorKind('error_permission'),
+        AppSpeechErrorKind.permissionDenied,
+      );
+      expect(
+        appSpeechErrorKind('not-allowed'),
+        AppSpeechErrorKind.permissionDenied,
+      );
+      expect(
+        appSpeechErrorKind('error_language_unavailable'),
+        AppSpeechErrorKind.unavailable,
+      );
+      expect(appSpeechErrorKind('error_network'), AppSpeechErrorKind.retryable);
+      expect(
+        appSpeechErrorKind('error_unknown (42)'),
+        AppSpeechErrorKind.retryable,
+      );
+    });
   });
 }

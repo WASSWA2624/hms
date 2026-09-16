@@ -31224,6 +31224,10 @@
   "@speechToTextStopTooltip": {
     "description": "Tooltip and semantic label for stopping active speech-to-text dictation."
   },
+  "speechToTextListeningTooltip": "Listening — tap to stop",
+  "@speechToTextListeningTooltip": {
+    "description": "Tooltip and semantic label on the microphone button while dictation is on. Dictation keeps listening across pauses until the user taps to stop."
+  },
   "speechToTextListeningMessage": "Listening…",
   "@speechToTextListeningMessage": {
     "description": "Status message shown while speech recognition is active."

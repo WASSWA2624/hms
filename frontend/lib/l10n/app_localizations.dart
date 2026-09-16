@@ -45037,6 +45037,12 @@ abstract class AppLocalizations {
   /// **'Stop dictation'**
   String get speechToTextStopTooltip;
 
+  /// Tooltip and semantic label on the microphone button while dictation is on. Dictation keeps listening across pauses until the user taps to stop.
+  ///
+  /// In en, this message translates to:
+  /// **'Listening — tap to stop'**
+  String get speechToTextListeningTooltip;
+
   /// Status message shown while speech recognition is active.
   ///
   /// In en, this message translates to:

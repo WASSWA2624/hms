@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hosspi_hms/core/ai/ai_speech_formatter.dart';
@@ -50,6 +51,12 @@ abstract class AppSpeechRecognizer {
 
   Future<void> cancelListening();
 }
+
+/// Longest single recognizer session requested from the platform.
+const Duration appSpeechListenFor = Duration(minutes: 5);
+
+/// Silence a recognizer session may sit through before the platform ends it.
+const Duration appSpeechPauseFor = Duration(seconds: 30);
 
 /// Default [speech_to_text] backed recognizer.
 final class SpeechToTextAppSpeechRecognizer implements AppSpeechRecognizer {
@@ -145,9 +152,16 @@ final class SpeechToTextAppSpeechRecognizer implements AppSpeechRecognizer {
       onResult: (result) {
         onResult(result.recognizedWords, isFinal: result.finalResult);
       },
+      // `cancelOnError` stays off: Android reports every error as permanent,
+      // so the plugin would end dictation on a mere silence. Partial results
+      // (the default) also keep web recognition continuous.
       listenOptions: SpeechListenOptions(
-        cancelOnError: true,
         listenMode: ListenMode.dictation,
+        // Long limits keep one recognizer session open across pauses where
+        // the platform honors them. Android still ends sessions on its own,
+        // and the coordinator restarts them.
+        listenFor: appSpeechListenFor,
+        pauseFor: appSpeechPauseFor,
       ),
     );
   }
@@ -1348,10 +1362,118 @@ String _joinSpokenTextTokens(List<String> tokens) {
   return buffer.toString().replaceAll(RegExp(r'[ \t]+\n'), '\n').trimRight();
 }
 
-/// Ensures only one field listens at a time.
-final class AppSpeechToTextCoordinator extends ChangeNotifier {
-  AppSpeechToTextCoordinator({AppSpeechRecognizer? recognizer})
-    : _recognizer = recognizer ?? SpeechToTextAppSpeechRecognizer();
+/// Why dictation ended without the user turning it off.
+enum AppSpeechToTextInterruption { permissionDenied, unavailable, error }
+
+/// How the coordinator treats a recognizer error while dictation is on.
+enum AppSpeechErrorKind {
+  /// Silence, no match or a recognizer that just ended: restart quietly.
+  soft,
+
+  /// Network/server/busy style failures: restart with backoff, give up after
+  /// repeated failures.
+  retryable,
+
+  /// Microphone or speech permission was revoked.
+  permissionDenied,
+
+  /// The recognizer or language cannot be used on this device.
+  unavailable,
+}
+
+const Set<String> _appSpeechSoftErrors = <String>{
+  // Android
+  'error_speech_timeout',
+  'error_no_match',
+  'error_client',
+  // iOS
+  'error_retry',
+  // Web SpeechRecognition
+  'no-speech',
+  'aborted',
+};
+
+const Set<String> _appSpeechPermissionErrors = <String>{
+  'error_permission',
+  'not-allowed',
+  'service-not-allowed',
+};
+
+const Set<String> _appSpeechUnavailableErrors = <String>{
+  'error_language_not_supported',
+  'error_language_unavailable',
+  'error_speech_recognizer_disabled',
+  'audio-capture',
+  'language-not-supported',
+  'speech_not_supported',
+  'not supported',
+};
+
+/// Classifies a plugin error string (Android `error_*`, iOS, web).
+AppSpeechErrorKind appSpeechErrorKind(String error) {
+  final String code = error.trim().toLowerCase();
+  if (_appSpeechSoftErrors.contains(code)) {
+    return AppSpeechErrorKind.soft;
+  }
+  if (_appSpeechPermissionErrors.contains(code)) {
+    return AppSpeechErrorKind.permissionDenied;
+  }
+  if (_appSpeechUnavailableErrors.contains(code)) {
+    return AppSpeechErrorKind.unavailable;
+  }
+  return AppSpeechErrorKind.retryable;
+}
+
+/// Everything needed to (re)start the recognizer for one field.
+final class _SpeechDictation {
+  const _SpeechDictation({
+    required this.owner,
+    required this.controller,
+    required this.onChanged,
+    required this.transcriptTransform,
+    required this.onSpeechResult,
+    required this.aiFormatter,
+    required this.aiFormatMode,
+    required this.aiFormatHint,
+    required this.locale,
+    required this.separator,
+  });
+
+  final Object owner;
+  final TextEditingController controller;
+  final ValueChanged<String>? onChanged;
+  final String Function(String transcript) transcriptTransform;
+  final void Function(String transcript, {required bool isFinal})?
+  onSpeechResult;
+  final AppSpeechAiFormatter? aiFormatter;
+  final String aiFormatMode;
+  final String? aiFormatHint;
+  final String? locale;
+  final String separator;
+}
+
+/// Ensures only one field listens at a time, and keeps that field listening
+/// until the user turns dictation off.
+///
+/// Platform recognizers end a session after a phrase or a short silence
+/// (Android in particular). While dictation is on, the coordinator restarts
+/// the recognizer for the same field and re-anchors at the caret, so earlier
+/// words are kept. Dictation only ends on an explicit stop, another field
+/// starting, the owner going away, the app leaving the foreground, lost
+/// permission, an unavailable recognizer, or repeated failures.
+final class AppSpeechToTextCoordinator extends ChangeNotifier
+    with WidgetsBindingObserver {
+  AppSpeechToTextCoordinator({
+    AppSpeechRecognizer? recognizer,
+    Duration restartDelay = const Duration(milliseconds: 150),
+    Duration failureBackoff = const Duration(milliseconds: 500),
+    Duration healthyListenDuration = const Duration(seconds: 1),
+    int maxConsecutiveFailures = 3,
+  }) : _recognizer = recognizer ?? SpeechToTextAppSpeechRecognizer(),
+       _restartDelay = restartDelay,
+       _failureBackoff = failureBackoff,
+       _healthyListenDuration = healthyListenDuration,
+       _maxConsecutiveFailures = maxConsecutiveFailures;
 
   static AppSpeechToTextCoordinator? _instance;
 
@@ -1364,39 +1486,76 @@ final class AppSpeechToTextCoordinator extends ChangeNotifier {
   }
 
   final AppSpeechRecognizer _recognizer;
-  Object? _activeOwner;
+  final Duration _restartDelay;
+  final Duration _failureBackoff;
+  final Duration _healthyListenDuration;
+  final int _maxConsecutiveFailures;
+
+  /// The user's intent: non-null while dictation is on for a field.
+  _SpeechDictation? _dictation;
   String _sessionPrefix = '';
   String _sessionSuffix = '';
 
-  /// Phrases already finalized in this session, as written into the span.
+  /// Separator still owed before the first phrase after a restart, so the
+  /// next phrase does not run into the previous one.
+  String _pendingJoiner = '';
+
+  /// Bumped each time the span is re-anchored after a recognizer restart.
+  int _spanEpoch = 0;
+
+  /// Phrases already finalized in this recognizer session, as written into
+  /// the span.
   String _sessionCommitted = '';
 
   /// What currently occupies the span (committed phrases plus the live one).
   String _sessionSpan = '';
-  String _sessionSeparator = ' ';
+
+  /// Identifies the recognizer session callbacks belong to.
+  int _listenGeneration = 0;
+  bool _listenHealthy = false;
+  int _consecutiveFailures = 0;
+  int? _failureCountedGeneration;
+  Timer? _restartTimer;
+  Timer? _healthyTimer;
+  bool _observingLifecycle = false;
+
+  int _interruptionSerial = 0;
+  ({int serial, Object owner, AppSpeechToTextInterruption reason})?
+  _lastInterruption;
+
   AppSpeechInitStatus _initStatus = AppSpeechInitStatus.unavailable;
   String? _lastError;
   int _formatGeneration = 0;
   AppSpeechAiAbort? _activeFormatAbort;
   Object? _formattingOwner;
 
-  Object? get activeOwner => _activeOwner;
-  bool get isListening => _activeOwner != null && _recognizer.isListening;
+  Object? get activeOwner => _dictation?.owner;
+
+  /// True while dictation is on, including the short gaps while the
+  /// recognizer restarts, so the mic never flickers back to idle.
+  bool get isListening => _dictation != null;
   AppSpeechInitStatus get initStatus => _initStatus;
   String? get lastError => _lastError;
   bool get isFormatting => _formattingOwner != null;
 
-  bool isListeningFor(Object owner) => _activeOwner == owner && isListening;
+  /// The most recent dictation that ended on its own (lost permission,
+  /// unavailable recognizer, repeated failures). [serial] grows with each one.
+  ({int serial, Object owner, AppSpeechToTextInterruption reason})?
+  get lastInterruption => _lastInterruption;
+
+  bool isListeningFor(Object owner) => _dictation?.owner == owner;
 
   bool isFormattingFor(Object owner) => _formattingOwner == owner;
 
-  void _cancelInFlightFormat() {
+  void _cancelInFlightFormat({bool notify = true}) {
     _formatGeneration += 1;
     _activeFormatAbort?.abort();
     _activeFormatAbort = null;
     if (_formattingOwner != null) {
       _formattingOwner = null;
-      notifyListeners();
+      if (notify) {
+        notifyListeners();
+      }
     }
   }
 
@@ -1431,8 +1590,9 @@ final class AppSpeechToTextCoordinator extends ChangeNotifier {
     String segmentSeparator = ' ',
   }) async {
     var stoppedOther = false;
-    if (_activeOwner != null && _activeOwner != owner) {
-      await stop(owner: _activeOwner);
+    final Object? previousOwner = _dictation?.owner;
+    if (previousOwner != null && previousOwner != owner) {
+      await stop(owner: previousOwner);
       stoppedOther = true;
     }
     _cancelInFlightFormat();
@@ -1442,85 +1602,36 @@ final class AppSpeechToTextCoordinator extends ChangeNotifier {
       return (started: false, stoppedOther: stoppedOther);
     }
 
+    final _SpeechDictation dictation = _SpeechDictation(
+      owner: owner,
+      controller: controller,
+      onChanged: onChanged,
+      transcriptTransform: transcriptTransform ?? appSpeechTextTranscript,
+      onSpeechResult: onSpeechResult,
+      aiFormatter: aiFormatter,
+      aiFormatMode: aiFormatMode,
+      aiFormatHint: aiFormatHint,
+      locale: locale,
+      separator: segmentSeparator,
+    );
     final ({String prefix, String suffix}) bounds =
         captureSpeechSessionBounds(controller);
+    _dictation = dictation;
     _sessionPrefix = bounds.prefix;
     _sessionSuffix = bounds.suffix;
+    _pendingJoiner = '';
     _sessionCommitted = '';
     _sessionSpan = '';
-    _sessionSeparator = segmentSeparator;
-    _activeOwner = owner;
+    _consecutiveFailures = 0;
+    _failureCountedGeneration = null;
     _lastError = null;
+    _attachLifecycle();
     notifyListeners();
 
-    try {
-      await _recognizer.startListening(
-        onResult: (String words, {required bool isFinal}) {
-          if (_activeOwner != owner) {
-            return;
-          }
-          final String transcript =
-              (transcriptTransform ?? appSpeechTextTranscript).call(words);
-          final String committedBefore = _sessionCommitted;
-          final String span = mergeSpeechSegments(
-            committedBefore,
-            transcript,
-            separator: _sessionSeparator,
-          );
-          if (span == _sessionSpan && !isFinal) {
-            // Recognizer repeated a partial it already delivered.
-            return;
-          }
-          _cancelInFlightFormat();
-          _deliverSpan(
-            owner: owner,
-            controller: controller,
-            span: span,
-            onChanged: onChanged,
-            onSpeechResult: onSpeechResult,
-            isFinal: isFinal,
-          );
-          if (isFinal) {
-            _sessionCommitted = span;
-            unawaited(
-              _formatFinalTranscript(
-                owner: owner,
-                controller: controller,
-                transcript: transcript,
-                committedBefore: committedBefore,
-                unformattedSpan: span,
-                onChanged: onChanged,
-                onSpeechResult: onSpeechResult,
-                aiFormatter: aiFormatter,
-                aiFormatMode: aiFormatMode,
-                aiFormatHint: aiFormatHint,
-                locale: locale,
-              ),
-            );
-          }
-          notifyListeners();
-        },
-        onStatus: (String status) {
-          if (status == 'done' || status == 'notListening') {
-            if (_activeOwner == owner && !_recognizer.isListening) {
-              _endSession();
-              notifyListeners();
-            }
-          } else {
-            notifyListeners();
-          }
-        },
-        onError: (String error) {
-          _lastError = error;
-          if (_activeOwner == owner) {
-            _endSession();
-          }
-          notifyListeners();
-        },
-      );
-    } on Object catch (error) {
-      _lastError = error.toString();
-      _endSession();
+    if (!await _listen(dictation)) {
+      if (identical(_dictation, dictation)) {
+        _endDictation();
+      }
       notifyListeners();
       return (started: false, stoppedOther: stoppedOther);
     }
@@ -1529,64 +1640,262 @@ final class AppSpeechToTextCoordinator extends ChangeNotifier {
     return (started: true, stoppedOther: stoppedOther);
   }
 
-  /// Rewrites the dictation span with [span] (everything spoken this session).
-  void _deliverSpan({
-    required Object owner,
-    required TextEditingController controller,
-    required String span,
-    required ValueChanged<String>? onChanged,
-    required void Function(String transcript, {required bool isFinal})?
-    onSpeechResult,
+  bool _isCurrent(_SpeechDictation dictation, int generation) {
+    return identical(_dictation, dictation) && generation == _listenGeneration;
+  }
+
+  /// Starts one recognizer session for [dictation]. Returns false when the
+  /// recognizer refused to start.
+  Future<bool> _listen(_SpeechDictation dictation) async {
+    final int generation = ++_listenGeneration;
+    _listenHealthy = false;
+    _healthyTimer?.cancel();
+    _healthyTimer = null;
+    try {
+      await _recognizer.startListening(
+        onResult: (String words, {required bool isFinal}) {
+          if (_isCurrent(dictation, generation)) {
+            _handleResult(dictation, words, isFinal: isFinal);
+          }
+        },
+        onStatus: (String status) {
+          if (!_isCurrent(dictation, generation)) {
+            return;
+          }
+          if ((status == 'done' || status == 'notListening') &&
+              !_recognizer.isListening) {
+            _handleListenEnded(dictation, generation);
+          }
+          notifyListeners();
+        },
+        onError: (String error) {
+          if (!_isCurrent(dictation, generation)) {
+            return;
+          }
+          _lastError = error;
+          _handleListenError(dictation, generation, error);
+          notifyListeners();
+        },
+      );
+    } on Object catch (error) {
+      if (identical(_dictation, dictation)) {
+        _lastError = error.toString();
+      }
+      return false;
+    }
+    if (_isCurrent(dictation, generation) && !_listenHealthy) {
+      _healthyTimer = Timer(_healthyListenDuration, () {
+        _healthyTimer = null;
+        if (_isCurrent(dictation, generation)) {
+          _listenHealthy = true;
+        }
+      });
+    }
+    return true;
+  }
+
+  void _handleResult(
+    _SpeechDictation dictation,
+    String words, {
     required bool isFinal,
   }) {
-    _sessionSpan = span;
-    if (onSpeechResult != null) {
-      onSpeechResult(span, isFinal: isFinal);
-    } else {
-      insertSpeechTranscript(
-        controller,
-        span,
-        sessionPrefix: _sessionPrefix,
-        sessionSuffix: _sessionSuffix,
+    final String transcript = dictation.transcriptTransform(words);
+    if (transcript.trim().isNotEmpty) {
+      // Speech is getting through: earlier failures are no longer consecutive.
+      _listenHealthy = true;
+      _consecutiveFailures = 0;
+    }
+    final String committedBefore = _sessionCommitted;
+    final String span = mergeSpeechSegments(
+      committedBefore,
+      transcript,
+      separator: dictation.separator,
+    );
+    if (span == _sessionSpan && !isFinal) {
+      // Recognizer repeated a partial it already delivered.
+      return;
+    }
+    _cancelInFlightFormat();
+    _deliverSpan(dictation, span: span, isFinal: isFinal);
+    if (isFinal) {
+      _sessionCommitted = span;
+      unawaited(
+        _formatFinalTranscript(
+          dictation,
+          transcript: transcript,
+          committedBefore: committedBefore,
+          unformattedSpan: span,
+        ),
       );
-      onChanged?.call(controller.text);
+    }
+    notifyListeners();
+  }
+
+  /// The recognizer stopped listening on its own (end of phrase, silence, a
+  /// soft error). Restart it while dictation is still on.
+  void _handleListenEnded(_SpeechDictation dictation, int generation) {
+    if (_restartTimer != null) {
+      return;
+    }
+    if (_listenHealthy) {
+      _consecutiveFailures = 0;
+    } else if (!_registerFailure(dictation, generation)) {
+      return;
+    }
+    _scheduleRestart(dictation);
+  }
+
+  void _handleListenError(
+    _SpeechDictation dictation,
+    int generation,
+    String error,
+  ) {
+    switch (appSpeechErrorKind(error)) {
+      case AppSpeechErrorKind.soft:
+        _handleListenEnded(dictation, generation);
+      case AppSpeechErrorKind.retryable:
+        if (_registerFailure(dictation, generation)) {
+          _scheduleRestart(dictation);
+        }
+      case AppSpeechErrorKind.permissionDenied:
+        _initStatus = AppSpeechInitStatus.permissionDenied;
+        _interrupt(dictation, AppSpeechToTextInterruption.permissionDenied);
+      case AppSpeechErrorKind.unavailable:
+        _interrupt(dictation, AppSpeechToTextInterruption.unavailable);
     }
   }
 
-  Future<void> _formatFinalTranscript({
-    required Object owner,
-    required TextEditingController controller,
+  /// Counts one failed recognizer session. Returns false when that was one
+  /// failure too many and dictation ended.
+  bool _registerFailure(_SpeechDictation dictation, int generation) {
+    if (_failureCountedGeneration != generation) {
+      _failureCountedGeneration = generation;
+      _consecutiveFailures += 1;
+    }
+    if (_consecutiveFailures >= _maxConsecutiveFailures) {
+      _interrupt(dictation, AppSpeechToTextInterruption.error);
+      return false;
+    }
+    return true;
+  }
+
+  void _scheduleRestart(_SpeechDictation dictation) {
+    _restartTimer?.cancel();
+    final Duration delay = _consecutiveFailures == 0
+        ? _restartDelay
+        : _failureBackoff * (1 << (_consecutiveFailures - 1));
+    _restartTimer = Timer(delay, () {
+      _restartTimer = null;
+      unawaited(_restart(dictation));
+    });
+  }
+
+  Future<void> _restart(_SpeechDictation dictation) async {
+    if (!identical(_dictation, dictation)) {
+      return;
+    }
+    if (_recognizer.isListening) {
+      // The platform kept listening after all; its own end restarts us.
+      return;
+    }
+    _reanchorSpan(dictation);
+    if (await _listen(dictation) || !identical(_dictation, dictation)) {
+      return;
+    }
+    if (_registerFailure(dictation, _listenGeneration)) {
+      _scheduleRestart(dictation);
+    }
+    notifyListeners();
+  }
+
+  /// Keeps what was dictated so far and anchors the next recognizer session
+  /// at the caret, so it appends instead of rewriting earlier words.
+  void _reanchorSpan(_SpeechDictation dictation) {
+    _sessionCommitted = '';
+    _sessionSpan = '';
+    _spanEpoch += 1;
+    if (dictation.onSpeechResult != null) {
+      _pendingJoiner = '';
+      return;
+    }
+    final ({String prefix, String suffix}) bounds = captureSpeechSessionBounds(
+      dictation.controller,
+    );
+    _sessionPrefix = bounds.prefix;
+    _sessionSuffix = bounds.suffix;
+    _pendingJoiner = _joinerAfter(bounds.prefix, dictation.separator);
+  }
+
+  static String _joinerAfter(String prefix, String separator) {
+    if (separator.isEmpty ||
+        prefix.isEmpty ||
+        RegExp(r'\s$').hasMatch(prefix)) {
+      return '';
+    }
+    return separator;
+  }
+
+  /// Rewrites the dictation span with [span] (everything spoken this
+  /// recognizer session).
+  void _deliverSpan(
+    _SpeechDictation dictation, {
+    required String span,
+    required bool isFinal,
+  }) {
+    _sessionSpan = span;
+    final void Function(String transcript, {required bool isFinal})?
+    onSpeechResult = dictation.onSpeechResult;
+    if (onSpeechResult != null) {
+      onSpeechResult(span, isFinal: isFinal);
+      return;
+    }
+    if (span.isNotEmpty && _pendingJoiner.isNotEmpty) {
+      _sessionPrefix = '$_sessionPrefix$_pendingJoiner';
+      _pendingJoiner = '';
+    }
+    insertSpeechTranscript(
+      dictation.controller,
+      span,
+      sessionPrefix: _sessionPrefix,
+      sessionSuffix: _sessionSuffix,
+    );
+    dictation.onChanged?.call(dictation.controller.text);
+  }
+
+  Future<void> _formatFinalTranscript(
+    _SpeechDictation dictation, {
     required String transcript,
     required String committedBefore,
     required String unformattedSpan,
-    required ValueChanged<String>? onChanged,
-    required void Function(String transcript, {required bool isFinal})?
-    onSpeechResult,
-    required AppSpeechAiFormatter? aiFormatter,
-    required String aiFormatMode,
-    String? aiFormatHint,
-    String? locale,
   }) async {
-    if (aiFormatter == null || transcript.trim().isEmpty) {
+    final AppSpeechAiFormatter? aiFormatter = dictation.aiFormatter;
+    // A host may stop dictation while handling the result (a select field
+    // that matched an option); formatting would then land after the stop.
+    if (aiFormatter == null ||
+        transcript.trim().isEmpty ||
+        !identical(_dictation, dictation)) {
       return;
     }
 
     final int generation = _formatGeneration;
+    final int epoch = _spanEpoch;
+    final String prefix = _sessionPrefix;
+    final String suffix = _sessionSuffix;
     final AppSpeechAiAbort abort = AppSpeechAiAbort();
     _activeFormatAbort = abort;
-    _formattingOwner = owner;
+    _formattingOwner = dictation.owner;
     notifyListeners();
 
-    final String expected =
-        '$_sessionPrefix$unformattedSpan$_sessionSuffix';
+    final TextEditingController controller = dictation.controller;
+    final String expected = '$prefix$unformattedSpan$suffix';
     String? formatted;
     try {
       formatted = await aiFormatter(
         transcript: transcript,
-        mode: aiFormatMode,
+        mode: dictation.aiFormatMode,
         abort: abort,
-        locale: locale,
-        hint: aiFormatHint,
+        locale: dictation.locale,
+        hint: dictation.aiFormatHint,
       );
     } on Object {
       formatted = null;
@@ -1603,7 +1912,7 @@ final class AppSpeechToTextCoordinator extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    if (onSpeechResult == null && controller.text != expected) {
+    if (dictation.onSpeechResult == null && controller.text != expected) {
       notifyListeners();
       return;
     }
@@ -1613,53 +1922,145 @@ final class AppSpeechToTextCoordinator extends ChangeNotifier {
     final String span = mergeSpeechSegments(
       committedBefore,
       next,
-      separator: _sessionSeparator,
+      separator: dictation.separator,
     );
+    if (epoch != _spanEpoch) {
+      // The recognizer restarted while formatting and re-anchored right after
+      // the raw phrase. Nothing was dictated since (any result cancels this
+      // pass), so swap the phrase in place and re-anchor after it. Bail if the
+      // anchor moved, rather than risk duplicating text.
+      if (dictation.onSpeechResult != null ||
+          _sessionPrefix != '$prefix$unformattedSpan' ||
+          _sessionSuffix != suffix) {
+        notifyListeners();
+        return;
+      }
+      _sessionPrefix = '$prefix$span';
+      _pendingJoiner = _joinerAfter(_sessionPrefix, dictation.separator);
+      insertSpeechTranscript(
+        controller,
+        '',
+        sessionPrefix: _sessionPrefix,
+        sessionSuffix: suffix,
+      );
+      dictation.onChanged?.call(controller.text);
+      notifyListeners();
+      return;
+    }
     _sessionCommitted = span;
-    _deliverSpan(
-      owner: owner,
-      controller: controller,
-      span: span,
-      onChanged: onChanged,
-      onSpeechResult: onSpeechResult,
-      isFinal: true,
-    );
+    _deliverSpan(dictation, span: span, isFinal: true);
     notifyListeners();
   }
 
+  /// Turns dictation off. With [owner], only if that field is dictating.
   Future<void> stop({Object? owner}) async {
-    if (owner != null && _activeOwner != null && _activeOwner != owner) {
+    if (owner != null && _dictation != null && _dictation!.owner != owner) {
       return;
     }
+    // End the intent first so a pending restart can never reopen the mic.
+    _endDictation();
+    _cancelInFlightFormat(notify: false);
     try {
       await _recognizer.stopListening();
     } on Object {
       // Best-effort stop on dispose/disable.
     }
-    _cancelInFlightFormat();
-    _endSession();
     notifyListeners();
   }
 
   Future<void> cancel({Object? owner}) async {
-    if (owner != null && _activeOwner != null && _activeOwner != owner) {
+    if (owner != null && _dictation != null && _dictation!.owner != owner) {
       return;
     }
+    _endDictation();
+    _cancelInFlightFormat(notify: false);
     try {
       await _recognizer.cancelListening();
     } on Object {
       // Best-effort cancel.
     }
-    _cancelInFlightFormat();
-    _endSession();
     notifyListeners();
   }
 
-  /// Drops session state so the next [start] anchors on a fresh caret span.
-  void _endSession() {
-    _activeOwner = null;
+  /// Ends dictation the user did not stop, and records why for the owner.
+  void _interrupt(
+    _SpeechDictation dictation,
+    AppSpeechToTextInterruption reason,
+  ) {
+    if (!identical(_dictation, dictation)) {
+      return;
+    }
+    _endDictation();
+    _interruptionSerial += 1;
+    _lastInterruption = (
+      serial: _interruptionSerial,
+      owner: dictation.owner,
+      reason: reason,
+    );
+    unawaited(_releaseRecognizer());
+  }
+
+  Future<void> _releaseRecognizer() async {
+    try {
+      await _recognizer.cancelListening();
+    } on Object {
+      // The recognizer already failed; releasing it is best effort.
+    }
+  }
+
+  /// Drops session state so the next [start] anchors on a fresh caret span,
+  /// and callbacks from the old recognizer session are ignored.
+  void _endDictation() {
+    _dictation = null;
+    _listenGeneration += 1;
+    _restartTimer?.cancel();
+    _restartTimer = null;
+    _healthyTimer?.cancel();
+    _healthyTimer = null;
     _sessionCommitted = '';
     _sessionSpan = '';
+    _pendingJoiner = '';
+    _consecutiveFailures = 0;
+    _failureCountedGeneration = null;
+    _detachLifecycle();
+  }
+
+  void _attachLifecycle() {
+    if (_observingLifecycle) {
+      return;
+    }
+    WidgetsBinding.instance.addObserver(this);
+    _observingLifecycle = true;
+  }
+
+  void _detachLifecycle() {
+    if (!_observingLifecycle) {
+      return;
+    }
+    WidgetsBinding.instance.removeObserver(this);
+    _observingLifecycle = false;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final Object? owner = _dictation?.owner;
+    if (owner == null || state == AppLifecycleState.resumed) {
+      return;
+    }
+    // Browsers report `inactive` on a mere window blur, such as the mic
+    // permission prompt; hidden tabs still end dictation.
+    if (kIsWeb && state == AppLifecycleState.inactive) {
+      return;
+    }
+    // Never keep the microphone open once the app leaves the foreground.
+    unawaited(stop(owner: owner));
+  }
+
+  @override
+  void dispose() {
+    _endDictation();
+    _cancelInFlightFormat(notify: false);
+    super.dispose();
   }
 }
 
@@ -1722,11 +2123,13 @@ class _AppSpeechToTextButtonState extends ConsumerState<AppSpeechToTextButton> {
   late final AppSpeechToTextCoordinator _coordinator;
   AppSpeechInitStatus _initStatus = AppSpeechInitStatus.unavailable;
   bool _checking = false;
+  int _seenInterruptionSerial = 0;
 
   @override
   void initState() {
     super.initState();
     _coordinator = widget.coordinator ?? AppSpeechToTextCoordinator.instance;
+    _seenInterruptionSerial = _coordinator.lastInterruption?.serial ?? 0;
     _coordinator.addListener(_handleCoordinatorChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _warmUp();
@@ -1752,9 +2155,38 @@ class _AppSpeechToTextButtonState extends ConsumerState<AppSpeechToTextButton> {
   }
 
   void _handleCoordinatorChanged() {
-    if (mounted) {
-      setState(() {});
+    if (!mounted) {
+      return;
     }
+    _showInterruption();
+    setState(() {});
+  }
+
+  /// Tells the user why dictation on this field ended without them stopping
+  /// it. Raw plugin errors are never shown.
+  void _showInterruption() {
+    final ({int serial, Object owner, AppSpeechToTextInterruption reason})?
+    interruption = _coordinator.lastInterruption;
+    if (interruption == null ||
+        interruption.serial == _seenInterruptionSerial) {
+      return;
+    }
+    _seenInterruptionSerial = interruption.serial;
+    if (interruption.owner != widget.controller) {
+      return;
+    }
+    final AppLocalizations l10n = context.l10n;
+    final String message = switch (interruption.reason) {
+      AppSpeechToTextInterruption.permissionDenied =>
+        l10n.speechToTextPermissionDeniedMessage,
+      AppSpeechToTextInterruption.unavailable =>
+        l10n.speechToTextUnavailableMessage,
+      AppSpeechToTextInterruption.error => l10n.speechToTextErrorMessage,
+    };
+    if (interruption.reason == AppSpeechToTextInterruption.permissionDenied) {
+      _initStatus = AppSpeechInitStatus.permissionDenied;
+    }
+    showAppSuccessSnackBar(context, message);
   }
 
   Future<void> _warmUp() async {
@@ -1866,7 +2298,7 @@ class _AppSpeechToTextButtonState extends ConsumerState<AppSpeechToTextButton> {
     final bool canPress =
         widget.enabled && (listening || blockReason == null) && !_checking;
     final String tooltip = listening
-        ? l10n.speechToTextStopTooltip
+        ? l10n.speechToTextListeningTooltip
         : (blockReason == null
               ? l10n.speechToTextStartTooltip
               : appSpeechToTextBlockMessage(l10n, blockReason));
