@@ -13285,6 +13285,14 @@
   "@clinicalPrescriptionAddMedicineAction": {
     "description": "Clinical prescription add medicine button label."
   },
+  "clinicalPrescriptionAddMoreMedicinesAction": "Add more medicines",
+  "@clinicalPrescriptionAddMoreMedicinesAction": {
+    "description": "Clinical prescription add medicine button label once the order already lists medicines."
+  },
+  "clinicalPrescriptionAddMedicinesUnavailableHint": "Complete the details above to add medicines.",
+  "@clinicalPrescriptionAddMedicinesUnavailableHint": {
+    "description": "Default explanation shown while adding medicines to a prescription is not available yet."
+  },
   "clinicalPrescriptionRemoveMedicineAction": "Remove medicine",
   "@clinicalPrescriptionRemoveMedicineAction": {
     "description": "Clinical prescription remove medicine button tooltip."
@@ -17347,6 +17355,10 @@
   "pharmacyWalkInOrderPatientRequired": "Select a patient to continue.",
   "@pharmacyWalkInOrderPatientRequired": {
     "description": "Validation when walk-in order is missing a patient."
+  },
+  "pharmacyWalkInOrderAddMedicinesRequiresPatientHint": "Select or register the patient first to add medicines.",
+  "@pharmacyWalkInOrderAddMedicinesRequiresPatientHint": {
+    "description": "Explains why Add medicine is unavailable on pharmacy Create order until a patient is linked."
   },
   "pharmacyWalkInOrderDrugRequired": "Select a drug for each line.",
   "@pharmacyWalkInOrderDrugRequired": {

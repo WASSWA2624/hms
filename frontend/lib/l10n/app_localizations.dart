@@ -18958,6 +18958,18 @@ abstract class AppLocalizations {
   /// **'Add medicine'**
   String get clinicalPrescriptionAddMedicineAction;
 
+  /// Clinical prescription add medicine button label once the order already lists medicines.
+  ///
+  /// In en, this message translates to:
+  /// **'Add more medicines'**
+  String get clinicalPrescriptionAddMoreMedicinesAction;
+
+  /// Default explanation shown while adding medicines to a prescription is not available yet.
+  ///
+  /// In en, this message translates to:
+  /// **'Complete the details above to add medicines.'**
+  String get clinicalPrescriptionAddMedicinesUnavailableHint;
+
   /// Clinical prescription remove medicine button tooltip.
   ///
   /// In en, this message translates to:
@@ -24915,6 +24927,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Select a patient to continue.'**
   String get pharmacyWalkInOrderPatientRequired;
+
+  /// Explains why Add medicine is unavailable on pharmacy Create order until a patient is linked.
+  ///
+  /// In en, this message translates to:
+  /// **'Select or register the patient first to add medicines.'**
+  String get pharmacyWalkInOrderAddMedicinesRequiresPatientHint;
 
   /// Validation when a walk-in order line is missing a drug.
   ///

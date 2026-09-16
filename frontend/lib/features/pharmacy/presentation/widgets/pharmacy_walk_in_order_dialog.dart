@@ -448,6 +448,8 @@ class _PharmacyWalkInOrderDialogState
       dialogIcon: Icons.add_shopping_cart_outlined,
       enableBilling: _billingEnabled,
       allowAddMedicines: _canAddMedicines,
+      addMedicinesUnavailableMessage:
+          l10n.pharmacyWalkInOrderAddMedicinesRequiresPatientHint,
       defaultBillingEntity: 'PHARMACY',
       loadCatalogDrugs: _loadCatalogDrugs,
       onSubmit: _submitCreateOrder,

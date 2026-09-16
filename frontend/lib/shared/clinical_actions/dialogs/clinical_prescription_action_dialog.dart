@@ -32,6 +32,7 @@ class ClinicalPrescriptionActionDialog extends StatefulWidget {
     this.enableBilling = true,
     this.defaultBillingEntity = 'FACILITY',
     this.allowAddMedicines = true,
+    this.addMedicinesUnavailableMessage,
     this.loadCatalogDrugs,
     super.key,
   });
@@ -62,6 +63,10 @@ class ClinicalPrescriptionActionDialog extends StatefulWidget {
   /// When false, Add medicine stays inactive (e.g. Existing patient with no
   /// patient selected yet on pharmacy Create order).
   final bool allowAddMedicines;
+
+  /// Why Add medicine is unavailable while [allowAddMedicines] is false.
+  /// Defaults to a generic hint.
+  final String? addMedicinesUnavailableMessage;
 
   /// Optional remote medicine catalog loader (search + barcode scan).
   final ClinicalPrescriptionCatalogLoader? loadCatalogDrugs;
@@ -144,6 +149,9 @@ class _PrescriptionDialogState extends State<ClinicalPrescriptionActionDialog> {
         _defaultColumns(context, metrics: metrics);
     final List<AppListTableColumn<_PrescriptionLineFormState>> columnChoices =
         _columnChoices(context, metrics: metrics);
+    // Where toolbar actions collapse to bare icons, Add medicine gets its own
+    // labeled button so the next step stays obvious.
+    final bool inlineAddAction = !breakpoint.showsToolbarActionLabels;
 
     return AppDialog(
       title: Text(widget.dialogTitle ?? l10n.clinicalPrescribeAction),
@@ -162,6 +170,24 @@ class _PrescriptionDialogState extends State<ClinicalPrescriptionActionDialog> {
           if (widget.header != null) ...<Widget>[
             widget.header!,
             SizedBox(height: theme.spacing.md),
+          ],
+          if (inlineAddAction) ...<Widget>[
+            _PrescriptionAddMedicinesBar(
+              label: _lines.isEmpty
+                  ? l10n.clinicalPrescriptionAddMedicineAction
+                  : l10n.clinicalPrescriptionAddMoreMedicinesAction,
+              fullWidth: breakpoint.isMobile,
+              // The empty state explains an unavailable add; once medicines
+              // are listed the bar has to say it instead.
+              unavailableMessage:
+                  !widget.allowAddMedicines && _lines.isNotEmpty
+                  ? _addMedicinesUnavailableMessage(l10n)
+                  : null,
+              onPressed: _isSaving || !widget.allowAddMedicines
+                  ? null
+                  : () => unawaited(_openCatalogPicker()),
+            ),
+            SizedBox(height: theme.spacing.sm),
           ],
           Expanded(
             child: AppListTable<_PrescriptionLineFormState>(
@@ -202,7 +228,10 @@ class _PrescriptionDialogState extends State<ClinicalPrescriptionActionDialog> {
                 onFilterChanged: (AppSearchBarFilterValue value) {
                   setState(() => _filterValue = value);
                 },
-                trailingActions: _searchTrailingActions(l10n),
+                trailingActions: _searchTrailingActions(
+                  l10n,
+                  includeAddMedicine: !inlineAddAction,
+                ),
               ),
               emptyBuilder: (BuildContext context) {
                 final bool hasQueryOrFilters =
@@ -214,6 +243,8 @@ class _PrescriptionDialogState extends State<ClinicalPrescriptionActionDialog> {
                     child: Text(
                       hasQueryOrFilters
                           ? l10n.clinicalPrescriptionEmptySearchLabel
+                          : !widget.allowAddMedicines
+                          ? _addMedicinesUnavailableMessage(l10n)
                           : l10n.clinicalPrescriptionNoMedicinesLabel,
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyMedium?.copyWith(
@@ -277,7 +308,17 @@ class _PrescriptionDialogState extends State<ClinicalPrescriptionActionDialog> {
     );
   }
 
-  List<AppSearchBarAction> _searchTrailingActions(AppLocalizations l10n) {
+  String _addMedicinesUnavailableMessage(AppLocalizations l10n) {
+    final String? message = widget.addMedicinesUnavailableMessage?.trim();
+    return message == null || message.isEmpty
+        ? l10n.clinicalPrescriptionAddMedicinesUnavailableHint
+        : message;
+  }
+
+  List<AppSearchBarAction> _searchTrailingActions(
+    AppLocalizations l10n, {
+    required bool includeAddMedicine,
+  }) {
     return <AppSearchBarAction>[
       AppSearchBarAction(
         icon: Icons.delete_outline,
@@ -288,14 +329,18 @@ class _PrescriptionDialogState extends State<ClinicalPrescriptionActionDialog> {
             ? null
             : () => unawaited(_confirmAndDeleteSelected()),
       ),
-      AppSearchBarAction(
-        icon: Icons.add_circle_outline,
-        label: l10n.clinicalPrescriptionAddMedicineAction,
-        enabled: !_isSaving && widget.allowAddMedicines,
-        onPressed: _isSaving || !widget.allowAddMedicines
-            ? null
-            : () => unawaited(_openCatalogPicker()),
-      ),
+      if (includeAddMedicine)
+        AppSearchBarAction(
+          icon: Icons.add_circle_outline,
+          label: l10n.clinicalPrescriptionAddMedicineAction,
+          tooltip: widget.allowAddMedicines
+              ? null
+              : _addMedicinesUnavailableMessage(l10n),
+          enabled: !_isSaving && widget.allowAddMedicines,
+          onPressed: _isSaving || !widget.allowAddMedicines
+              ? null
+              : () => unawaited(_openCatalogPicker()),
+        ),
       if (widget.enableBilling)
         AppSearchBarAction(
           icon: Icons.payments_outlined,
@@ -2609,6 +2654,49 @@ class _PrescriptionOrderTotalFooter extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Labeled Add medicine control for widths where toolbar actions are icons.
+class _PrescriptionAddMedicinesBar extends StatelessWidget {
+  const _PrescriptionAddMedicinesBar({
+    required this.label,
+    required this.fullWidth,
+    required this.onPressed,
+    this.unavailableMessage,
+  });
+
+  final String label;
+  final bool fullWidth;
+  final VoidCallback? onPressed;
+
+  /// Shown beneath the button while adding is unavailable.
+  final String? unavailableMessage;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final String? message = unavailableMessage;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: AppButton.secondary(
+            label: label,
+            leadingIcon: Icons.add_circle_outline,
+            fullWidth: fullWidth,
+            enabled: onPressed != null,
+            onPressed: onPressed,
+          ),
+        ),
+        if (message != null) ...<Widget>[
+          SizedBox(height: theme.spacing.xs),
+          AppMutedText(message),
+        ],
+      ],
     );
   }
 }

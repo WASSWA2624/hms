@@ -10383,6 +10383,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get clinicalPrescriptionAddMedicineAction => 'Add medicine';
 
   @override
+  String get clinicalPrescriptionAddMoreMedicinesAction => 'Add more medicines';
+
+  @override
+  String get clinicalPrescriptionAddMedicinesUnavailableHint =>
+      'Complete the details above to add medicines.';
+
+  @override
   String get clinicalPrescriptionRemoveMedicineAction => 'Remove medicine';
 
   @override
@@ -13542,6 +13549,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get pharmacyWalkInOrderPatientRequired =>
       'Select a patient to continue.';
+
+  @override
+  String get pharmacyWalkInOrderAddMedicinesRequiresPatientHint =>
+      'Select or register the patient first to add medicines.';
 
   @override
   String get pharmacyWalkInOrderDrugRequired => 'Select a drug for each line.';

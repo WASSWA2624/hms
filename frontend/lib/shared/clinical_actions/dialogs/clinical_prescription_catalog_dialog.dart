@@ -69,7 +69,7 @@ class _ClinicalPrescriptionCatalogDialogState
   late final TextEditingController _searchController;
   late final AppListTableColumnVisibilityController<ClinicalActionCatalogOption>
   _columnVisibilityController;
-  final Set<String> _stagedIds = <String>{};
+  final Set<String> _stagedKeys = <String>{};
   final List<ClinicalActionCatalogOption> _stagedOptions =
       <ClinicalActionCatalogOption>[];
 
@@ -127,7 +127,7 @@ class _ClinicalPrescriptionCatalogDialogState
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: Text(
-              l10n.clinicalPrescriptionCatalogSelectedCount(_stagedIds.length),
+              l10n.clinicalPrescriptionCatalogSelectedCount(_stagedKeys.length),
               style: theme.textTheme.labelLarge?.copyWith(
                 fontWeight: AppFontWeight.emphasis,
                 color: colorScheme.primary,
@@ -154,26 +154,24 @@ class _ClinicalPrescriptionCatalogDialogState
                   l10n.clinicalPrescriptionCatalogColumnsTitle,
               columnVisibilityApplyLabel: l10n.labApplyColumnsAction,
               columnVisibilityResetLabel: l10n.labResetColumnsAction,
-              displayMode: AppListTableDisplayMode.table,
+              // Default adaptive layout: phones get list rows, and the whole
+              // row toggles its medicine.
               tableHorizontalMargin: 0,
               showRowNumbers: false,
               enableExport: false,
               isLoading: _isLoadingCatalog,
               onRowSelected: (ClinicalActionCatalogOption item) {
-                _toggleSelection(
-                  item,
-                  selected: !_stagedIds.contains(item.apiId),
-                );
+                _toggleSelection(item, selected: !_isStaged(item));
               },
               rowColorBuilder:
                   (BuildContext context, ClinicalActionCatalogOption item) {
-                    if (!_stagedIds.contains(item.apiId)) {
+                    if (!_isStaged(item)) {
                       return null;
                     }
                     return colorScheme.primaryContainer.withValues(alpha: 0.35);
                   },
               itemKeyBuilder: (ClinicalActionCatalogOption item) =>
-                  ValueKey<String>(item.apiId),
+                  ValueKey<String>(_selectionKey(item)),
               search: AppListTableSearch<ClinicalActionCatalogOption>(
                 controller: _searchController,
                 semanticLabel: l10n.clinicalPrescriptionCatalogSearchLabel,
@@ -202,45 +200,42 @@ class _ClinicalPrescriptionCatalogDialogState
               ),
               emptyBuilder: (_) =>
                   AppMutedText(l10n.clinicalPrescriptionCatalogNoOptions),
+              // No row-level tap handler here: the table wraps each row in
+              // its own selectable tap target that calls [onRowSelected].
               mobileItemBuilder:
                   (BuildContext context, ClinicalActionCatalogOption item) {
-                    final bool selected = _stagedIds.contains(item.apiId);
-                    return InkWell(
-                      onTap: () =>
-                          _toggleSelection(item, selected: !selected),
-                      child: AppListTableMobileItem(
-                        leading: IgnorePointer(
-                          child: Checkbox(
-                            value: selected,
-                            onChanged: (_) {},
-                            visualDensity: VisualDensity.compact,
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
-                          ),
+                    return AppListTableMobileItem(
+                      leading: IgnorePointer(
+                        child: Checkbox(
+                          value: _isStaged(item),
+                          onChanged: (_) {},
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
                         ),
-                        title: clinicalPrescriptionDrugIdentityLabel(item),
-                        caption: item.code,
-                        meta: <AppListTableMobileMeta>[
-                          if ((item.displaySubtitle ?? '').isNotEmpty)
-                            AppListTableMobileMeta(label: item.displaySubtitle!),
-                          if (_availabilityLabel(context, item).isNotEmpty)
-                            AppListTableMobileMeta(
-                              label: _availabilityLabel(context, item),
-                            ),
-                          AppListTableMobileMeta(
-                            label:
-                                '${_unitPriceColumnLabel(l10n)}: ${clinicalRequestPriceLabel(
-                              context,
-                              clinicalCatalogOptionUnitPrice(
-                                item,
-                                billingEntity: widget.billingEntity,
-                              ),
-                              clinicalCatalogOptionCurrency(item),
-                            )}',
-                          ),
-                        ],
-                        showAvatar: false,
                       ),
+                      title: clinicalPrescriptionDrugIdentityLabel(item),
+                      caption: item.code,
+                      meta: <AppListTableMobileMeta>[
+                        if ((item.displaySubtitle ?? '').isNotEmpty)
+                          AppListTableMobileMeta(label: item.displaySubtitle!),
+                        if (_availabilityLabel(context, item).isNotEmpty)
+                          AppListTableMobileMeta(
+                            label: _availabilityLabel(context, item),
+                          ),
+                        AppListTableMobileMeta(
+                          label:
+                              '${_unitPriceColumnLabel(l10n)}: ${clinicalRequestPriceLabel(
+                            context,
+                            clinicalCatalogOptionUnitPrice(
+                              item,
+                              billingEntity: widget.billingEntity,
+                            ),
+                            clinicalCatalogOptionCurrency(item),
+                          )}',
+                        ),
+                      ],
+                      showAvatar: false,
                     );
                   },
             ),
@@ -381,16 +376,23 @@ class _ClinicalPrescriptionCatalogDialogState
     if (matches.isEmpty) {
       return;
     }
-    setState(() {
-      for (final ClinicalActionCatalogOption item in matches) {
-        final String apiId = item.apiId;
-        if (_stagedIds.contains(apiId)) {
-          continue;
-        }
-        _stagedIds.add(apiId);
-        _stagedOptions.add(item);
-      }
-    });
+    _toggleFilteredItems(matches, selected: true);
+  }
+
+  /// Identity of one selectable row, used for staging, highlight, count, and
+  /// row keys alike.
+  ///
+  /// Friendly drug ids restart per tenant, so a catalog that spans tenants can
+  /// repeat an id for different medicines. The tenant keeps those rows apart;
+  /// a row returned twice for the same tenant collapses into one.
+  String _selectionKey(ClinicalActionCatalogOption option) {
+    final String tenant =
+        option.metadata['tenant_id']?.toString().trim().toLowerCase() ?? '';
+    return '${option.apiId.trim().toLowerCase()}|$tenant';
+  }
+
+  bool _isStaged(ClinicalActionCatalogOption option) {
+    return _stagedKeys.contains(_selectionKey(option));
   }
 
   List<ClinicalActionCatalogOption> _availableDrugs() {
@@ -400,6 +402,7 @@ class _ClinicalPrescriptionCatalogDialogState
         .toSet();
     final List<ClinicalActionCatalogOption> source =
         widget.loadDrugs == null ? widget.drugs : _catalog;
+    final Set<String> seenKeys = <String>{};
     final List<ClinicalActionCatalogOption> available =
         <ClinicalActionCatalogOption>[];
     for (final ClinicalActionCatalogOption option in source) {
@@ -410,21 +413,19 @@ class _ClinicalPrescriptionCatalogDialogState
       if (excluded.contains(apiId.toLowerCase())) {
         continue;
       }
+      if (!seenKeys.add(_selectionKey(option))) {
+        continue;
+      }
       available.add(option);
     }
+    // Order never depends on selection: a row that moved on tap would leave a
+    // different medicine under the user's finger.
     available.sort(
-      (ClinicalActionCatalogOption left, ClinicalActionCatalogOption right) {
-        final int bySelected =
-            (_stagedIds.contains(right.apiId) ? 1 : 0) -
-            (_stagedIds.contains(left.apiId) ? 1 : 0);
-        if (bySelected != 0) {
-          return bySelected;
-        }
-        return appListTableCompareText(
-          clinicalPrescriptionDrugIdentityLabel(left),
-          clinicalPrescriptionDrugIdentityLabel(right),
-        );
-      },
+      (ClinicalActionCatalogOption left, ClinicalActionCatalogOption right) =>
+          appListTableCompareText(
+            clinicalPrescriptionDrugIdentityLabel(left),
+            clinicalPrescriptionDrugIdentityLabel(right),
+          ),
     );
     return available;
   }
@@ -561,15 +562,8 @@ class _ClinicalPrescriptionCatalogDialogState
                       .toList(growable: false)
                 : _availableDrugs();
             final bool allSelected =
-                visibleItems.isNotEmpty &&
-                visibleItems.every(
-                  (ClinicalActionCatalogOption item) =>
-                      _stagedIds.contains(item.apiId),
-                );
-            final bool someSelected = visibleItems.any(
-              (ClinicalActionCatalogOption item) =>
-                  _stagedIds.contains(item.apiId),
-            );
+                visibleItems.isNotEmpty && visibleItems.every(_isStaged);
+            final bool someSelected = visibleItems.any(_isStaged);
             return Center(
               child: Checkbox(
                 tristate: true,
@@ -597,7 +591,7 @@ class _ClinicalPrescriptionCatalogDialogState
         return Center(
           child: IgnorePointer(
             child: Checkbox(
-              value: _stagedIds.contains(item.apiId),
+              value: _isStaged(item),
               onChanged: (_) {},
               visualDensity: VisualDensity.compact,
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -630,26 +624,10 @@ class _ClinicalPrescriptionCatalogDialogState
     ClinicalActionCatalogOption option, {
     required bool selected,
   }) {
-    final String apiId = option.apiId;
-    final bool currentlySelected = _stagedIds.contains(apiId);
-    if (currentlySelected == selected) {
-      return;
-    }
-    setState(() {
-      if (selected) {
-        _stagedIds.add(apiId);
-        if (!_stagedOptions.any(
-          (ClinicalActionCatalogOption item) => item.apiId == apiId,
-        )) {
-          _stagedOptions.add(option);
-        }
-        return;
-      }
-      _stagedIds.remove(apiId);
-      _stagedOptions.removeWhere(
-        (ClinicalActionCatalogOption item) => item.apiId == apiId,
-      );
-    });
+    _toggleFilteredItems(
+      <ClinicalActionCatalogOption>[option],
+      selected: selected,
+    );
   }
 
   void _toggleFilteredItems(
@@ -658,24 +636,19 @@ class _ClinicalPrescriptionCatalogDialogState
   }) {
     setState(() {
       for (final ClinicalActionCatalogOption item in items) {
-        final String apiId = item.apiId;
-        final bool currentlySelected = _stagedIds.contains(apiId);
-        if (currentlySelected == selected) {
-          continue;
-        }
+        final String key = _selectionKey(item);
         if (selected) {
-          _stagedIds.add(apiId);
-          if (!_stagedOptions.any(
-            (ClinicalActionCatalogOption option) => option.apiId == apiId,
-          )) {
+          if (_stagedKeys.add(key)) {
             _stagedOptions.add(item);
           }
           continue;
         }
-        _stagedIds.remove(apiId);
-        _stagedOptions.removeWhere(
-          (ClinicalActionCatalogOption option) => option.apiId == apiId,
-        );
+        if (_stagedKeys.remove(key)) {
+          _stagedOptions.removeWhere(
+            (ClinicalActionCatalogOption option) =>
+                _selectionKey(option) == key,
+          );
+        }
       }
     });
   }

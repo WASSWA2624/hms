@@ -19,6 +19,7 @@ void main() {
       availableQuantity: 42,
       stockStatus: 'IN_STOCK',
       genericName: 'Amoxicillin',
+      tenantId: 'TEN0000001',
     );
 
     final ClinicalActionCatalogOption option =
@@ -35,5 +36,6 @@ void main() {
     expect(option.metadata['buy_unit_price'], 8);
     expect(option.metadata['available_quantity'], 42);
     expect(option.metadata['stock_status'], 'IN_STOCK');
+    expect(option.metadata['tenant_id'], 'TEN0000001');
   });
 }

@@ -219,6 +219,66 @@ void main() {
       expect(find.text('Qty'), findsNothing);
     });
 
+    testWidgets('phones show a labeled add action that stays after adding', (
+      WidgetTester tester,
+    ) async {
+      await _pumpPrescribeDialog(tester, width: 393);
+
+      expect(find.widgetWithText(AppButton, 'Add medicine'), findsOneWidget);
+      expect(find.byTooltip('Add medicine'), findsNothing);
+
+      await _addMedicinesFromCatalog(tester, <String>['Amoxicillin']);
+
+      expect(find.textContaining('Amoxicillin'), findsWidgets);
+      expect(
+        find.widgetWithText(AppButton, 'Add more medicines'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.widgetWithText(AppButton, 'Add more medicines'));
+      await tester.pumpAndSettle();
+      expect(find.text('CHOOSE MEDICINES'), findsOneWidget);
+      expect(find.textContaining('Ibuprofen'), findsWidgets);
+    });
+
+    testWidgets('tablet portrait also keeps the labeled add action', (
+      WidgetTester tester,
+    ) async {
+      await _pumpPrescribeDialog(tester, width: 768);
+
+      expect(find.widgetWithText(AppButton, 'Add medicine'), findsOneWidget);
+    });
+
+    testWidgets('explains why adding is unavailable on phones', (
+      WidgetTester tester,
+    ) async {
+      await _pumpPrescribeDialog(
+        tester,
+        width: 393,
+        allowAddMedicines: false,
+        addMedicinesUnavailableMessage: 'Select the patient first.',
+      );
+
+      final AppButton add = tester.widget<AppButton>(
+        find.widgetWithText(AppButton, 'Add medicine'),
+      );
+      expect(add.onPressed, isNull);
+      expect(find.text('Select the patient first.'), findsWidgets);
+    });
+
+    testWidgets('explains why adding is unavailable on desktop', (
+      WidgetTester tester,
+    ) async {
+      await _pumpPrescribeDialog(
+        tester,
+        allowAddMedicines: false,
+        addMedicinesUnavailableMessage: 'Select the patient first.',
+      );
+
+      expect(find.text('Select the patient first.'), findsOneWidget);
+      expect(find.text('No medicines added yet'), findsNothing);
+    });
+
     testWidgets('table shows dosing editors without expanding cards', (
       WidgetTester tester,
     ) async {
@@ -542,6 +602,8 @@ Future<void> _pumpPrescribeDialog(
   ClinicalActionReferenceData? referenceData,
   ClinicalPrescriptionCatalogLoader? loadCatalogDrugs,
   double width = 1800,
+  bool allowAddMedicines = true,
+  String? addMedicinesUnavailableMessage,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = Size(width, 1000);
@@ -592,6 +654,8 @@ Future<void> _pumpPrescribeDialog(
                   ],
                 ),
             loadCatalogDrugs: loadCatalogDrugs,
+            allowAddMedicines: allowAddMedicines,
+            addMedicinesUnavailableMessage: addMedicinesUnavailableMessage,
             onSubmit:
                 onSubmit ??
                 ({

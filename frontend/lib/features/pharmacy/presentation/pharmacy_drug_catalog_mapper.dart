@@ -36,6 +36,9 @@ ClinicalActionCatalogOption pharmacyDrugToClinicalCatalogOption(
     currency: drug.pharmacyCurrency ?? drug.currency,
     metadata: <String, Object?>{
       'catalog_type': 'DRUG',
+      // Friendly drug ids repeat across tenants; pickers use this to keep
+      // same-id rows from different tenants apart.
+      'tenant_id': drug.tenantId,
       'generic_name': drug.genericName,
       'brand_name': drug.brandName,
       'form': drug.form,
