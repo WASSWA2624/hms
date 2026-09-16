@@ -12,5 +12,20 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+
+    // IANA zone id (e.g. Africa/Kampala); Dart only sees the abbreviation.
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "HosspiTimeZone") {
+      let channel = FlutterMethodChannel(
+        name: "com.hosspi.app/time_zone",
+        binaryMessenger: registrar.messenger()
+      )
+      channel.setMethodCallHandler { call, result in
+        if call.method == "getTimeZoneId" {
+          result(TimeZone.current.identifier)
+        } else {
+          result(FlutterMethodNotImplemented)
+        }
+      }
+    }
   }
 }

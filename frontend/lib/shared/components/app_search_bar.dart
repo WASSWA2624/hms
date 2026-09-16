@@ -73,11 +73,16 @@ final class AppSearchBarFilterChoice {
     required this.value,
     required this.label,
     this.icon,
+    this.caption,
   });
 
   final String value;
   final String label;
   final IconData? icon;
+
+  /// Secondary line under [label] in a multi-select checklist, such as an
+  /// identifier or a record count. Searchable groups match it too.
+  final String? caption;
 }
 
 @immutable
@@ -88,6 +93,10 @@ final class AppSearchBarFilterGroup {
     required this.choices,
     this.allLabel,
     this.allowMultiple = false,
+    this.section,
+    this.searchable = false,
+    this.searchHintText,
+    this.emptySearchText,
   });
 
   final String key;
@@ -95,7 +104,24 @@ final class AppSearchBarFilterGroup {
   final List<AppSearchBarFilterChoice> choices;
   final String? allLabel;
   final bool allowMultiple;
+
+  /// Heading this group is listed under in the filter dialog. Groups sharing a
+  /// section sit together, in the order the section first appears.
+  final String? section;
+
+  /// Adds a search field above a multi-select checklist that narrows the
+  /// choices by label, caption, or value, for groups with many choices.
+  final bool searchable;
+  final String? searchHintText;
+
+  /// Shown in place of the checklist when a search matches no choice.
+  final String? emptySearchText;
 }
+
+/// Loads the filter groups when the filter dialog opens, such as choices
+/// counted on the server under the filters already applied.
+typedef AppSearchBarFilterGroupsLoader =
+    Future<List<AppSearchBarFilterGroup>> Function();
 
 @immutable
 final class AppSearchBarFilterValue {
@@ -295,6 +321,10 @@ class AppSearchBar extends StatefulWidget {
     this.lastDate,
     this.currentDate,
     this.filterGroups = const <AppSearchBarFilterGroup>[],
+    this.loadFilterGroups,
+    this.filterGroupsLoadingLabel,
+    this.filterGroupsLoadErrorMessage,
+    this.dateFilterSection,
     this.filterValue = AppSearchBarFilterValue.empty,
     this.onFilterChanged,
     this.hasActiveFilters = false,
@@ -340,6 +370,17 @@ class AppSearchBar extends StatefulWidget {
   final DateTime? lastDate;
   final DateTime? currentDate;
   final List<AppSearchBarFilterGroup> filterGroups;
+
+  /// Loads the filter groups each time the filter dialog opens. While it runs
+  /// the dialog shows [filterGroupsLoadingLabel]; its groups then replace
+  /// [filterGroups], which remain the fallback if loading fails.
+  final AppSearchBarFilterGroupsLoader? loadFilterGroups;
+  final String? filterGroupsLoadingLabel;
+  final String? filterGroupsLoadErrorMessage;
+
+  /// Section the date filter is listed under, beside groups with the same
+  /// [AppSearchBarFilterGroup.section].
+  final String? dateFilterSection;
   final AppSearchBarFilterValue filterValue;
   final ValueChanged<AppSearchBarFilterValue>? onFilterChanged;
   final bool hasActiveFilters;
@@ -678,7 +719,8 @@ class _AppSearchBarState extends State<AppSearchBar> {
         widget.onFilterChanged != null ||
         widget.searchFields.isNotEmpty ||
         widget.textFilters.isNotEmpty ||
-        widget.filterGroups.isNotEmpty;
+        widget.filterGroups.isNotEmpty ||
+        widget.loadFilterGroups != null;
   }
 
   void _clear() {
@@ -720,6 +762,11 @@ class _AppSearchBarState extends State<AppSearchBar> {
         lastDate: widget.lastDate ?? _defaultLastDate(),
         currentDate: widget.currentDate,
         filterGroups: widget.filterGroups,
+        loadFilterGroups: widget.loadFilterGroups,
+        filterGroupsLoadingLabel:
+            widget.filterGroupsLoadingLabel ?? context.l10n.commonLoadingTitle,
+        filterGroupsLoadErrorMessage: widget.filterGroupsLoadErrorMessage,
+        dateFilterSection: widget.dateFilterSection,
         initialValue: widget.filterValue,
         onApplying: widget.onFilterChanged == null
             ? null
@@ -963,6 +1010,10 @@ class _AppSearchBarFiltersDialog extends StatefulWidget {
     required this.lastDate,
     required this.currentDate,
     required this.filterGroups,
+    required this.loadFilterGroups,
+    required this.filterGroupsLoadingLabel,
+    required this.filterGroupsLoadErrorMessage,
+    required this.dateFilterSection,
     required this.initialValue,
     this.onApplying,
   });
@@ -986,6 +1037,10 @@ class _AppSearchBarFiltersDialog extends StatefulWidget {
   final DateTime lastDate;
   final DateTime? currentDate;
   final List<AppSearchBarFilterGroup> filterGroups;
+  final AppSearchBarFilterGroupsLoader? loadFilterGroups;
+  final String filterGroupsLoadingLabel;
+  final String? filterGroupsLoadErrorMessage;
+  final String? dateFilterSection;
   final AppSearchBarFilterValue initialValue;
   final Future<void> Function(AppSearchBarFilterValue value)? onApplying;
 
@@ -1006,6 +1061,9 @@ class _AppSearchBarFiltersDialogState
   late Map<String, TextEditingController> _textControllers;
   late Map<String, String> _options;
   late Map<String, Set<String>> _selections;
+  late List<AppSearchBarFilterGroup> _groups = widget.filterGroups;
+  late bool _isLoadingGroups = widget.loadFilterGroups != null;
+  bool _groupsLoadFailed = false;
   String? _dateRangeError;
   bool _isApplying = false;
   OverlayEntry? _applyOverlay;
@@ -1018,6 +1076,31 @@ class _AppSearchBarFiltersDialogState
         filter.key: TextEditingController(),
     };
     _hydrate(widget.initialValue);
+    final AppSearchBarFilterGroupsLoader? loader = widget.loadFilterGroups;
+    if (loader != null) {
+      unawaited(_loadGroups(loader));
+    }
+  }
+
+  /// Swaps in the loaded groups. Choices picked before they arrived are kept
+  /// while they still exist.
+  Future<void> _loadGroups(AppSearchBarFilterGroupsLoader loader) async {
+    List<AppSearchBarFilterGroup>? loaded;
+    try {
+      loaded = await loader();
+    } on Object {
+      loaded = null;
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _groups = loaded ?? widget.filterGroups;
+      _groupsLoadFailed = loaded == null;
+      _isLoadingGroups = false;
+      _options = _knownOptions(_options);
+      _selections = _knownSelections(_selections);
+    });
   }
 
   @override
@@ -1096,9 +1179,11 @@ class _AppSearchBarFiltersDialogState
   List<Widget> _panels(ThemeData theme) {
     final bool hasSearchPanel =
         widget.searchFields.isNotEmpty || widget.textFilters.isNotEmpty;
-    final List<AppSearchBarFilterGroup> groups = widget.filterGroups
-        .where(_hasFilterChoices)
-        .toList(growable: false);
+    // Loading groups replace the fallback ones; until they arrive, only the
+    // loading indicator stands in for them.
+    final List<AppSearchBarFilterGroup> groups = _isLoadingGroups
+        ? const <AppSearchBarFilterGroup>[]
+        : _groups.where(_hasFilterChoices).toList(growable: false);
 
     return <Widget>[
       if (hasSearchPanel)
@@ -1162,66 +1247,131 @@ class _AppSearchBarFiltersDialogState
             ],
           ),
         ),
-      if (widget.enableDateFilter)
-        _FilterPanel(
-          icon: Icons.event_outlined,
-          title: widget.dateFilterLabel,
-          isActive: _dateFrom != null || _dateTo != null,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              _ResponsiveFilterRow(
-                left: AppDateField(
-                  value: _dateFrom,
-                  firstDate: widget.firstDate,
-                  lastDate: widget.lastDate,
-                  currentDate: widget.currentDate,
-                  pickerButtonLabel: widget.datePickerButtonLabel,
-                  invalidDateMessage: widget.invalidDateMessage,
-                  labelText: widget.dateFromLabel,
-                  onChanged: (DateTime? value) {
-                    setState(() {
-                      _dateFrom = value;
-                      _dateRangeError = null;
-                    });
-                  },
-                ),
-                right: AppDateField(
-                  value: _dateTo,
-                  firstDate: widget.firstDate,
-                  lastDate: widget.lastDate,
-                  currentDate: widget.currentDate,
-                  pickerButtonLabel: widget.datePickerButtonLabel,
-                  invalidDateMessage: widget.invalidDateMessage,
-                  labelText: widget.dateToLabel,
-                  onChanged: (DateTime? value) {
-                    setState(() {
-                      _dateTo = value;
-                      _dateRangeError = null;
-                    });
-                  },
-                ),
-              ),
-              if (_dateRangeError != null) ...<Widget>[
-                SizedBox(height: theme.spacing.xs),
-                Text(
-                  _dateRangeError!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.error,
-                  ),
-                ),
-              ],
-            ],
+      ..._choicePanels(theme, groups),
+      if (_isLoadingGroups)
+        AppLoadingIndicator.compact(
+          title: widget.filterGroupsLoadingLabel,
+          expand: false,
+          semanticLabel: widget.filterGroupsLoadingLabel,
+        ),
+      if (_groupsLoadFailed && widget.filterGroupsLoadErrorMessage != null)
+        Text(
+          widget.filterGroupsLoadErrorMessage!,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.error,
           ),
         ),
-      if (groups.isNotEmpty)
-        _FilterPanelGrid(
+    ];
+  }
+
+  /// The date panel and one panel per group. When any of them names a
+  /// section, panels are listed under their section headings instead.
+  List<Widget> _choicePanels(
+    ThemeData theme,
+    List<AppSearchBarFilterGroup> groups,
+  ) {
+    final Widget? datePanel = widget.enableDateFilter
+        ? _datePanel(theme)
+        : null;
+    final bool sectioned =
+        (datePanel != null && widget.dateFilterSection != null) ||
+        groups.any((AppSearchBarFilterGroup group) => group.section != null);
+    if (!sectioned) {
+      return <Widget>[
+        ?datePanel,
+        if (groups.isNotEmpty)
+          _FilterPanelGrid(
+            children: <Widget>[
+              for (final AppSearchBarFilterGroup group in groups)
+                _groupPanel(group),
+            ],
+          ),
+      ];
+    }
+
+    // Without a section of its own, the date filter leads, untitled.
+    final String? dateSection = widget.dateFilterSection;
+    final List<String?> sections = <String?>[
+      if (datePanel != null) dateSection,
+    ];
+    for (final AppSearchBarFilterGroup group in groups) {
+      if (!sections.contains(group.section)) {
+        sections.add(group.section);
+      }
+    }
+
+    return <Widget>[
+      for (final String? section in sections)
+        _FilterSection(
+          title: section,
           children: <Widget>[
-            for (final AppSearchBarFilterGroup group in groups)
-              _groupPanel(group),
+            if (section == dateSection) ?datePanel,
+            if (groups.any(
+              (AppSearchBarFilterGroup group) => group.section == section,
+            ))
+              _FilterPanelGrid(
+                children: <Widget>[
+                  for (final AppSearchBarFilterGroup group in groups)
+                    if (group.section == section) _groupPanel(group),
+                ],
+              ),
           ],
         ),
     ];
+  }
+
+  Widget _datePanel(ThemeData theme) {
+    return _FilterPanel(
+      icon: Icons.event_outlined,
+      title: widget.dateFilterLabel,
+      isActive: _dateFrom != null || _dateTo != null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          _ResponsiveFilterRow(
+            left: AppDateField(
+              value: _dateFrom,
+              firstDate: widget.firstDate,
+              lastDate: widget.lastDate,
+              currentDate: widget.currentDate,
+              pickerButtonLabel: widget.datePickerButtonLabel,
+              invalidDateMessage: widget.invalidDateMessage,
+              labelText: widget.dateFromLabel,
+              onChanged: (DateTime? value) {
+                setState(() {
+                  _dateFrom = value;
+                  _dateRangeError = null;
+                });
+              },
+            ),
+            right: AppDateField(
+              value: _dateTo,
+              firstDate: widget.firstDate,
+              lastDate: widget.lastDate,
+              currentDate: widget.currentDate,
+              pickerButtonLabel: widget.datePickerButtonLabel,
+              invalidDateMessage: widget.invalidDateMessage,
+              labelText: widget.dateToLabel,
+              onChanged: (DateTime? value) {
+                setState(() {
+                  _dateTo = value;
+                  _dateRangeError = null;
+                });
+              },
+            ),
+          ),
+          if (_dateRangeError != null) ...<Widget>[
+            SizedBox(height: theme.spacing.xs),
+            Text(
+              _dateRangeError!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   /// One panel per filter group: the group's name is the panel heading, so the
@@ -1250,6 +1400,9 @@ class _AppSearchBarFiltersDialogState
                 value: choice.value,
                 label: choice.label,
                 leadingIcon: choice.icon == null ? null : Icon(choice.icon),
+                searchText: choice.caption == null
+                    ? null
+                    : '${choice.label} ${choice.caption}',
               ),
           ],
           onChanged: (String? value) {
@@ -1302,8 +1455,13 @@ class _AppSearchBarFiltersDialogState
     for (final AppSearchBarTextFilter filter in widget.textFilters) {
       _textControllers[filter.key]?.text = texts[filter.key] ?? '';
     }
-    _options = _knownOptions(value.options);
-    _selections = _knownSelections(value.selections);
+    // Groups still loading cannot vouch for a choice yet; keep it until they do.
+    _options = _isLoadingGroups
+        ? Map<String, String>.of(value.options)
+        : _knownOptions(value.options);
+    _selections = _isLoadingGroups
+        ? _copySelections(value.selections)
+        : _knownSelections(value.selections);
     _dateRangeError = null;
   }
 
@@ -1438,7 +1596,7 @@ class _AppSearchBarFiltersDialogState
 
   Map<String, String> _knownOptions(Map<String, String> options) {
     final Map<String, String> known = <String, String>{};
-    for (final AppSearchBarFilterGroup group in widget.filterGroups) {
+    for (final AppSearchBarFilterGroup group in _groups) {
       final String? value = options[group.key];
       if (!_hasText(value)) {
         continue;
@@ -1457,7 +1615,7 @@ class _AppSearchBarFiltersDialogState
     Map<String, Set<String>> selections,
   ) {
     final Map<String, Set<String>> known = <String, Set<String>>{};
-    for (final AppSearchBarFilterGroup group in widget.filterGroups) {
+    for (final AppSearchBarFilterGroup group in _groups) {
       if (!group.allowMultiple) {
         continue;
       }
@@ -1482,8 +1640,10 @@ Map<String, Set<String>> _copySelections(Map<String, Set<String>> source) {
   };
 }
 
-/// Every choice in a multi-select group, laid out as a checklist.
-class _MultiSelectFilterGroup extends StatelessWidget {
+/// Every choice in a multi-select group, laid out as a checklist. A
+/// searchable group narrows the checklist to the choices matching its search
+/// field and scrolls within a bounded height.
+class _MultiSelectFilterGroup extends StatefulWidget {
   const _MultiSelectFilterGroup({
     required this.group,
     required this.selected,
@@ -1495,37 +1655,108 @@ class _MultiSelectFilterGroup extends StatelessWidget {
   final ValueChanged<Set<String>> onChanged;
 
   @override
+  State<_MultiSelectFilterGroup> createState() =>
+      _MultiSelectFilterGroupState();
+}
+
+class _MultiSelectFilterGroupState extends State<_MultiSelectFilterGroup> {
+  static const double _searchableListMaxHeight = 320;
+
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<AppSearchBarFilterChoice> get _visibleChoices {
+    final String query = _searchController.text.trim().toLowerCase();
+    if (!widget.group.searchable || query.isEmpty) {
+      return widget.group.choices;
+    }
+    return widget.group.choices
+        .where((AppSearchBarFilterChoice choice) {
+          return choice.label.toLowerCase().contains(query) ||
+              choice.value.toLowerCase().contains(query) ||
+              (choice.caption?.toLowerCase().contains(query) ?? false);
+        })
+        .toList(growable: false);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final AppSearchBarFilterGroup group = widget.group;
+    final List<AppSearchBarFilterChoice> choices = _visibleChoices;
+
+    if (!group.searchable) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          for (int index = 0; index < choices.length; index++) ...<Widget>[
+            if (index > 0) SizedBox(height: theme.spacing.xs),
+            _choiceTile(choices[index]),
+          ],
+        ],
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        for (int index = 0; index < group.choices.length; index++) ...<Widget>[
-          if (index > 0) SizedBox(height: theme.spacing.xs),
-          Builder(
-            builder: (BuildContext context) {
-              final AppSearchBarFilterChoice choice = group.choices[index];
-              final bool isSelected = selected.contains(choice.value);
-              return AppCheckboxField(
-                title: choice.label,
-                value: isSelected,
-                semanticLabel: choice.label,
-                secondary: choice.icon == null ? null : Icon(choice.icon),
-                onChanged: (bool checked) {
-                  final Set<String> next = Set<String>.of(selected);
-                  if (checked) {
-                    next.add(choice.value);
-                  } else {
-                    next.remove(choice.value);
-                  }
-                  onChanged(next);
-                },
-              );
-            },
+        AppTextField(
+          controller: _searchController,
+          semanticLabel: group.searchHintText ?? group.label,
+          hintText: group.searchHintText,
+          prefixIcon: const Icon(Icons.search),
+          textInputAction: TextInputAction.search,
+          enableSpeechToText: false,
+          allowClear: true,
+          onChanged: (_) => setState(() {}),
+        ),
+        SizedBox(height: theme.spacing.sm),
+        if (choices.isEmpty)
+          Text(
+            group.emptySearchText ?? '',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          )
+        else
+          ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxHeight: _searchableListMaxHeight,
+            ),
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: choices.length,
+              separatorBuilder: (_, _) => SizedBox(height: theme.spacing.xs),
+              itemBuilder: (_, int index) => _choiceTile(choices[index]),
+            ),
           ),
-        ],
       ],
+    );
+  }
+
+  Widget _choiceTile(AppSearchBarFilterChoice choice) {
+    final bool isSelected = widget.selected.contains(choice.value);
+    return AppCheckboxField(
+      key: ValueKey<String>('${widget.group.key}:${choice.value}'),
+      title: choice.label,
+      subtitle: choice.caption,
+      value: isSelected,
+      semanticLabel: choice.label,
+      secondary: choice.icon == null ? null : Icon(choice.icon),
+      onChanged: (bool checked) {
+        final Set<String> next = Set<String>.of(widget.selected);
+        if (checked) {
+          next.add(choice.value);
+        } else {
+          next.remove(choice.value);
+        }
+        widget.onChanged(next);
+      },
     );
   }
 }
@@ -1614,6 +1845,44 @@ class _FilterPanel extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A heading over related filter panels, such as who sent a record or which
+/// device it came from. Without a [title] the panels are listed bare.
+class _FilterSection extends StatelessWidget {
+  const _FilterSection({required this.title, required this.children});
+
+  final String? title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final String? heading = title;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        if (heading != null) ...<Widget>[
+          Semantics(
+            header: true,
+            child: Text(
+              heading,
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: theme.colorScheme.onSurface,
+                fontWeight: AppFontWeight.emphasis,
+              ),
+            ),
+          ),
+          SizedBox(height: theme.spacing.sm),
+        ],
+        for (int index = 0; index < children.length; index++) ...<Widget>[
+          if (index > 0) SizedBox(height: theme.spacing.md),
+          children[index],
+        ],
+      ],
     );
   }
 }

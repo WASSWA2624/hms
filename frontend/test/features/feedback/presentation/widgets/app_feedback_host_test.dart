@@ -81,6 +81,13 @@ final class _FakeFeedbackRepository implements FeedbackRepository {
   }
 
   @override
+  Future<Result<FeedbackFacets>> fetchFeedbackFacets({
+    required FeedbackFilters filters,
+  }) async {
+    return const Result<FeedbackFacets>.success(FeedbackFacets(total: 0));
+  }
+
+  @override
   Future<Result<Uint8List>> downloadFeedbackExport({
     required int utcOffsetMinutes,
     Set<String> referenceIds = const <String>{},
@@ -161,7 +168,9 @@ Future<GoRouter> _pumpHost(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        appConfigProvider.overrideWithValue(testAppConfig()),
+        appConfigProvider.overrideWithValue(
+          testAppConfig().copyWith(appVersion: '1.4.0+12'),
+        ),
         initialSessionStateProvider.overrideWithValue(session),
         feedbackRepositoryProvider.overrideWithValue(repository),
         appConnectivityStatusProvider.overrideWith(
@@ -264,6 +273,14 @@ void main() {
       expect(sent.submission.context.sessionStatus, 'unauthenticated');
       expect(sent.submission.context.breakpoint, isNotNull);
       expect(sent.submission.context.deviceType, FeedbackDeviceType.desktop);
+      expect(sent.submission.context.appVersion, '1.4.0+12');
+      // An IANA zone or a UTC offset, never an abbreviation such as `EAT`.
+      expect(
+        sent.submission.context.timezone,
+        matches(
+          RegExp(r'^([A-Za-z_]+(/[A-Za-z0-9_+\-]+)+|UTC|UTC[+-]\d\d:\d\d)$'),
+        ),
+      );
       expect(sent.submission.context.viewportWidth, 1280);
       expect(sent.submission.context.screenWidth, isNotNull);
       expect(

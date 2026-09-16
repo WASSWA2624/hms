@@ -151,4 +151,39 @@ describe('feedback export', () => {
     expect(details.getRow(3).values.slice(1)).toEqual(['Time Zone', 'Africa/Kampala']);
     expect(details.getRow(5).values.slice(1)).toEqual(['Records', 2]);
   });
+
+  it('lists every applied filter on the export details sheet', async () => {
+    const buffer = await renderFeedbackWorkbook({
+      rows: [],
+      clock: resolveExportClock({ timeZone: 'Africa/Kampala' }),
+      filters: {
+        tenant_id: ['TEN-9322E26AFD'],
+        route_name: ['hr'],
+        breakpoint: ['xl', 'lg'],
+        theme: ['light']
+      }
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    const details = workbook.getWorksheet('Export Details');
+    const detail = {};
+    details.eachRow((row, rowNumber) => {
+      if (rowNumber > 1) {
+        const [name, value] = row.values.slice(1);
+        detail[name] = value;
+      }
+    });
+
+    expect(detail).toEqual(
+      expect.objectContaining({
+        Tenant: 'TEN-9322E26AFD',
+        Facility: 'All',
+        Route: 'hr',
+        Breakpoint: 'xl, lg',
+        Theme: 'light',
+        Orientation: 'All'
+      })
+    );
+  });
 });

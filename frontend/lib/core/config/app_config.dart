@@ -10,6 +10,7 @@ final class AppConfig {
     this.appAdministratorEmail,
     this.appAdministratorPhone,
     this.appSupportUrl,
+    this.appVersion,
     this.featureFlags = const FeatureFlags(),
   });
 
@@ -37,6 +38,10 @@ final class AppConfig {
   final String? appAdministratorEmail;
   final String? appAdministratorPhone;
   final String? appSupportUrl;
+
+  /// The running build as `version+build` (e.g. `1.4.0+12`), from the
+  /// `APP_VERSION` define the deploy scripts derive from `pubspec.yaml`.
+  final String? appVersion;
   final FeatureFlags featureFlags;
 
   bool get isDevelopment => environment == AppEnvironment.development;
@@ -68,6 +73,7 @@ final class AppConfig {
     const appAdministratorEmail = String.fromEnvironment('APP_ADMIN_EMAIL');
     const appAdministratorPhone = String.fromEnvironment('APP_ADMIN_PHONE');
     const appSupportUrl = String.fromEnvironment('APP_SUPPORT_URL');
+    const appVersion = String.fromEnvironment('APP_VERSION');
 
     return AppConfig._fromRawValues(
       environmentName: environmentName,
@@ -80,6 +86,7 @@ final class AppConfig {
       appAdministratorEmail: appAdministratorEmail,
       appAdministratorPhone: appAdministratorPhone,
       appSupportUrl: appSupportUrl,
+      appVersion: appVersion,
       featureFlags: const FeatureFlags.fromEnvironment(),
     );
   }
@@ -95,6 +102,7 @@ final class AppConfig {
     String? appAdministratorEmail,
     String? appAdministratorPhone,
     String? appSupportUrl,
+    String? appVersion,
     FeatureFlags featureFlags = const FeatureFlags(),
     Uri? appBaseUrl,
   }) {
@@ -109,6 +117,7 @@ final class AppConfig {
       appAdministratorEmail: appAdministratorEmail,
       appAdministratorPhone: appAdministratorPhone,
       appSupportUrl: appSupportUrl,
+      appVersion: appVersion,
       featureFlags: featureFlags,
       appBaseUrl: appBaseUrl,
     );
@@ -125,6 +134,7 @@ final class AppConfig {
     String? appAdministratorEmail,
     String? appAdministratorPhone,
     String? appSupportUrl,
+    String? appVersion,
     required FeatureFlags featureFlags,
     Uri? appBaseUrl,
   }) {
@@ -149,6 +159,7 @@ final class AppConfig {
       appAdministratorPhone,
     );
     final normalizedAppSupportUrl = _normalizeOptionalText(appSupportUrl);
+    final normalizedAppVersion = _normalizeOptionalText(appVersion);
 
     if (apiTimeoutSeconds <= 0) {
       errors.add('API_TIMEOUT_SECONDS must be greater than zero.');
@@ -175,6 +186,7 @@ final class AppConfig {
       appAdministratorEmail: normalizedAppAdministratorEmail,
       appAdministratorPhone: normalizedAppAdministratorPhone,
       appSupportUrl: normalizedAppSupportUrl,
+      appVersion: normalizedAppVersion,
       featureFlags: featureFlags,
     );
 
@@ -238,6 +250,7 @@ final class AppConfig {
     String? appAdministratorEmail,
     String? appAdministratorPhone,
     String? appSupportUrl,
+    String? appVersion,
     FeatureFlags? featureFlags,
   }) {
     return AppConfig(
@@ -253,6 +266,7 @@ final class AppConfig {
       appAdministratorPhone:
           appAdministratorPhone ?? this.appAdministratorPhone,
       appSupportUrl: appSupportUrl ?? this.appSupportUrl,
+      appVersion: appVersion ?? this.appVersion,
       featureFlags: featureFlags ?? this.featureFlags,
     );
   }

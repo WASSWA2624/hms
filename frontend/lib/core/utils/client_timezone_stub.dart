@@ -1,2 +1,4 @@
-/// Non-web: IANA zone is unavailable without platform channels.
+/// Platforms without a known time zone source report none.
 String? readClientTimeZoneId() => null;
+
+Future<String?> loadClientTimeZoneId() async => null;

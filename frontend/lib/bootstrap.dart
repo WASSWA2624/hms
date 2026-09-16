@@ -8,6 +8,7 @@ import 'package:hosspi_hms/app/startup/app_startup_initializer.dart';
 import 'package:hosspi_hms/app/startup/startup_shell.dart';
 import 'package:hosspi_hms/core/config/app_config.dart';
 import 'package:hosspi_hms/core/logging/app_logger.dart';
+import 'package:hosspi_hms/core/utils/client_timezone.dart';
 import 'package:hosspi_hms/shared/workflow_actions/workflow_action_dialog_openers.dart';
 import 'package:hosspi_hms/shared/workflow_actions/workflow_action_registry.dart';
 
@@ -16,6 +17,9 @@ Future<void> bootstrap({
   AppStartupInitializer startupInitializer = const AppStartupInitializer(),
 }) async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Native platforms report their IANA zone asynchronously; ask early so
+  // requests and feedback carry it.
+  unawaited(loadClientTimeZoneId());
   configureAppUrlStrategy();
   initializeWorkflowActionRegistry();
   registerWorkflowDialogOpeners();

@@ -55,16 +55,6 @@ enum FeedbackDeviceType {
   }
 }
 
-/// Client platforms the app reports, as stored in `client_platform`.
-const List<String> feedbackPlatforms = <String>[
-  'web',
-  'android',
-  'ios',
-  'windows',
-  'macos',
-  'linux',
-];
-
 /// Message bounds enforced by `POST /api/v1/feedback`.
 const int feedbackMessageMinLength = 3;
 const int feedbackMessageMaxLength = 5000;
@@ -80,6 +70,7 @@ final class FeedbackContext {
     this.pageUrl,
     this.platform,
     this.deviceType,
+    this.appVersion,
     this.appEnvironment,
     this.locale,
     this.timezone,
@@ -107,8 +98,13 @@ final class FeedbackContext {
 
   /// Size class of the app window when feedback was opened.
   final FeedbackDeviceType? deviceType;
+
+  /// The running build as `version+build`, e.g. `1.4.0+12`.
+  final String? appVersion;
   final String? appEnvironment;
   final String? locale;
+
+  /// IANA zone id (`Africa/Kampala`), else the UTC offset (`UTC+03:00`).
   final String? timezone;
   final int? utcOffsetMinutes;
   final String? breakpoint;
@@ -236,17 +232,45 @@ final class FeedbackSort {
   int get hashCode => Object.hash(field, ascending);
 }
 
-/// Narrows stored feedback while browsing or deleting it.
+/// A stored value feedback can be filtered by, beyond its category,
+/// submitter, device type, and submission date. [apiKey] is the filter's query
+/// and facet key.
+enum FeedbackFilterDimension {
+  // Who
+  tenant('tenant_id'),
+  facility('facility_id'),
+  role('role'),
+  planTier('plan_tier'),
+  subscriptionStatus('subscription_status'),
+  // Where
+  routeName('route_name'),
+  appEnvironment('app_environment'),
+  appVersion('app_version'),
+  // Device
+  platform('platform'),
+  breakpoint('breakpoint'),
+  orientation('orientation'),
+  theme('theme'),
+  locale('locale'),
+  connectivity('connectivity');
+
+  const FeedbackFilterDimension(this.apiKey);
+
+  final String apiKey;
+}
+
+/// Narrows stored feedback while browsing, downloading, or deleting it.
 ///
 /// Submission dates are local calendar days; [submittedTo] includes the whole
-/// day.
+/// day. [values] holds the stored values picked per dimension; a record
+/// matches when it holds any picked value of every narrowed dimension.
 final class FeedbackFilters {
   const FeedbackFilters({
     this.search = '',
     this.categories = const <FeedbackCategory>{},
     this.submitterType,
     this.deviceTypes = const <FeedbackDeviceType>{},
-    this.platforms = const <String>{},
+    this.values = const <FeedbackFilterDimension, Set<String>>{},
     this.submittedFrom,
     this.submittedTo,
   });
@@ -257,16 +281,20 @@ final class FeedbackFilters {
   final Set<FeedbackCategory> categories;
   final FeedbackSubmitterType? submitterType;
   final Set<FeedbackDeviceType> deviceTypes;
-  final Set<String> platforms;
+  final Map<FeedbackFilterDimension, Set<String>> values;
   final DateTime? submittedFrom;
   final DateTime? submittedTo;
+
+  Set<String> valuesFor(FeedbackFilterDimension dimension) {
+    return values[dimension] ?? const <String>{};
+  }
 
   /// Whether a filter other than [search] narrows the list.
   bool get hasActiveFilters {
     return categories.isNotEmpty ||
         submitterType != null ||
         deviceTypes.isNotEmpty ||
-        platforms.isNotEmpty ||
+        values.values.any((Set<String> picked) => picked.isNotEmpty) ||
         submittedFrom != null ||
         submittedTo != null;
   }
@@ -277,10 +305,50 @@ final class FeedbackFilters {
       categories: categories,
       submitterType: submitterType,
       deviceTypes: deviceTypes,
-      platforms: platforms,
+      values: values,
       submittedFrom: submittedFrom,
       submittedTo: submittedTo,
     );
+  }
+}
+
+/// One stored value of a filter dimension and how many records hold it.
+final class FeedbackFacetValue {
+  const FeedbackFacetValue({
+    required this.value,
+    required this.count,
+    this.label,
+  });
+
+  /// As stored and as sent back in a filter, e.g. `TEN-9322E26AFD` or `xl`.
+  final String value;
+
+  /// The stored name beside a public id, e.g. the tenant or facility name.
+  final String? label;
+  final int count;
+}
+
+/// Filter choices counted from stored feedback. Each dimension's counts apply
+/// every other active filter but not its own, so values that could still be
+/// added stay listed.
+final class FeedbackFacets {
+  const FeedbackFacets({
+    required this.total,
+    this.categories = const <FeedbackFacetValue>[],
+    this.submitterTypes = const <FeedbackFacetValue>[],
+    this.deviceTypes = const <FeedbackFacetValue>[],
+    this.values = const <FeedbackFilterDimension, List<FeedbackFacetValue>>{},
+  });
+
+  /// Records matching every active filter.
+  final int total;
+  final List<FeedbackFacetValue> categories;
+  final List<FeedbackFacetValue> submitterTypes;
+  final List<FeedbackFacetValue> deviceTypes;
+  final Map<FeedbackFilterDimension, List<FeedbackFacetValue>> values;
+
+  List<FeedbackFacetValue> valuesFor(FeedbackFilterDimension dimension) {
+    return values[dimension] ?? const <FeedbackFacetValue>[];
   }
 }
 

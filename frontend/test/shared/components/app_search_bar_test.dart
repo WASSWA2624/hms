@@ -1,7 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hosspi_hms/app/theme/app_theme.dart';
+import 'package:hosspi_hms/l10n/app_localizations.dart';
 import 'package:hosspi_hms/shared/components/components.dart';
 
+import '../../helpers/test_harness.dart';
 import 'component_test_app.dart';
 
 void main() {
@@ -418,4 +424,279 @@ void main() {
     expect(controller.text.contains('\n'), isFalse);
     expect(controller.text.length, lessThanOrEqualTo(appSearchQueryMaxLength));
   });
+
+  testWidgets('filter groups are listed under their section headings', (
+    WidgetTester tester,
+  ) async {
+    final TextEditingController controller = TextEditingController();
+    addTearDown(controller.dispose);
+
+    await _pumpScoped(
+      tester,
+      AppSearchBar(
+        controller: controller,
+        semanticLabel: 'Search records',
+        showAdvancedFilterButton: true,
+        dateFilterLabel: 'Submitted',
+        dateFilterSection: 'Report',
+        filterGroups: const <AppSearchBarFilterGroup>[
+          AppSearchBarFilterGroup(
+            key: 'category',
+            label: 'Category',
+            section: 'Report',
+            allowMultiple: true,
+            choices: <AppSearchBarFilterChoice>[
+              AppSearchBarFilterChoice(value: 'BUG', label: 'Bug'),
+            ],
+          ),
+          AppSearchBarFilterGroup(
+            key: 'theme',
+            label: 'Theme',
+            section: 'Device',
+            allowMultiple: true,
+            choices: <AppSearchBarFilterChoice>[
+              AppSearchBarFilterChoice(value: 'dark', label: 'Dark'),
+            ],
+          ),
+          // No choices: hidden, and its section with it.
+          AppSearchBarFilterGroup(
+            key: 'tenant',
+            label: 'Tenant',
+            section: 'Who',
+            allowMultiple: true,
+            choices: <AppSearchBarFilterChoice>[],
+          ),
+        ],
+        onFilterChanged: (_) {},
+      ),
+      size: const Size(720, 900),
+    );
+
+    await tester.tap(find.byTooltip('Filter'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Report'), findsOneWidget);
+    expect(find.text('Device'), findsOneWidget);
+    expect(find.text('Who'), findsNothing);
+    expect(find.text('Tenant'), findsNothing);
+    final double report = tester.getTopLeft(find.text('Report')).dy;
+    final double submitted = tester.getTopLeft(find.text('Submitted')).dy;
+    final double category = tester.getTopLeft(find.text('Category')).dy;
+    final double device = tester.getTopLeft(find.text('Device')).dy;
+    final double theme = tester.getTopLeft(find.text('Theme')).dy;
+    expect(report, lessThan(submitted));
+    expect(submitted, lessThan(category));
+    expect(category, lessThan(device));
+    expect(device, lessThan(theme));
+  });
+
+  testWidgets(
+    'loaded filter groups replace the fallback and keep picked values',
+    (WidgetTester tester) async {
+      final TextEditingController controller = TextEditingController();
+      addTearDown(controller.dispose);
+      final Completer<List<AppSearchBarFilterGroup>> groups =
+          Completer<List<AppSearchBarFilterGroup>>();
+      AppSearchBarFilterValue? applied;
+
+      await _pumpScoped(
+        tester,
+        AppSearchBar(
+          controller: controller,
+          semanticLabel: 'Search records',
+          showAdvancedFilterButton: true,
+          enableDateFilter: false,
+          filterGroupsLoadingLabel: 'Loading filter choices',
+          filterGroups: const <AppSearchBarFilterGroup>[
+            AppSearchBarFilterGroup(
+              key: 'status',
+              label: 'Status',
+              allowMultiple: true,
+              choices: <AppSearchBarFilterChoice>[
+                AppSearchBarFilterChoice(value: 'NEW', label: 'Fallback new'),
+              ],
+            ),
+          ],
+          loadFilterGroups: () => groups.future,
+          filterValue: const AppSearchBarFilterValue(
+            selections: <String, Set<String>>{
+              'tenant': <String>{'TEN-1'},
+            },
+          ),
+          onFilterChanged: (AppSearchBarFilterValue value) => applied = value,
+        ),
+        size: const Size(720, 900),
+      );
+
+      await tester.tap(find.byTooltip('Filter (1)'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Loading filter choices'), findsOneWidget);
+      expect(find.text('Fallback new'), findsNothing);
+
+      groups.complete(const <AppSearchBarFilterGroup>[
+        AppSearchBarFilterGroup(
+          key: 'tenant',
+          label: 'Tenant',
+          allowMultiple: true,
+          choices: <AppSearchBarFilterChoice>[
+            AppSearchBarFilterChoice(
+              value: 'TEN-1',
+              label: 'DemoCare',
+              caption: 'TEN-1 · 19 records',
+            ),
+            AppSearchBarFilterChoice(
+              value: 'TEN-2',
+              label: 'IHK Group',
+              caption: 'TEN-2 · 1 record',
+            ),
+          ],
+        ),
+      ]);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Loading filter choices'), findsNothing);
+      expect(find.text('Fallback new'), findsNothing);
+      expect(find.text('TEN-1 · 19 records'), findsOneWidget);
+      expect(
+        tester
+            .widget<CheckboxListTile>(
+              find.widgetWithText(CheckboxListTile, 'DemoCare'),
+            )
+            .value,
+        isTrue,
+      );
+
+      await tester.tap(find.widgetWithText(CheckboxListTile, 'IHK Group'));
+      await tester.pump();
+      await tester.tap(find.text('Apply filters'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+
+      expect(applied?.optionsFor('tenant'), <String>{'TEN-1', 'TEN-2'});
+    },
+  );
+
+  testWidgets('filter groups fall back when loading them fails', (
+    WidgetTester tester,
+  ) async {
+    final TextEditingController controller = TextEditingController();
+    addTearDown(controller.dispose);
+
+    await _pumpScoped(
+      tester,
+      AppSearchBar(
+        controller: controller,
+        semanticLabel: 'Search records',
+        showAdvancedFilterButton: true,
+        enableDateFilter: false,
+        filterGroupsLoadErrorMessage: 'Choices could not be loaded.',
+        filterGroups: const <AppSearchBarFilterGroup>[
+          AppSearchBarFilterGroup(
+            key: 'status',
+            label: 'Status',
+            allowMultiple: true,
+            choices: <AppSearchBarFilterChoice>[
+              AppSearchBarFilterChoice(value: 'NEW', label: 'Fallback new'),
+            ],
+          ),
+        ],
+        loadFilterGroups: () async => throw StateError('offline'),
+        onFilterChanged: (_) {},
+      ),
+      size: const Size(720, 900),
+    );
+
+    await tester.tap(find.byTooltip('Filter'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Choices could not be loaded.'), findsOneWidget);
+    expect(find.text('Fallback new'), findsOneWidget);
+  });
+
+  testWidgets('searchable groups narrow choices by label or caption', (
+    WidgetTester tester,
+  ) async {
+    final TextEditingController controller = TextEditingController();
+    addTearDown(controller.dispose);
+
+    await _pumpScoped(
+      tester,
+      AppSearchBar(
+        controller: controller,
+        semanticLabel: 'Search records',
+        showAdvancedFilterButton: true,
+        enableDateFilter: false,
+        filterGroups: const <AppSearchBarFilterGroup>[
+          AppSearchBarFilterGroup(
+            key: 'facility',
+            label: 'Facility',
+            allowMultiple: true,
+            searchable: true,
+            searchHintText: 'Search facilities',
+            emptySearchText: 'No matches',
+            choices: <AppSearchBarFilterChoice>[
+              AppSearchBarFilterChoice(
+                value: 'FAC-1',
+                label: 'Main Wing',
+                caption: 'FAC-1',
+              ),
+              AppSearchBarFilterChoice(
+                value: 'FAC-2',
+                label: 'Annex',
+                caption: 'FAC-2',
+              ),
+            ],
+          ),
+        ],
+        onFilterChanged: (_) {},
+      ),
+      size: const Size(720, 900),
+    );
+
+    await tester.tap(find.byTooltip('Filter'));
+    await tester.pumpAndSettle();
+
+    final Finder search = find.descendant(
+      of: find.ancestor(
+        of: find.text('Search facilities'),
+        matching: find.byType(AppTextField),
+      ),
+      matching: find.byType(TextField),
+    );
+    await tester.enterText(search, 'fac-2');
+    await tester.pump();
+
+    expect(find.widgetWithText(CheckboxListTile, 'Annex'), findsOneWidget);
+    expect(find.widgetWithText(CheckboxListTile, 'Main Wing'), findsNothing);
+
+    await tester.enterText(search, 'lab');
+    await tester.pump();
+
+    expect(find.text('No matches'), findsOneWidget);
+  });
+}
+
+/// Pumps [child] with the provider scope above the app, so the filter dialog
+/// it opens on the root navigator can build provider-backed fields.
+Future<void> _pumpScoped(
+  WidgetTester tester,
+  Widget child, {
+  required Size size,
+}) async {
+  setTestViewport(tester, size);
+  await tester.pumpWidget(
+    ProviderScope(
+      child: MaterialApp(
+        theme: AppTheme.light,
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        home: Scaffold(
+          body: Padding(padding: const EdgeInsets.all(24), child: child),
+        ),
+      ),
+    ),
+  );
 }

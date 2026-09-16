@@ -30228,4 +30228,162 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get feedbackRetryAction => 'Try again';
+
+  @override
+  String get feedbackFilterSectionReport => 'Report';
+
+  @override
+  String get feedbackFilterSectionWho => 'Who';
+
+  @override
+  String get feedbackFilterSectionWhere => 'Where';
+
+  @override
+  String get feedbackFilterSectionDevice => 'Device';
+
+  @override
+  String get feedbackFilterRoleLabel => 'Role';
+
+  @override
+  String get feedbackFilterPlanTierLabel => 'Plan tier';
+
+  @override
+  String get feedbackFilterSubscriptionStatusLabel => 'Subscription status';
+
+  @override
+  String get feedbackFilterEnvironmentLabel => 'Environment';
+
+  @override
+  String get feedbackFilterAppVersionLabel => 'App version';
+
+  @override
+  String get feedbackFilterBreakpointLabel => 'Breakpoint';
+
+  @override
+  String get feedbackFilterOrientationLabel => 'Orientation';
+
+  @override
+  String get feedbackFilterThemeLabel => 'Theme';
+
+  @override
+  String get feedbackFilterLocaleLabel => 'Language';
+
+  @override
+  String get feedbackFilterConnectivityLabel => 'Connectivity';
+
+  @override
+  String get feedbackFilterTenantSearchHint => 'Search tenants';
+
+  @override
+  String get feedbackFilterFacilitySearchHint => 'Search facilities';
+
+  @override
+  String get feedbackFilterRoleSearchHint => 'Search roles';
+
+  @override
+  String get feedbackFilterRouteSearchHint => 'Search screens';
+
+  @override
+  String get feedbackFilterNoMatches => 'No values match your search.';
+
+  @override
+  String get feedbackFiltersLoadingLabel => 'Loading filter choices';
+
+  @override
+  String get feedbackFiltersLoadErrorMessage =>
+      'Filter choices could not be loaded, so only the basic filters are shown. Close and reopen filters to try again.';
+
+  @override
+  String get feedbackPlanTierFree => 'Free';
+
+  @override
+  String get feedbackPlanTierBasic => 'Basic';
+
+  @override
+  String get feedbackPlanTierAdvanced => 'Advanced';
+
+  @override
+  String get feedbackPlanTierPro => 'Pro';
+
+  @override
+  String get feedbackPlanTierCustom => 'Custom';
+
+  @override
+  String get feedbackPlanTierDeveloper => 'Developer';
+
+  @override
+  String get feedbackSubscriptionStatusActive => 'Active';
+
+  @override
+  String get feedbackSubscriptionStatusTrial => 'Trial';
+
+  @override
+  String get feedbackSubscriptionStatusPastDue => 'Past due';
+
+  @override
+  String get feedbackSubscriptionStatusCancelled => 'Cancelled';
+
+  @override
+  String get feedbackEnvironmentDevelopment => 'Development';
+
+  @override
+  String get feedbackEnvironmentStaging => 'Staging';
+
+  @override
+  String get feedbackEnvironmentProduction => 'Production';
+
+  @override
+  String get feedbackBreakpointXs => 'Extra small';
+
+  @override
+  String get feedbackBreakpointSm => 'Small';
+
+  @override
+  String get feedbackBreakpointMd => 'Medium';
+
+  @override
+  String get feedbackBreakpointLg => 'Large';
+
+  @override
+  String get feedbackBreakpointXl => 'Extra large';
+
+  @override
+  String get feedbackBreakpointXxl => 'Extra extra large';
+
+  @override
+  String get feedbackOrientationPortrait => 'Portrait';
+
+  @override
+  String get feedbackOrientationLandscape => 'Landscape';
+
+  @override
+  String get feedbackThemeLight => 'Light';
+
+  @override
+  String get feedbackThemeDark => 'Dark';
+
+  @override
+  String get feedbackConnectivityOnline => 'Online';
+
+  @override
+  String get feedbackConnectivityOffline => 'Offline';
+
+  @override
+  String get feedbackLocaleEnglish => 'English';
+
+  @override
+  String feedbackFacetCountCaption(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count records',
+      one: '1 record',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String feedbackFacetValueCaption(String value, String records) {
+    return '$value · $records';
+  }
 }

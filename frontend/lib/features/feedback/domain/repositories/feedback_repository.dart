@@ -23,6 +23,12 @@ abstract interface class FeedbackRepository {
     FeedbackSort sort,
   });
 
+  /// Every value each filter can take under [filters], with record counts.
+  /// Platform owners and platform admins only.
+  Future<Result<FeedbackFacets>> fetchFeedbackFacets({
+    required FeedbackFilters filters,
+  });
+
   /// Stored feedback as `.xlsx` bytes, with dates on [utcOffsetMinutes].
   ///
   /// With [referenceIds] only those records are exported; without them every

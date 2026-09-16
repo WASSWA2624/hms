@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hosspi_hms/core/utils/client_timezone.dart';
 import 'package:hosspi_hms/features/feedback/domain/entities/feedback_entities.dart';
 import 'package:hosspi_hms/features/feedback/presentation/feedback_context_capture.dart';
 
@@ -63,6 +64,40 @@ void main() {
       buildFeedbackExportFileName(DateTime(2026, 1, 5, 9, 4, 3)),
       'HOSSPI-FEEDBACK-05012026-090403.xlsx',
     );
+  });
+
+  group('feedbackTimeZoneLabel', () {
+    test('reports the device IANA zone when the platform gives one', () {
+      expect(
+        feedbackTimeZoneLabel(
+          DateTime(2026, 9, 16, 11),
+          readTimeZoneId: () => 'Africa/Kampala',
+        ),
+        'Africa/Kampala',
+      );
+    });
+
+    test('falls back to the UTC offset, never an abbreviation', () {
+      final DateTime moment = DateTime(2026, 9, 16, 11);
+
+      expect(
+        feedbackTimeZoneLabel(moment, readTimeZoneId: () => null),
+        formatUtcOffsetLabel(moment.timeZoneOffset),
+      );
+    });
+
+    test('formats offsets as UTC+HH:MM', () {
+      expect(formatUtcOffsetLabel(Duration.zero), 'UTC');
+      expect(formatUtcOffsetLabel(const Duration(hours: 3)), 'UTC+03:00');
+      expect(
+        formatUtcOffsetLabel(const Duration(hours: -9, minutes: -30)),
+        'UTC-09:30',
+      );
+      expect(
+        formatUtcOffsetLabel(const Duration(hours: 5, minutes: 45)),
+        'UTC+05:45',
+      );
+    });
   });
 
   test('feedbackDeviceTypeForWidth follows the app breakpoints', () {

@@ -175,6 +175,8 @@ void main() {
             routePath: '/${'a' * 600}',
             routeName: 'patients',
             deviceType: FeedbackDeviceType.mobile,
+            appVersion: '1.4.0+12',
+            timezone: 'Africa/Kampala',
             orientation: 'portrait',
             screenWidth: 390,
             screenHeight: 844,
@@ -199,6 +201,8 @@ void main() {
           body['context']! as Map<String, Object?>;
       expect((context['route_path']! as String).length, 512);
       expect(context['route_name'], 'patients');
+      expect(context['app_version'], '1.4.0+12');
+      expect(context['timezone'], 'Africa/Kampala');
       expect(context['utc_offset_minutes'], 180);
       expect(context['device_type'], 'MOBILE');
       expect(context['orientation'], 'portrait');
@@ -295,6 +299,11 @@ void main() {
       filters: const FeedbackFilters(
         search: 'printer',
         categories: <FeedbackCategory>{FeedbackCategory.problem},
+        values: <FeedbackFilterDimension, Set<String>>{
+          FeedbackFilterDimension.tenant: <String>{'TEN-9322E26AFD'},
+          FeedbackFilterDimension.routeName: <String>{'hr'},
+          FeedbackFilterDimension.breakpoint: <String>{'xl', 'lg'},
+        },
       ),
     );
 
@@ -302,6 +311,9 @@ void main() {
       'utc_offset_minutes': 0,
       'search': 'printer',
       'category': <String>['PROBLEM'],
+      'tenant_id': <String>['TEN-9322E26AFD'],
+      'route_name': <String>['hr'],
+      'breakpoint': <String>['lg', 'xl'],
     });
   });
 
@@ -337,7 +349,22 @@ void main() {
             },
             submitterType: FeedbackSubmitterType.anonymous,
             deviceTypes: const <FeedbackDeviceType>{FeedbackDeviceType.mobile},
-            platforms: const <String>{'web', 'android'},
+            values: const <FeedbackFilterDimension, Set<String>>{
+              FeedbackFilterDimension.platform: <String>{'web', 'android'},
+              FeedbackFilterDimension.tenant: <String>{'TEN-9322E26AFD'},
+              FeedbackFilterDimension.facility: <String>{'FAC-FBB67A688F'},
+              FeedbackFilterDimension.role: <String>{'PLATFORM_ADMIN'},
+              FeedbackFilterDimension.planTier: <String>{'PRO'},
+              FeedbackFilterDimension.subscriptionStatus: <String>{'ACTIVE'},
+              FeedbackFilterDimension.routeName: <String>{'hr', 'home'},
+              FeedbackFilterDimension.appEnvironment: <String>{'production'},
+              FeedbackFilterDimension.appVersion: <String>{'1.4.0+12'},
+              FeedbackFilterDimension.locale: <String>{'en'},
+              FeedbackFilterDimension.breakpoint: <String>{'xl'},
+              FeedbackFilterDimension.theme: <String>{'light'},
+              FeedbackFilterDimension.connectivity: <String>{'online'},
+              FeedbackFilterDimension.orientation: <String>{'landscape'},
+            },
             submittedFrom: DateTime(2026, 9, 2),
             submittedTo: DateTime(2026, 9, 14),
           ),
@@ -361,6 +388,19 @@ void main() {
       'submitter_type': 'ANONYMOUS',
       'device_type': 'MOBILE',
       'platform': 'android,web',
+      'tenant_id': 'TEN-9322E26AFD',
+      'facility_id': 'FAC-FBB67A688F',
+      'role': 'PLATFORM_ADMIN',
+      'plan_tier': 'PRO',
+      'subscription_status': 'ACTIVE',
+      'route_name': 'home,hr',
+      'app_environment': 'production',
+      'app_version': '1.4.0+12',
+      'locale': 'en',
+      'breakpoint': 'xl',
+      'theme': 'light',
+      'connectivity': 'online',
+      'orientation': 'landscape',
       // Whole local days, sent as UTC instants.
       'from': DateTime(2026, 9, 2).toUtc().toIso8601String(),
       'to': DateTime(2026, 9, 14, 23, 59, 59, 999).toUtc().toIso8601String(),
@@ -380,6 +420,73 @@ void main() {
     expect(record.routePath, '/billing');
     expect(record.deviceType, FeedbackDeviceType.mobile);
     expect(record.platform, 'android');
+  });
+
+  test('loads filter values and counts under the active filters', () async {
+    final _RecordingApiClient apiClient = _RecordingApiClient(
+      _envelope(<String, Object?>{
+        'total': 19,
+        'facets': <String, Object?>{
+          'category': <Object?>[
+            <String, Object?>{'value': 'PROBLEM', 'count': 11},
+          ],
+          'submitter_type': <Object?>[
+            <String, Object?>{'value': 'AUTHENTICATED', 'count': 19},
+          ],
+          'tenant_id': <Object?>[
+            <String, Object?>{
+              'value': 'TEN-9322E26AFD',
+              'label': 'DemoCare General Hospital',
+              'count': 19,
+            },
+          ],
+          'breakpoint': <Object?>[
+            <String, Object?>{'value': 'xl', 'count': 15},
+            <String, Object?>{'value': 'sm', 'count': 4},
+            // Blank values are not choices.
+            <String, Object?>{'value': '', 'count': 2},
+          ],
+          'app_version': <Object?>[],
+        },
+      }),
+    );
+    final FeedbackRepositoryImpl repository = _repository(apiClient);
+
+    final Result<FeedbackFacets> result = await repository.fetchFeedbackFacets(
+      filters: const FeedbackFilters(
+        search: 'slow',
+        values: <FeedbackFilterDimension, Set<String>>{
+          FeedbackFilterDimension.routeName: <String>{'hr'},
+        },
+      ),
+    );
+
+    final _RecordedCall call = apiClient.calls.single;
+    expect(call.method, 'GET');
+    expect(call.endpoint.path, '/api/v1/feedback/facets');
+    expect(call.endpoint.queryParameters, <String, String>{
+      'search': 'slow',
+      'route_name': 'hr',
+    });
+
+    final FeedbackFacets facets =
+        (result as ResultSuccess<FeedbackFacets>).value;
+    expect(facets.total, 19);
+    expect(facets.categories.single.value, 'PROBLEM');
+    expect(facets.submitterTypes.single.count, 19);
+    final FeedbackFacetValue tenant = facets
+        .valuesFor(FeedbackFilterDimension.tenant)
+        .single;
+    expect(tenant.value, 'TEN-9322E26AFD');
+    expect(tenant.label, 'DemoCare General Hospital');
+    expect(
+      facets
+          .valuesFor(FeedbackFilterDimension.breakpoint)
+          .map((FeedbackFacetValue facet) => '${facet.value}:${facet.count}'),
+      <String>['xl:15', 'sm:4'],
+    );
+    expect(facets.valuesFor(FeedbackFilterDimension.appVersion), isEmpty);
+    expect(facets.valuesFor(FeedbackFilterDimension.platform), isEmpty);
   });
 
   test('deletes the selected feedback permanently', () async {
@@ -417,17 +524,26 @@ void main() {
         .deleteMatchingFeedback(
           filters: FeedbackFilters(
             categories: const <FeedbackCategory>{FeedbackCategory.suggestion},
+            values: const <FeedbackFilterDimension, Set<String>>{
+              FeedbackFilterDimension.tenant: <String>{'TEN-9322E26AFD'},
+              FeedbackFilterDimension.routeName: <String>{'hr'},
+              FeedbackFilterDimension.breakpoint: <String>{'xl'},
+            },
             submittedFrom: DateTime(2026, 9, 14),
           ),
         );
 
     final _RecordedCall call = apiClient.calls.single;
     expect(call.method, 'DELETE');
+    // The same filters an export of these records would send.
     expect(call.data, <String, Object?>{
       'confirm': true,
       'all_matching': true,
       'filters': <String, Object?>{
         'category': <String>['SUGGESTION'],
+        'tenant_id': <String>['TEN-9322E26AFD'],
+        'route_name': <String>['hr'],
+        'breakpoint': <String>['xl'],
         'from': DateTime(2026, 9, 14).toUtc().toIso8601String(),
       },
     });

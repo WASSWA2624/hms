@@ -215,6 +215,16 @@ String? currentFeedbackRouteName(GoRouter router) {
   return router.state.topRoute?.name;
 }
 
+/// The device's IANA time zone, else its UTC offset at [moment]
+/// (`UTC+03:00`). Never an abbreviation such as `EAT`, which several zones
+/// share.
+String feedbackTimeZoneLabel(
+  DateTime moment, {
+  String? Function() readTimeZoneId = readClientTimeZoneId,
+}) {
+  return readTimeZoneId() ?? formatUtcOffsetLabel(moment.timeZoneOffset);
+}
+
 /// Snapshot of the screen and device a user is giving feedback from.
 ///
 /// [context] must sit below the app's `MediaQuery`, `Theme`, and
@@ -226,6 +236,7 @@ FeedbackContext captureFeedbackContext({
   required AppConfig config,
   AppConnectivityStatus? connectivity,
   DateTime? now,
+  String? Function() readTimeZoneId = readClientTimeZoneId,
 }) {
   final DateTime moment = now ?? DateTime.now();
   final Uri? location = currentFeedbackLocation(router);
@@ -241,9 +252,10 @@ FeedbackContext captureFeedbackContext({
     pageUrl: kIsWeb ? redactFeedbackLocation(Uri.base) : null,
     platform: feedbackPlatformLabel(),
     deviceType: feedbackDeviceTypeForWidth(viewport.width),
+    appVersion: config.appVersion,
     appEnvironment: config.environment.name,
     locale: Localizations.maybeLocaleOf(context)?.toLanguageTag(),
-    timezone: readClientTimeZoneId() ?? moment.timeZoneName,
+    timezone: feedbackTimeZoneLabel(moment, readTimeZoneId: readTimeZoneId),
     utcOffsetMinutes: moment.timeZoneOffset.inMinutes,
     breakpoint: AppBreakpoints.of(context).token,
     themeMode: Theme.of(context).brightness.name,

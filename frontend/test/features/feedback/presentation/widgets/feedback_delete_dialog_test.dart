@@ -21,6 +21,37 @@ typedef _PageCall = ({
   FeedbackSort sort,
 });
 
+FeedbackFacetValue _facet(String value, int count, {String? label}) {
+  return FeedbackFacetValue(value: value, count: count, label: label);
+}
+
+/// Stored values as the facets endpoint reports them: no app version or
+/// connectivity was ever recorded, so those filters have nothing to offer.
+final FeedbackFacets _storedFacets = FeedbackFacets(
+  total: 45,
+  categories: <FeedbackFacetValue>[_facet('PROBLEM', 45)],
+  submitterTypes: <FeedbackFacetValue>[_facet('AUTHENTICATED', 45)],
+  deviceTypes: <FeedbackFacetValue>[_facet('DESKTOP', 45)],
+  values: <FeedbackFilterDimension, List<FeedbackFacetValue>>{
+    FeedbackFilterDimension.tenant: <FeedbackFacetValue>[
+      _facet('TEN-9322E26AFD', 40, label: 'DemoCare General Hospital'),
+      _facet('TEN0000002', 5, label: 'IHK Group'),
+    ],
+    FeedbackFilterDimension.role: <FeedbackFacetValue>[
+      _facet('PLATFORM_ADMIN', 45),
+    ],
+    FeedbackFilterDimension.routeName: <FeedbackFacetValue>[
+      _facet('hr', 30),
+      _facet('home', 15),
+    ],
+    FeedbackFilterDimension.platform: <FeedbackFacetValue>[_facet('web', 45)],
+    FeedbackFilterDimension.breakpoint: <FeedbackFacetValue>[
+      _facet('xl', 40),
+      _facet('sm', 5),
+    ],
+  },
+);
+
 final class _FakeFeedbackRepository implements FeedbackRepository {
   _FakeFeedbackRepository(int count)
     : records = <FeedbackRecord>[
@@ -39,6 +70,8 @@ final class _FakeFeedbackRepository implements FeedbackRepository {
 
   final List<FeedbackRecord> records;
   final List<_PageCall> pageCalls = <_PageCall>[];
+  final List<FeedbackFilters> facetCalls = <FeedbackFilters>[];
+  bool facetsFail = false;
   final List<Set<String>> deletedIds = <Set<String>>[];
   final List<FeedbackFilters> deletedMatching = <FeedbackFilters>[];
   int failuresRemaining = 0;
@@ -66,6 +99,17 @@ final class _FakeFeedbackRepository implements FeedbackRepository {
         totalItemCount: records.length,
       ),
     );
+  }
+
+  @override
+  Future<Result<FeedbackFacets>> fetchFeedbackFacets({
+    required FeedbackFilters filters,
+  }) async {
+    facetCalls.add(filters);
+    if (facetsFail) {
+      return const Result<FeedbackFacets>.failure(AppFailure.network());
+    }
+    return Result<FeedbackFacets>.success(_storedFacets);
   }
 
   @override
@@ -186,6 +230,22 @@ bool? _rowChecked(WidgetTester tester, String referenceId) {
         find.byKey(FeedbackDeleteDialog.rowCheckboxKey(referenceId)),
       )
       .value;
+}
+
+/// Opens the filter dialog; its button counts the picked values once any are.
+Future<void> _openFilters(WidgetTester tester, {int active = 0}) async {
+  await tester.tap(
+    find.byTooltip(active == 0 ? 'Filters' : 'Filters ($active)'),
+  );
+  await tester.pumpAndSettle();
+}
+
+Future<void> _tickFilterChoice(WidgetTester tester, String label) async {
+  final Finder choice = find.widgetWithText(CheckboxListTile, label);
+  await tester.ensureVisible(choice);
+  await tester.pumpAndSettle();
+  await tester.tap(choice);
+  await tester.pump();
 }
 
 Future<void> _confirmDelete(WidgetTester tester) async {
@@ -377,9 +437,12 @@ void main() {
         find.byType(AppSearchBar),
       );
       expect(searchBar.enableDateFilter, isTrue);
+      expect(searchBar.dateFilterSection, 'Report');
+      expect(searchBar.loadFilterGroups, isNotNull);
+      // Without stored values only the filters the app itself knows remain.
       expect(
         searchBar.filterGroups.map((AppSearchBarFilterGroup group) => group.key),
-        <String>['category', 'submitter_type', 'device_type', 'platform'],
+        <String>['category', 'submitter_type', 'device_type'],
       );
 
       searchBar.onFilterChanged!(
@@ -391,6 +454,9 @@ void main() {
             'category': <String>{'PROBLEM', 'COMPLAINT'},
             'device_type': <String>{'MOBILE'},
             'platform': <String>{'android'},
+            'tenant_id': <String>{'TEN-9322E26AFD'},
+            'route_name': <String>{'hr'},
+            'breakpoint': <String>{'xl'},
           },
         ),
       );
@@ -406,12 +472,136 @@ void main() {
       expect(filters.deviceTypes, <FeedbackDeviceType>{
         FeedbackDeviceType.mobile,
       });
-      expect(filters.platforms, <String>{'android'});
+      expect(filters.values, <FeedbackFilterDimension, Set<String>>{
+        FeedbackFilterDimension.platform: <String>{'android'},
+        FeedbackFilterDimension.tenant: <String>{'TEN-9322E26AFD'},
+        FeedbackFilterDimension.routeName: <String>{'hr'},
+        FeedbackFilterDimension.breakpoint: <String>{'xl'},
+      });
       expect(filters.submittedFrom, DateTime(2026, 9, 2));
       expect(filters.submittedTo, DateTime(2026, 9, 14));
       expect(repository.pageCalls.last.request.pageIndex, 0);
     },
   );
+
+  testWidgets('filter choices come from stored values, grouped in sections', (
+    WidgetTester tester,
+  ) async {
+    final _FakeFeedbackRepository repository = _FakeFeedbackRepository(3);
+    await _openDialog(tester, repository);
+
+    await _openFilters(tester);
+
+    expect(repository.facetCalls, hasLength(1));
+    expect(repository.facetCalls.single.hasActiveFilters, isFalse);
+    for (final String section in <String>['Report', 'Who', 'Where', 'Device']) {
+      expect(find.text(section), findsOneWidget);
+    }
+    // Tenants read by name, with the public id and record count beneath.
+    expect(
+      find.widgetWithText(CheckboxListTile, 'DemoCare General Hospital'),
+      findsOneWidget,
+    );
+    expect(find.text('TEN-9322E26AFD · 40 records'), findsOneWidget);
+    // Raw values get readable names.
+    expect(
+      find.widgetWithText(CheckboxListTile, 'Extra large'),
+      findsOneWidget,
+    );
+    expect(find.text('xl · 40 records'), findsOneWidget);
+    expect(
+      find.widgetWithText(CheckboxListTile, 'Platform admin'),
+      findsOneWidget,
+    );
+    // Platforms are the stored ones, not a fixed list.
+    expect(find.widgetWithText(CheckboxListTile, 'Web'), findsOneWidget);
+    expect(find.widgetWithText(CheckboxListTile, 'Android'), findsNothing);
+    // Categories nobody used and filters with no stored values are hidden.
+    expect(find.widgetWithText(CheckboxListTile, 'Complaint'), findsNothing);
+    expect(find.text('App version'), findsNothing);
+    expect(find.text('Connectivity'), findsNothing);
+
+    // Tenants can be searched by name or id.
+    await tester.enterText(
+      find.descendant(
+        of: find.ancestor(
+          of: find.text('Search tenants'),
+          matching: find.byType(AppTextField),
+        ),
+        matching: find.byType(TextField),
+      ),
+      'ihk',
+    );
+    await tester.pump();
+    expect(find.widgetWithText(CheckboxListTile, 'IHK Group'), findsOneWidget);
+    expect(
+      find.widgetWithText(CheckboxListTile, 'DemoCare General Hospital'),
+      findsNothing,
+    );
+  });
+
+  testWidgets(
+    'tenant, screen, and breakpoint filters narrow the list and its choices',
+    (WidgetTester tester) async {
+      final _FakeFeedbackRepository repository = _FakeFeedbackRepository(3);
+      await _openDialog(tester, repository);
+
+      await _openFilters(tester);
+      await _tickFilterChoice(tester, 'DemoCare General Hospital');
+      await _tickFilterChoice(tester, 'Hr');
+      await _tickFilterChoice(tester, 'Extra large');
+      await tester.tap(find.text('Apply filters'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+
+      final _PageCall call = repository.pageCalls.last;
+      expect(call.request.pageIndex, 0);
+      expect(call.filters.values, <FeedbackFilterDimension, Set<String>>{
+        FeedbackFilterDimension.tenant: <String>{'TEN-9322E26AFD'},
+        FeedbackFilterDimension.routeName: <String>{'hr'},
+        FeedbackFilterDimension.breakpoint: <String>{'xl'},
+      });
+      // One per picked value.
+      final AppSearchBar searchBar = tester.widget<AppSearchBar>(
+        find.byType(AppSearchBar),
+      );
+      expect(searchBar.filterValue.activeCount, 3);
+
+      // Reopening counts choices under the applied filters, still ticked.
+      await _openFilters(tester, active: 3);
+      expect(repository.facetCalls, hasLength(2));
+      expect(
+        repository.facetCalls.last.valuesFor(FeedbackFilterDimension.routeName),
+        <String>{'hr'},
+      );
+      expect(
+        tester
+            .widget<CheckboxListTile>(
+              find.widgetWithText(CheckboxListTile, 'Extra large'),
+            )
+            .value,
+        isTrue,
+      );
+    },
+  );
+
+  testWidgets('filters fall back to basic choices when values fail to load', (
+    WidgetTester tester,
+  ) async {
+    final _FakeFeedbackRepository repository = _FakeFeedbackRepository(3)
+      ..facetsFail = true;
+    await _openDialog(tester, repository);
+
+    await _openFilters(tester);
+
+    expect(
+      find.textContaining('Filter choices could not be loaded'),
+      findsOneWidget,
+    );
+    expect(find.widgetWithText(CheckboxListTile, 'Complaint'), findsOneWidget);
+    expect(find.text('Who'), findsNothing);
+  });
 
   testWidgets('shows an empty state when nothing matches', (
     WidgetTester tester,

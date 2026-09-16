@@ -15,12 +15,15 @@ import 'package:hosspi_hms/shared/components/components.dart';
 import 'package:hosspi_hms/shared/data/app_pagination.dart';
 import 'package:hosspi_hms/shared/layout/app_workspace.dart';
 
-/// [AppSearchBarFilterValue] keys for the feedback filters.
+/// [AppSearchBarFilterValue] keys for the feedback filters. Every
+/// [FeedbackFilterDimension] is keyed by its `apiKey`.
 abstract final class FeedbackFilterKeys {
   static const String category = 'category';
   static const String submitterType = 'submitter_type';
   static const String deviceType = 'device_type';
-  static const String platform = 'platform';
+
+  static String dimension(FeedbackFilterDimension dimension) =>
+      dimension.apiKey;
 }
 
 /// Picks stored feedback from a paged table, then hands the picked records to
@@ -31,10 +34,14 @@ abstract final class FeedbackFilterKeys {
 ///
 /// Clear feedback and Download feedback differ only in what happens to the
 /// records at the end, so both drive this one dialog. Feedback loads a page at
-/// a time from the server and narrows by search, a submission date range,
-/// feedback type, submitter, device type, and platform. Sorting is the
-/// server's too: ordering only the page in front of the user would misreport
-/// the list as a whole.
+/// a time from the server and narrows by search and filters grouped as
+/// Report (type, submitter, submission date), Who (tenant, facility, role,
+/// plan tier, subscription status), Where (screen, environment, app version),
+/// and Device (platform, device type, breakpoint, orientation, theme,
+/// language, connectivity). Filter choices are the values stored feedback
+/// actually holds, counted by the server when the filters open. Sorting is
+/// the server's too: ordering only the page in front of the user would
+/// misreport the list as a whole.
 class FeedbackRecordsDialog<T> extends ConsumerStatefulWidget {
   const FeedbackRecordsDialog({
     required this.title,
@@ -112,6 +119,12 @@ class _FeedbackRecordsDialogState<T>
   Timer? _searchTimer;
   String _appliedSearch = '';
   AppSearchBarFilterValue _filterValue = AppSearchBarFilterValue.empty;
+
+  // Facets counted under the search and filters of [_facetsRevision]; each
+  // change of either bumps [_criteriaRevision] and makes them stale.
+  FeedbackFacets? _facets;
+  int _facetsRevision = -1;
+  int _criteriaRevision = 0;
   AppPageRequest _request = const AppPageRequest();
   FeedbackSort _sort = FeedbackSort.newestFirst;
   AppPage<FeedbackRecord>? _page;
@@ -150,7 +163,16 @@ class _FeedbackRecordsDialogState<T>
           .map(FeedbackDeviceType.fromApiValue)
           .whereType<FeedbackDeviceType>()
           .toSet(),
-      platforms: value.optionsFor(FeedbackFilterKeys.platform),
+      values: <FeedbackFilterDimension, Set<String>>{
+        for (final FeedbackFilterDimension dimension
+            in FeedbackFilterDimension.values)
+          if (value
+              .optionsFor(FeedbackFilterKeys.dimension(dimension))
+              .isNotEmpty)
+            dimension: value.optionsFor(
+              FeedbackFilterKeys.dimension(dimension),
+            ),
+      },
       submittedFrom: value.dateFrom,
       submittedTo: value.dateTo,
     );
@@ -279,7 +301,12 @@ class _FeedbackRecordsDialogState<T>
         dateToLabel: l10n.feedbackSubmittedToLabel,
         invalidDateMessage: l10n.feedbackInvalidDateMessage,
         lastDate: DateTime.now(),
-        filterGroups: _filterGroups(l10n),
+        dateFilterSection: l10n.feedbackFilterSectionReport,
+        // Fallback when the stored values cannot be loaded.
+        filterGroups: _basicFilterGroups(l10n),
+        loadFilterGroups: () => _loadFilterGroups(l10n),
+        filterGroupsLoadingLabel: l10n.feedbackFiltersLoadingLabel,
+        filterGroupsLoadErrorMessage: l10n.feedbackFiltersLoadErrorMessage,
         filterValue: _filterValue,
         hasActiveFilters: _filterValue.isActive,
         onFilterChanged: _applyFilters,
@@ -495,60 +522,318 @@ class _FeedbackRecordsDialogState<T>
     );
   }
 
-  List<AppSearchBarFilterGroup> _filterGroups(AppLocalizations l10n) {
+  /// Filters that need no stored values: every category, submitter type, and
+  /// device type the app knows.
+  List<AppSearchBarFilterGroup> _basicFilterGroups(AppLocalizations l10n) {
     return <AppSearchBarFilterGroup>[
-      AppSearchBarFilterGroup(
-        key: FeedbackFilterKeys.category,
-        label: l10n.feedbackCategoryLabel,
-        allLabel: l10n.commonAllLabel,
-        allowMultiple: true,
-        choices: <AppSearchBarFilterChoice>[
-          for (final FeedbackCategory category in FeedbackCategory.values)
+      _categoryGroup(l10n, <AppSearchBarFilterChoice>[
+        for (final FeedbackCategory category in FeedbackCategory.values)
+          AppSearchBarFilterChoice(
+            value: category.apiValue,
+            label: feedbackCategoryLabel(l10n, category),
+          ),
+      ]),
+      _submitterGroup(l10n, <AppSearchBarFilterChoice>[
+        for (final FeedbackSubmitterType type in FeedbackSubmitterType.values)
+          AppSearchBarFilterChoice(
+            value: type.apiValue,
+            label: feedbackSubmitterTypeLabel(l10n, type),
+          ),
+      ]),
+      _deviceTypeGroup(l10n, <AppSearchBarFilterChoice>[
+        for (final FeedbackDeviceType type in FeedbackDeviceType.values)
+          AppSearchBarFilterChoice(
+            value: type.apiValue,
+            label: feedbackDeviceTypeLabel(l10n, type),
+          ),
+      ]),
+    ];
+  }
+
+  /// Every filter, offering only the values stored feedback holds under the
+  /// current search and filters. Throws when they cannot be loaded, so the
+  /// filter dialog falls back to [_basicFilterGroups].
+  Future<List<AppSearchBarFilterGroup>> _loadFilterGroups(
+    AppLocalizations l10n,
+  ) async {
+    final int revision = _criteriaRevision;
+    FeedbackFacets? facets = _facetsRevision == revision ? _facets : null;
+    if (facets == null) {
+      final Result<FeedbackFacets> result = await ref
+          .read(feedbackRepositoryProvider)
+          .fetchFeedbackFacets(filters: _filters);
+      switch (result) {
+        case ResultSuccess<FeedbackFacets>(value: final FeedbackFacets loaded):
+          facets = loaded;
+          if (mounted && revision == _criteriaRevision) {
+            _facets = loaded;
+            _facetsRevision = revision;
+          }
+        case ResultFailure<FeedbackFacets>(failure: final AppFailure failure):
+          throw failure;
+      }
+    }
+    return _facetFilterGroups(l10n, facets);
+  }
+
+  List<AppSearchBarFilterGroup> _facetFilterGroups(
+    AppLocalizations l10n,
+    FeedbackFacets facets,
+  ) {
+    return <AppSearchBarFilterGroup>[
+      // Report; the submission date joins this section.
+      _categoryGroup(l10n, <AppSearchBarFilterChoice>[
+        for (final FeedbackCategory category in FeedbackCategory.values)
+          if (_facetCount(
+                facets.categories,
+                category.apiValue,
+                FeedbackFilterKeys.category,
+              )
+              case final int count)
             AppSearchBarFilterChoice(
               value: category.apiValue,
               label: feedbackCategoryLabel(l10n, category),
+              caption: l10n.feedbackFacetCountCaption(count),
             ),
-        ],
-      ),
-      AppSearchBarFilterGroup(
-        key: FeedbackFilterKeys.submitterType,
-        label: l10n.feedbackSubmittedByLabel,
-        allLabel: l10n.feedbackFilterAnyLabel,
-        choices: <AppSearchBarFilterChoice>[
-          for (final FeedbackSubmitterType type in FeedbackSubmitterType.values)
+      ]),
+      _submitterGroup(l10n, <AppSearchBarFilterChoice>[
+        for (final FeedbackSubmitterType type in FeedbackSubmitterType.values)
+          if (_facetCount(
+                facets.submitterTypes,
+                type.apiValue,
+                FeedbackFilterKeys.submitterType,
+              ) !=
+              null)
             AppSearchBarFilterChoice(
               value: type.apiValue,
               label: feedbackSubmitterTypeLabel(l10n, type),
             ),
-        ],
+      ]),
+      // Who
+      _dimensionGroup(
+        l10n,
+        facets,
+        FeedbackFilterDimension.tenant,
+        label: l10n.feedbackTenantColumnLabel,
+        searchHintText: l10n.feedbackFilterTenantSearchHint,
       ),
-      AppSearchBarFilterGroup(
-        key: FeedbackFilterKeys.deviceType,
-        label: l10n.feedbackDeviceTypeLabel,
-        allLabel: l10n.commonAllLabel,
-        allowMultiple: true,
-        choices: <AppSearchBarFilterChoice>[
-          for (final FeedbackDeviceType type in FeedbackDeviceType.values)
+      _dimensionGroup(
+        l10n,
+        facets,
+        FeedbackFilterDimension.facility,
+        label: l10n.feedbackFacilityColumnLabel,
+        searchHintText: l10n.feedbackFilterFacilitySearchHint,
+      ),
+      _dimensionGroup(
+        l10n,
+        facets,
+        FeedbackFilterDimension.role,
+        label: l10n.feedbackFilterRoleLabel,
+        searchHintText: l10n.feedbackFilterRoleSearchHint,
+      ),
+      _dimensionGroup(
+        l10n,
+        facets,
+        FeedbackFilterDimension.planTier,
+        label: l10n.feedbackFilterPlanTierLabel,
+      ),
+      _dimensionGroup(
+        l10n,
+        facets,
+        FeedbackFilterDimension.subscriptionStatus,
+        label: l10n.feedbackFilterSubscriptionStatusLabel,
+      ),
+      // Where
+      _dimensionGroup(
+        l10n,
+        facets,
+        FeedbackFilterDimension.routeName,
+        label: l10n.feedbackRouteColumnLabel,
+        searchHintText: l10n.feedbackFilterRouteSearchHint,
+      ),
+      _dimensionGroup(
+        l10n,
+        facets,
+        FeedbackFilterDimension.appEnvironment,
+        label: l10n.feedbackFilterEnvironmentLabel,
+      ),
+      _dimensionGroup(
+        l10n,
+        facets,
+        FeedbackFilterDimension.appVersion,
+        label: l10n.feedbackFilterAppVersionLabel,
+      ),
+      // Device
+      _dimensionGroup(
+        l10n,
+        facets,
+        FeedbackFilterDimension.platform,
+        label: l10n.feedbackPlatformLabel,
+      ),
+      _deviceTypeGroup(l10n, <AppSearchBarFilterChoice>[
+        for (final FeedbackDeviceType type in FeedbackDeviceType.values)
+          if (_facetCount(
+                facets.deviceTypes,
+                type.apiValue,
+                FeedbackFilterKeys.deviceType,
+              )
+              case final int count)
             AppSearchBarFilterChoice(
               value: type.apiValue,
               label: feedbackDeviceTypeLabel(l10n, type),
+              caption: l10n.feedbackFacetCountCaption(count),
             ),
-        ],
+      ]),
+      _dimensionGroup(
+        l10n,
+        facets,
+        FeedbackFilterDimension.breakpoint,
+        label: l10n.feedbackFilterBreakpointLabel,
       ),
-      AppSearchBarFilterGroup(
-        key: FeedbackFilterKeys.platform,
-        label: l10n.feedbackPlatformLabel,
-        allLabel: l10n.commonAllLabel,
-        allowMultiple: true,
-        choices: <AppSearchBarFilterChoice>[
-          for (final String platform in feedbackPlatforms)
-            AppSearchBarFilterChoice(
-              value: platform,
-              label: feedbackPlatformName(l10n, platform),
-            ),
-        ],
+      _dimensionGroup(
+        l10n,
+        facets,
+        FeedbackFilterDimension.orientation,
+        label: l10n.feedbackFilterOrientationLabel,
+      ),
+      _dimensionGroup(
+        l10n,
+        facets,
+        FeedbackFilterDimension.theme,
+        label: l10n.feedbackFilterThemeLabel,
+      ),
+      _dimensionGroup(
+        l10n,
+        facets,
+        FeedbackFilterDimension.locale,
+        label: l10n.feedbackFilterLocaleLabel,
+      ),
+      _dimensionGroup(
+        l10n,
+        facets,
+        FeedbackFilterDimension.connectivity,
+        label: l10n.feedbackFilterConnectivityLabel,
       ),
     ];
+  }
+
+  AppSearchBarFilterGroup _categoryGroup(
+    AppLocalizations l10n,
+    List<AppSearchBarFilterChoice> choices,
+  ) {
+    return AppSearchBarFilterGroup(
+      key: FeedbackFilterKeys.category,
+      label: l10n.feedbackCategoryLabel,
+      allLabel: l10n.commonAllLabel,
+      allowMultiple: true,
+      section: l10n.feedbackFilterSectionReport,
+      choices: choices,
+    );
+  }
+
+  AppSearchBarFilterGroup _submitterGroup(
+    AppLocalizations l10n,
+    List<AppSearchBarFilterChoice> choices,
+  ) {
+    return AppSearchBarFilterGroup(
+      key: FeedbackFilterKeys.submitterType,
+      label: l10n.feedbackSubmittedByLabel,
+      allLabel: l10n.feedbackFilterAnyLabel,
+      section: l10n.feedbackFilterSectionReport,
+      choices: choices,
+    );
+  }
+
+  AppSearchBarFilterGroup _deviceTypeGroup(
+    AppLocalizations l10n,
+    List<AppSearchBarFilterChoice> choices,
+  ) {
+    return AppSearchBarFilterGroup(
+      key: FeedbackFilterKeys.deviceType,
+      label: l10n.feedbackDeviceTypeLabel,
+      allLabel: l10n.commonAllLabel,
+      allowMultiple: true,
+      section: l10n.feedbackFilterSectionDevice,
+      choices: choices,
+    );
+  }
+
+  /// A multi-select group of the stored values of [dimension], most common
+  /// first. Values already picked stay listed even when no record under the
+  /// other filters holds them, so they can be unpicked. With [searchHintText]
+  /// the values can be searched, for dimensions with many of them.
+  AppSearchBarFilterGroup _dimensionGroup(
+    AppLocalizations l10n,
+    FeedbackFacets facets,
+    FeedbackFilterDimension dimension, {
+    required String label,
+    String? searchHintText,
+  }) {
+    final List<FeedbackFacetValue> stored = facets.valuesFor(dimension);
+    final Set<String> storedValues = stored
+        .map((FeedbackFacetValue facet) => facet.value)
+        .toSet();
+    final List<FeedbackFacetValue> values = <FeedbackFacetValue>[
+      ...stored,
+      for (final String picked in _filterValue.optionsFor(
+        FeedbackFilterKeys.dimension(dimension),
+      ))
+        if (!storedValues.contains(picked))
+          FeedbackFacetValue(value: picked, count: 0),
+    ];
+
+    return AppSearchBarFilterGroup(
+      key: FeedbackFilterKeys.dimension(dimension),
+      label: label,
+      allLabel: l10n.commonAllLabel,
+      allowMultiple: true,
+      section: _sectionOf(l10n, dimension),
+      searchable: searchHintText != null,
+      searchHintText: searchHintText,
+      emptySearchText: l10n.feedbackFilterNoMatches,
+      choices: <AppSearchBarFilterChoice>[
+        for (final FeedbackFacetValue facet in values)
+          AppSearchBarFilterChoice(
+            value: facet.value,
+            label: feedbackFacetValueLabel(l10n, dimension, facet),
+            caption: feedbackFacetCaption(l10n, dimension, facet),
+          ),
+      ],
+    );
+  }
+
+  /// How many records hold the enum [value], or null when none do and it is
+  /// not already picked under [key].
+  int? _facetCount(List<FeedbackFacetValue> facets, String value, String key) {
+    for (final FeedbackFacetValue facet in facets) {
+      if (facet.value == value) {
+        return facet.count;
+      }
+    }
+    return _filterValue.optionsFor(key).contains(value) ? 0 : null;
+  }
+
+  static String _sectionOf(
+    AppLocalizations l10n,
+    FeedbackFilterDimension dimension,
+  ) {
+    return switch (dimension) {
+      FeedbackFilterDimension.tenant ||
+      FeedbackFilterDimension.facility ||
+      FeedbackFilterDimension.role ||
+      FeedbackFilterDimension.planTier ||
+      FeedbackFilterDimension.subscriptionStatus =>
+        l10n.feedbackFilterSectionWho,
+      FeedbackFilterDimension.routeName ||
+      FeedbackFilterDimension.appEnvironment ||
+      FeedbackFilterDimension.appVersion => l10n.feedbackFilterSectionWhere,
+      FeedbackFilterDimension.platform ||
+      FeedbackFilterDimension.breakpoint ||
+      FeedbackFilterDimension.orientation ||
+      FeedbackFilterDimension.theme ||
+      FeedbackFilterDimension.locale ||
+      FeedbackFilterDimension.connectivity => l10n.feedbackFilterSectionDevice,
+    };
   }
 
   String _submittedAtText(FeedbackRecord record, Locale locale) {
@@ -644,8 +929,9 @@ class _FeedbackRecordsDialogState<T>
   }
 
   /// New search or filter criteria change which records match, so selections
-  /// made under the old criteria are dropped.
+  /// made under the old criteria are dropped, and so are the filter counts.
   void _reloadFromFirstPage() {
+    _criteriaRevision += 1;
     _selectedIds.clear();
     unawaited(_load(_request.first()));
   }

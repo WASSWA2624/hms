@@ -54870,6 +54870,300 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Try again'**
   String get feedbackRetryAction;
+
+  /// Filter section heading: what kind of feedback and when it was sent.
+  ///
+  /// In en, this message translates to:
+  /// **'Report'**
+  String get feedbackFilterSectionReport;
+
+  /// Filter section heading: tenant, facility, role, and subscription of the submitter.
+  ///
+  /// In en, this message translates to:
+  /// **'Who'**
+  String get feedbackFilterSectionWho;
+
+  /// Filter section heading: the screen, environment, and app version feedback came from.
+  ///
+  /// In en, this message translates to:
+  /// **'Where'**
+  String get feedbackFilterSectionWhere;
+
+  /// Filter section heading: platform, screen size, orientation, theme, language, and connectivity.
+  ///
+  /// In en, this message translates to:
+  /// **'Device'**
+  String get feedbackFilterSectionDevice;
+
+  /// Filter by a role the submitter held.
+  ///
+  /// In en, this message translates to:
+  /// **'Role'**
+  String get feedbackFilterRoleLabel;
+
+  /// Filter by the tenant's subscription plan tier.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan tier'**
+  String get feedbackFilterPlanTierLabel;
+
+  /// Filter by the tenant's subscription status.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscription status'**
+  String get feedbackFilterSubscriptionStatusLabel;
+
+  /// Filter by the app environment feedback was sent from.
+  ///
+  /// In en, this message translates to:
+  /// **'Environment'**
+  String get feedbackFilterEnvironmentLabel;
+
+  /// Filter by the app version feedback was sent from.
+  ///
+  /// In en, this message translates to:
+  /// **'App version'**
+  String get feedbackFilterAppVersionLabel;
+
+  /// Filter by the layout size class of the app window.
+  ///
+  /// In en, this message translates to:
+  /// **'Breakpoint'**
+  String get feedbackFilterBreakpointLabel;
+
+  /// Filter by screen orientation.
+  ///
+  /// In en, this message translates to:
+  /// **'Orientation'**
+  String get feedbackFilterOrientationLabel;
+
+  /// Filter by light or dark theme.
+  ///
+  /// In en, this message translates to:
+  /// **'Theme'**
+  String get feedbackFilterThemeLabel;
+
+  /// Filter by the app language.
+  ///
+  /// In en, this message translates to:
+  /// **'Language'**
+  String get feedbackFilterLocaleLabel;
+
+  /// Filter by whether the device was online.
+  ///
+  /// In en, this message translates to:
+  /// **'Connectivity'**
+  String get feedbackFilterConnectivityLabel;
+
+  /// Search field hint in the tenant filter.
+  ///
+  /// In en, this message translates to:
+  /// **'Search tenants'**
+  String get feedbackFilterTenantSearchHint;
+
+  /// Search field hint in the facility filter.
+  ///
+  /// In en, this message translates to:
+  /// **'Search facilities'**
+  String get feedbackFilterFacilitySearchHint;
+
+  /// Search field hint in the role filter.
+  ///
+  /// In en, this message translates to:
+  /// **'Search roles'**
+  String get feedbackFilterRoleSearchHint;
+
+  /// Search field hint in the screen filter.
+  ///
+  /// In en, this message translates to:
+  /// **'Search screens'**
+  String get feedbackFilterRouteSearchHint;
+
+  /// Shown in a filter when its search matches no value.
+  ///
+  /// In en, this message translates to:
+  /// **'No values match your search.'**
+  String get feedbackFilterNoMatches;
+
+  /// Shown while the values each filter can take are loaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading filter choices'**
+  String get feedbackFiltersLoadingLabel;
+
+  /// Shown when the filter values fail to load.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter choices could not be loaded, so only the basic filters are shown. Close and reopen filters to try again.'**
+  String get feedbackFiltersLoadErrorMessage;
+
+  /// Plan tier: FREE.
+  ///
+  /// In en, this message translates to:
+  /// **'Free'**
+  String get feedbackPlanTierFree;
+
+  /// Plan tier: BASIC.
+  ///
+  /// In en, this message translates to:
+  /// **'Basic'**
+  String get feedbackPlanTierBasic;
+
+  /// Plan tier: ADVANCED.
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced'**
+  String get feedbackPlanTierAdvanced;
+
+  /// Plan tier: PRO.
+  ///
+  /// In en, this message translates to:
+  /// **'Pro'**
+  String get feedbackPlanTierPro;
+
+  /// Plan tier: CUSTOM.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom'**
+  String get feedbackPlanTierCustom;
+
+  /// Plan tier: DEVELOPER.
+  ///
+  /// In en, this message translates to:
+  /// **'Developer'**
+  String get feedbackPlanTierDeveloper;
+
+  /// Subscription status: ACTIVE.
+  ///
+  /// In en, this message translates to:
+  /// **'Active'**
+  String get feedbackSubscriptionStatusActive;
+
+  /// Subscription status: TRIAL.
+  ///
+  /// In en, this message translates to:
+  /// **'Trial'**
+  String get feedbackSubscriptionStatusTrial;
+
+  /// Subscription status: PAST_DUE.
+  ///
+  /// In en, this message translates to:
+  /// **'Past due'**
+  String get feedbackSubscriptionStatusPastDue;
+
+  /// Subscription status: CANCELLED.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancelled'**
+  String get feedbackSubscriptionStatusCancelled;
+
+  /// App environment: development.
+  ///
+  /// In en, this message translates to:
+  /// **'Development'**
+  String get feedbackEnvironmentDevelopment;
+
+  /// App environment: staging.
+  ///
+  /// In en, this message translates to:
+  /// **'Staging'**
+  String get feedbackEnvironmentStaging;
+
+  /// App environment: production.
+  ///
+  /// In en, this message translates to:
+  /// **'Production'**
+  String get feedbackEnvironmentProduction;
+
+  /// Layout breakpoint xs (phones under 360 px).
+  ///
+  /// In en, this message translates to:
+  /// **'Extra small'**
+  String get feedbackBreakpointXs;
+
+  /// Layout breakpoint sm (phones).
+  ///
+  /// In en, this message translates to:
+  /// **'Small'**
+  String get feedbackBreakpointSm;
+
+  /// Layout breakpoint md (small tablets).
+  ///
+  /// In en, this message translates to:
+  /// **'Medium'**
+  String get feedbackBreakpointMd;
+
+  /// Layout breakpoint lg (tablets).
+  ///
+  /// In en, this message translates to:
+  /// **'Large'**
+  String get feedbackBreakpointLg;
+
+  /// Layout breakpoint xl (desktops).
+  ///
+  /// In en, this message translates to:
+  /// **'Extra large'**
+  String get feedbackBreakpointXl;
+
+  /// Layout breakpoint xxl (wide desktops).
+  ///
+  /// In en, this message translates to:
+  /// **'Extra extra large'**
+  String get feedbackBreakpointXxl;
+
+  /// Screen orientation: portrait.
+  ///
+  /// In en, this message translates to:
+  /// **'Portrait'**
+  String get feedbackOrientationPortrait;
+
+  /// Screen orientation: landscape.
+  ///
+  /// In en, this message translates to:
+  /// **'Landscape'**
+  String get feedbackOrientationLandscape;
+
+  /// Theme: light.
+  ///
+  /// In en, this message translates to:
+  /// **'Light'**
+  String get feedbackThemeLight;
+
+  /// Theme: dark.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark'**
+  String get feedbackThemeDark;
+
+  /// Connectivity: online.
+  ///
+  /// In en, this message translates to:
+  /// **'Online'**
+  String get feedbackConnectivityOnline;
+
+  /// Connectivity: offline.
+  ///
+  /// In en, this message translates to:
+  /// **'Offline'**
+  String get feedbackConnectivityOffline;
+
+  /// Language: English (en).
+  ///
+  /// In en, this message translates to:
+  /// **'English'**
+  String get feedbackLocaleEnglish;
+
+  /// How many stored feedback records hold a filter value.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 record} other{{count} records}}'**
+  String feedbackFacetCountCaption(int count);
+
+  /// Caption under a filter value: its stored id or code, then how many records hold it.
+  ///
+  /// In en, this message translates to:
+  /// **'{value} · {records}'**
+  String feedbackFacetValueCaption(String value, String records);
 }
 
 class _AppLocalizationsDelegate

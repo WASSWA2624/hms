@@ -653,6 +653,10 @@ final class AppListTableSearch<T> {
     this.lastDate,
     this.currentDate,
     this.filterGroups = const <AppSearchBarFilterGroup>[],
+    this.loadFilterGroups,
+    this.filterGroupsLoadingLabel,
+    this.filterGroupsLoadErrorMessage,
+    this.dateFilterSection,
     this.filterValue = AppSearchBarFilterValue.empty,
     this.onFilterChanged,
     this.hasActiveFilters = false,
@@ -695,6 +699,14 @@ final class AppListTableSearch<T> {
   final DateTime? lastDate;
   final DateTime? currentDate;
   final List<AppSearchBarFilterGroup> filterGroups;
+
+  /// See [AppSearchBar.loadFilterGroups].
+  final AppSearchBarFilterGroupsLoader? loadFilterGroups;
+  final String? filterGroupsLoadingLabel;
+  final String? filterGroupsLoadErrorMessage;
+
+  /// See [AppSearchBar.dateFilterSection].
+  final String? dateFilterSection;
   final AppSearchBarFilterValue filterValue;
   final ValueChanged<AppSearchBarFilterValue>? onFilterChanged;
   final bool hasActiveFilters;
@@ -751,6 +763,10 @@ final class AppListTableSearch<T> {
       lastDate: lastDate,
       currentDate: currentDate,
       filterGroups: filterGroups,
+      loadFilterGroups: loadFilterGroups,
+      filterGroupsLoadingLabel: filterGroupsLoadingLabel,
+      filterGroupsLoadErrorMessage: filterGroupsLoadErrorMessage,
+      dateFilterSection: dateFilterSection,
       filterValue: filterValue,
       onFilterChanged: onFilterChanged,
       hasActiveFilters: hasActiveFilters,

@@ -35,6 +35,12 @@ overrides.
 | `API_TIMEOUT_SECONDS` | No | Positive integer seconds | `30` |
 | `LOG_LEVEL` | No | `debug`, `info`, `warn`, `error` | `info` |
 | `FEATURE_DEVELOPER_TOOLS_ENABLED` | No | `true`, `false` | `false` |
+| `APP_VERSION` | No | Running build as `version+build`, e.g. `0.1.0+1` | none |
+
+`APP_VERSION` is not kept in the define files. `deploy/update-deploys/frontend.py`
+and `android.py` pass `--dart-define=APP_VERSION=<version>` from the
+`pubspec.yaml` `version:` line, so submitted feedback records the build it came
+from. Other builds send no app version unless given the define.
 
 Production `API_BASE_URL` values must use `https`. URLs must not include
 usernames, passwords, tokens, or other credentials.

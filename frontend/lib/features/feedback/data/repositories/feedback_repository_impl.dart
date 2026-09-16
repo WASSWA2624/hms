@@ -70,6 +70,22 @@ final class FeedbackRepositoryImpl implements FeedbackRepository {
   }
 
   @override
+  Future<Result<FeedbackFacets>> fetchFeedbackFacets({
+    required FeedbackFilters filters,
+  }) {
+    return _apiClient.get<FeedbackFacets>(
+      ApiEndpoints.apiV1(<String>[
+        HmsApiResource.feedback.path,
+        'facets',
+      ], queryParameters: feedbackFilterQueryParameters(filters)),
+      decoder: (Object? data) => ApiResponseEnvelope.decodeData<FeedbackFacets>(
+        data,
+        decoder: _decodeFacets,
+      ),
+    );
+  }
+
+  @override
   Future<Result<Uint8List>> downloadFeedbackExport({
     required int utcOffsetMinutes,
     Set<String> referenceIds = const <String>{},
@@ -145,6 +161,7 @@ Map<String, Object?> feedbackSubmissionPayload(FeedbackSubmission submission) {
     'page_url': _capText(context.pageUrl, 2048),
     'platform': _capText(context.platform, 40),
     'device_type': context.deviceType?.apiValue,
+    'app_version': _capText(context.appVersion, 64),
     'app_environment': _capText(context.appEnvironment, 40),
     'locale': _capText(context.locale, 35),
     'timezone': _capText(context.timezone, 64),
@@ -174,8 +191,9 @@ Map<String, Object?> feedbackSubmissionPayload(FeedbackSubmission submission) {
   };
 }
 
-/// Filters for `DELETE /api/v1/feedback` with `all_matching`: lists stay lists,
-/// and submission dates become the UTC bounds of whole local days.
+/// Filters as a JSON body, for exporting and for `DELETE /api/v1/feedback`
+/// with `all_matching`: lists stay lists, and submission dates become the UTC
+/// bounds of whole local days.
 Map<String, Object?> feedbackFilterBody(FeedbackFilters filters) {
   final String search = filters.search.trim();
   final FeedbackSubmitterType? submitterType = filters.submitterType;
@@ -193,8 +211,10 @@ Map<String, Object?> feedbackFilterBody(FeedbackFilters filters) {
       'device_type': _sortedValues(
         filters.deviceTypes.map((FeedbackDeviceType value) => value.apiValue),
       ),
-    if (filters.platforms.isNotEmpty)
-      'platform': _sortedValues(filters.platforms),
+    for (final FeedbackFilterDimension dimension
+        in FeedbackFilterDimension.values)
+      if (filters.valuesFor(dimension).isNotEmpty)
+        dimension.apiKey: _sortedValues(filters.valuesFor(dimension)),
     if (from != null)
       'from': _utcIso(DateTime(from.year, from.month, from.day)),
     if (to != null)
@@ -277,6 +297,43 @@ FeedbackRecord _decodeRecord(Map<String, Object?> json) {
     routePath: _readText(json['route_path']),
     deviceType: FeedbackDeviceType.fromApiValue(json['device_type']),
     platform: _readText(json['client_platform']),
+  );
+}
+
+FeedbackFacets _decodeFacets(Object? data) {
+  final Map<String, Object?> json = _asJsonMap(data);
+  final Object? rawFacets = json['facets'];
+  final Map<String, Object?> facets = rawFacets == null
+      ? const <String, Object?>{}
+      : _asJsonMap(rawFacets);
+
+  List<FeedbackFacetValue> valuesOf(String key) {
+    final Object? rows = facets[key];
+    if (rows is! List) {
+      return const <FeedbackFacetValue>[];
+    }
+    return <FeedbackFacetValue>[
+      for (final Object? row in rows)
+        if (row is Map)
+          if (_readText(row['value']) case final String value)
+            FeedbackFacetValue(
+              value: value,
+              label: _readText(row['label']),
+              count: _readInt(row['count']),
+            ),
+    ];
+  }
+
+  return FeedbackFacets(
+    total: _readInt(json['total']),
+    categories: valuesOf('category'),
+    submitterTypes: valuesOf('submitter_type'),
+    deviceTypes: valuesOf('device_type'),
+    values: <FeedbackFilterDimension, List<FeedbackFacetValue>>{
+      for (final FeedbackFilterDimension dimension
+          in FeedbackFilterDimension.values)
+        dimension: valuesOf(dimension.apiKey),
+    },
   );
 }
 

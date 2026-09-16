@@ -65,6 +65,13 @@ final class _ScriptedFeedbackRepository implements FeedbackRepository {
   }
 
   @override
+  Future<Result<FeedbackFacets>> fetchFeedbackFacets({
+    required FeedbackFilters filters,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<Result<FeedbackDeleteResult>> deleteMatchingFeedback({
     required FeedbackFilters filters,
   }) {

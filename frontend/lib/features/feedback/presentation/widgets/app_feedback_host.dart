@@ -14,6 +14,7 @@ import 'package:hosspi_hms/core/network/app_connectivity_status.dart';
 import 'package:hosspi_hms/core/permissions/permission_providers.dart';
 import 'package:hosspi_hms/core/security/session_controller.dart';
 import 'package:hosspi_hms/core/security/session_state.dart';
+import 'package:hosspi_hms/core/utils/client_timezone.dart';
 import 'package:hosspi_hms/features/feedback/data/repositories/feedback_repository_impl.dart';
 import 'package:hosspi_hms/features/feedback/domain/entities/feedback_entities.dart';
 import 'package:hosspi_hms/features/feedback/domain/repositories/feedback_repository.dart';
@@ -488,6 +489,11 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
       return;
     }
 
+    // The device may have changed zone since launch.
+    await loadClientTimeZoneId();
+    if (!mounted) {
+      return;
+    }
     final SessionState session = ref.read(sessionStateProvider);
     final FeedbackContext feedbackContext = captureFeedbackContext(
       context: context,

@@ -38748,5 +38748,214 @@
   "feedbackRetryAction": "Try again",
   "@feedbackRetryAction": {
     "description": "Reloads feedback after it failed to load."
+  },
+  "feedbackFilterSectionReport": "Report",
+  "@feedbackFilterSectionReport": {
+    "description": "Filter section heading: what kind of feedback and when it was sent."
+  },
+  "feedbackFilterSectionWho": "Who",
+  "@feedbackFilterSectionWho": {
+    "description": "Filter section heading: tenant, facility, role, and subscription of the submitter."
+  },
+  "feedbackFilterSectionWhere": "Where",
+  "@feedbackFilterSectionWhere": {
+    "description": "Filter section heading: the screen, environment, and app version feedback came from."
+  },
+  "feedbackFilterSectionDevice": "Device",
+  "@feedbackFilterSectionDevice": {
+    "description": "Filter section heading: platform, screen size, orientation, theme, language, and connectivity."
+  },
+  "feedbackFilterRoleLabel": "Role",
+  "@feedbackFilterRoleLabel": {
+    "description": "Filter by a role the submitter held."
+  },
+  "feedbackFilterPlanTierLabel": "Plan tier",
+  "@feedbackFilterPlanTierLabel": {
+    "description": "Filter by the tenant's subscription plan tier."
+  },
+  "feedbackFilterSubscriptionStatusLabel": "Subscription status",
+  "@feedbackFilterSubscriptionStatusLabel": {
+    "description": "Filter by the tenant's subscription status."
+  },
+  "feedbackFilterEnvironmentLabel": "Environment",
+  "@feedbackFilterEnvironmentLabel": {
+    "description": "Filter by the app environment feedback was sent from."
+  },
+  "feedbackFilterAppVersionLabel": "App version",
+  "@feedbackFilterAppVersionLabel": {
+    "description": "Filter by the app version feedback was sent from."
+  },
+  "feedbackFilterBreakpointLabel": "Breakpoint",
+  "@feedbackFilterBreakpointLabel": {
+    "description": "Filter by the layout size class of the app window."
+  },
+  "feedbackFilterOrientationLabel": "Orientation",
+  "@feedbackFilterOrientationLabel": {
+    "description": "Filter by screen orientation."
+  },
+  "feedbackFilterThemeLabel": "Theme",
+  "@feedbackFilterThemeLabel": {
+    "description": "Filter by light or dark theme."
+  },
+  "feedbackFilterLocaleLabel": "Language",
+  "@feedbackFilterLocaleLabel": {
+    "description": "Filter by the app language."
+  },
+  "feedbackFilterConnectivityLabel": "Connectivity",
+  "@feedbackFilterConnectivityLabel": {
+    "description": "Filter by whether the device was online."
+  },
+  "feedbackFilterTenantSearchHint": "Search tenants",
+  "@feedbackFilterTenantSearchHint": {
+    "description": "Search field hint in the tenant filter."
+  },
+  "feedbackFilterFacilitySearchHint": "Search facilities",
+  "@feedbackFilterFacilitySearchHint": {
+    "description": "Search field hint in the facility filter."
+  },
+  "feedbackFilterRoleSearchHint": "Search roles",
+  "@feedbackFilterRoleSearchHint": {
+    "description": "Search field hint in the role filter."
+  },
+  "feedbackFilterRouteSearchHint": "Search screens",
+  "@feedbackFilterRouteSearchHint": {
+    "description": "Search field hint in the screen filter."
+  },
+  "feedbackFilterNoMatches": "No values match your search.",
+  "@feedbackFilterNoMatches": {
+    "description": "Shown in a filter when its search matches no value."
+  },
+  "feedbackFiltersLoadingLabel": "Loading filter choices",
+  "@feedbackFiltersLoadingLabel": {
+    "description": "Shown while the values each filter can take are loaded."
+  },
+  "feedbackFiltersLoadErrorMessage": "Filter choices could not be loaded, so only the basic filters are shown. Close and reopen filters to try again.",
+  "@feedbackFiltersLoadErrorMessage": {
+    "description": "Shown when the filter values fail to load."
+  },
+  "feedbackPlanTierFree": "Free",
+  "@feedbackPlanTierFree": {
+    "description": "Plan tier: FREE."
+  },
+  "feedbackPlanTierBasic": "Basic",
+  "@feedbackPlanTierBasic": {
+    "description": "Plan tier: BASIC."
+  },
+  "feedbackPlanTierAdvanced": "Advanced",
+  "@feedbackPlanTierAdvanced": {
+    "description": "Plan tier: ADVANCED."
+  },
+  "feedbackPlanTierPro": "Pro",
+  "@feedbackPlanTierPro": {
+    "description": "Plan tier: PRO."
+  },
+  "feedbackPlanTierCustom": "Custom",
+  "@feedbackPlanTierCustom": {
+    "description": "Plan tier: CUSTOM."
+  },
+  "feedbackPlanTierDeveloper": "Developer",
+  "@feedbackPlanTierDeveloper": {
+    "description": "Plan tier: DEVELOPER."
+  },
+  "feedbackSubscriptionStatusActive": "Active",
+  "@feedbackSubscriptionStatusActive": {
+    "description": "Subscription status: ACTIVE."
+  },
+  "feedbackSubscriptionStatusTrial": "Trial",
+  "@feedbackSubscriptionStatusTrial": {
+    "description": "Subscription status: TRIAL."
+  },
+  "feedbackSubscriptionStatusPastDue": "Past due",
+  "@feedbackSubscriptionStatusPastDue": {
+    "description": "Subscription status: PAST_DUE."
+  },
+  "feedbackSubscriptionStatusCancelled": "Cancelled",
+  "@feedbackSubscriptionStatusCancelled": {
+    "description": "Subscription status: CANCELLED."
+  },
+  "feedbackEnvironmentDevelopment": "Development",
+  "@feedbackEnvironmentDevelopment": {
+    "description": "App environment: development."
+  },
+  "feedbackEnvironmentStaging": "Staging",
+  "@feedbackEnvironmentStaging": {
+    "description": "App environment: staging."
+  },
+  "feedbackEnvironmentProduction": "Production",
+  "@feedbackEnvironmentProduction": {
+    "description": "App environment: production."
+  },
+  "feedbackBreakpointXs": "Extra small",
+  "@feedbackBreakpointXs": {
+    "description": "Layout breakpoint xs (phones under 360 px)."
+  },
+  "feedbackBreakpointSm": "Small",
+  "@feedbackBreakpointSm": {
+    "description": "Layout breakpoint sm (phones)."
+  },
+  "feedbackBreakpointMd": "Medium",
+  "@feedbackBreakpointMd": {
+    "description": "Layout breakpoint md (small tablets)."
+  },
+  "feedbackBreakpointLg": "Large",
+  "@feedbackBreakpointLg": {
+    "description": "Layout breakpoint lg (tablets)."
+  },
+  "feedbackBreakpointXl": "Extra large",
+  "@feedbackBreakpointXl": {
+    "description": "Layout breakpoint xl (desktops)."
+  },
+  "feedbackBreakpointXxl": "Extra extra large",
+  "@feedbackBreakpointXxl": {
+    "description": "Layout breakpoint xxl (wide desktops)."
+  },
+  "feedbackOrientationPortrait": "Portrait",
+  "@feedbackOrientationPortrait": {
+    "description": "Screen orientation: portrait."
+  },
+  "feedbackOrientationLandscape": "Landscape",
+  "@feedbackOrientationLandscape": {
+    "description": "Screen orientation: landscape."
+  },
+  "feedbackThemeLight": "Light",
+  "@feedbackThemeLight": {
+    "description": "Theme: light."
+  },
+  "feedbackThemeDark": "Dark",
+  "@feedbackThemeDark": {
+    "description": "Theme: dark."
+  },
+  "feedbackConnectivityOnline": "Online",
+  "@feedbackConnectivityOnline": {
+    "description": "Connectivity: online."
+  },
+  "feedbackConnectivityOffline": "Offline",
+  "@feedbackConnectivityOffline": {
+    "description": "Connectivity: offline."
+  },
+  "feedbackLocaleEnglish": "English",
+  "@feedbackLocaleEnglish": {
+    "description": "Language: English (en)."
+  },
+  "feedbackFacetCountCaption": "{count, plural, =1{1 record} other{{count} records}}",
+  "@feedbackFacetCountCaption": {
+    "description": "How many stored feedback records hold a filter value.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "feedbackFacetValueCaption": "{value} · {records}",
+  "@feedbackFacetValueCaption": {
+    "description": "Caption under a filter value: its stored id or code, then how many records hold it.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      },
+      "records": {
+        "type": "String"
+      }
+    }
   }
 }

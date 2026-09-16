@@ -21,3 +21,6 @@ String? readClientTimeZoneId() {
     return null;
   }
 }
+
+/// The browser answers synchronously; nothing to prime.
+Future<String?> loadClientTimeZoneId() async => readClientTimeZoneId();
