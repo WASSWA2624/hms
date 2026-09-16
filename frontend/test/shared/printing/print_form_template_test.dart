@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hosspi_hms/app/printing/print_form_template_context.dart';
+import 'package:hosspi_hms/core/realtime/realtime_events.dart';
+import 'package:hosspi_hms/core/realtime/realtime_message.dart';
 import 'package:hosspi_hms/core/security/auth_session.dart';
 import 'package:hosspi_hms/core/security/session_tokens.dart';
 import 'package:hosspi_hms/features/tenant_facility/domain/entities/tenant_facility_setup.dart';
@@ -64,6 +66,119 @@ void main() {
 
     expect(branding!.contacts, <String>['Phone: configured-phone']);
     expect(branding.addressLines, <String>['Configured City']);
+  });
+
+  test('prints tenant contacts for a facility without its own', () {
+    final PrintFormBranding? branding = buildFacilityPrintBranding(
+      setup: const FacilitySetupSnapshot(
+        tenant: TenantProfile(
+          id: 'TEN0001',
+          name: 'DemoCare',
+          contactPhone: '+256700000100',
+          contactEmail: 'desk@democare.ug',
+        ),
+        facility: FacilityProfile(
+          id: 'facility-1',
+          tenantId: 'tenant-1',
+          name: 'DemoCare General Hospital',
+          type: FacilitySetupType.hospital,
+        ),
+        effectiveContact: FacilityEffectiveContact(
+          phone: '+256700000100',
+          email: 'desk@democare.ug',
+          phoneSource: FacilityContactSource.tenant,
+          emailSource: FacilityContactSource.tenant,
+        ),
+      ),
+      session: null,
+      apiBaseUrl: Uri.parse('https://api.example.com'),
+    );
+
+    expect(branding!.contacts, <String>[
+      'Phone: +256700000100',
+      'Email: desk@democare.ug',
+    ]);
+  });
+
+  test('prints the facility own phone and inherits only the missing email', () {
+    final PrintFormBranding? branding = buildFacilityPrintBranding(
+      setup: const FacilitySetupSnapshot(
+        tenant: TenantProfile(
+          id: 'TEN0001',
+          name: 'DemoCare',
+          contactPhone: '+256700000100',
+          contactEmail: 'desk@democare.ug',
+        ),
+        facility: FacilityProfile(
+          id: 'facility-1',
+          tenantId: 'tenant-1',
+          name: 'DemoCare General Hospital',
+          type: FacilitySetupType.hospital,
+        ),
+        contactAddress: FacilityContactAddress(phone: '+256700000200'),
+      ),
+      session: null,
+      apiBaseUrl: Uri.parse('https://api.example.com'),
+    );
+
+    expect(branding!.contacts, <String>[
+      'Phone: +256700000200',
+      'Email: desk@democare.ug',
+    ]);
+  });
+
+  test('reloads print setup only for tenant/facility updates that match', () {
+    const FacilitySetupSnapshot setup = FacilitySetupSnapshot(
+      tenant: TenantProfile(
+        id: 'TEN0001',
+        name: 'DemoCare',
+        resourceUuid: 'tenant-uuid',
+      ),
+      facility: FacilityProfile(
+        id: 'FAC0001',
+        tenantId: 'TEN0001',
+        name: 'DemoCare General Hospital',
+        type: FacilitySetupType.hospital,
+        resourceUuid: 'facility-uuid',
+      ),
+    );
+    bool matches(String event, Map<String, Object?> payload) =>
+        printSetupMatchesRealtimeEvent(
+          RealtimeMessage(event: event, payload: payload),
+          setup: setup,
+        );
+
+    expect(
+      matches(RealtimeEvents.tenantUpdated, <String, Object?>{
+        'tenant_id': 'tenant-uuid',
+      }),
+      isTrue,
+    );
+    expect(
+      matches(RealtimeEvents.tenantUpdated, <String, Object?>{
+        'tenant_id': 'other-tenant',
+      }),
+      isFalse,
+    );
+    // Platform-scoped tenant events carry no tenant id.
+    expect(
+      matches(RealtimeEvents.tenantUpdated, <String, Object?>{
+        'tenant_id': null,
+      }),
+      isTrue,
+    );
+    expect(
+      matches(RealtimeEvents.facilityUpdated, <String, Object?>{
+        'facility_id': 'facility-uuid',
+      }),
+      isTrue,
+    );
+    expect(
+      matches(RealtimeEvents.facilityUpdated, <String, Object?>{
+        'facility_id': 'other-facility',
+      }),
+      isFalse,
+    );
   });
 
   test('falls back to session facility type when setup facility is missing', () {

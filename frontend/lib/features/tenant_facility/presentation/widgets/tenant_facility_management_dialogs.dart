@@ -2523,6 +2523,9 @@ class _FacilityDetailsDialogState
     _structureRealtimeSync ??= PlatformManagementListSync(
       ref: ref,
       events: <String>{
+        // Inherited phone/email follow tenant contact changes.
+        RealtimeEvents.tenantUpdated,
+        RealtimeEvents.facilityUpdated,
         RealtimeEvents.facilityLayoutUpdated,
         RealtimeEvents.userCreated,
         RealtimeEvents.userUpdated,
@@ -4478,6 +4481,7 @@ class _ManageFacilitiesPanelState extends ConsumerState<ManageFacilitiesPanel> {
   List<TenantProfile> _tenantOptions = const <TenantProfile>[];
   FacilityProfile? _scopedFacility;
   FacilityContactAddress _scopedContact = const FacilityContactAddress();
+  FacilityEffectiveContact? _scopedEffectiveContact;
   String? _tenantFilterId;
   FacilitySetupType? _typeFilter;
   bool? _isActiveFilter;
@@ -4552,6 +4556,17 @@ class _ManageFacilitiesPanelState extends ConsumerState<ManageFacilitiesPanel> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_isScopedFacilityManager) {
+      // Inherited phone/email follow tenant contact changes.
+      _realtimeSync ??= PlatformManagementListSync(
+        ref: ref,
+        events: const <String>{
+          RealtimeEvents.tenantUpdated,
+          RealtimeEvents.facilityUpdated,
+        },
+        onMutated: () {},
+        reload: ({bool silent = false, RealtimeMessage? message}) =>
+            _reloadScopedFacility(silent: true),
+      )..attach();
       return;
     }
     _realtimeSync ??= PlatformManagementListSync(
@@ -4615,6 +4630,9 @@ class _ManageFacilitiesPanelState extends ConsumerState<ManageFacilitiesPanel> {
           _loading = false;
           _failure = null;
           _scopedContact = snapshot.contactAddress;
+          _scopedEffectiveContact = snapshot.facility == null
+              ? null
+              : snapshot.resolvedEffectiveContact;
           final FacilityProfile? loaded =
               snapshot.facility ?? widget.sessionFacility;
           _scopedFacility = loaded == null
@@ -5201,6 +5219,26 @@ class _ManageFacilitiesPanelState extends ConsumerState<ManageFacilitiesPanel> {
     return trimmed;
   }
 
+  /// Effective phone for table cells, marked when inherited from the tenant.
+  String _facilityPhoneLabel(AppLocalizations l10n, FacilityProfile facility) {
+    final FacilityEffectiveContact contact = facility.displayContact;
+    return tenantFacilityContactCellLabel(
+      l10n,
+      contact.phone,
+      inherited: contact.isPhoneInherited,
+    );
+  }
+
+  /// Effective email for table cells, marked when inherited from the tenant.
+  String _facilityEmailLabel(AppLocalizations l10n, FacilityProfile facility) {
+    final FacilityEffectiveContact contact = facility.displayContact;
+    return tenantFacilityContactCellLabel(
+      l10n,
+      contact.email,
+      inherited: contact.isEmailInherited,
+    );
+  }
+
   Widget _buildScopedBody(AppLocalizations l10n) {
     if (_loading && _scopedFacility == null) {
       return AppWorkspaceStatePanel.loading(
@@ -5240,6 +5278,11 @@ class _ManageFacilitiesPanelState extends ConsumerState<ManageFacilitiesPanel> {
       ),
       child: _FacilityScopedDetailsSummary(
         facility: facility,
+        effectiveContact: FacilityEffectiveContact.resolve(
+          ownPhone: facility.phone,
+          ownEmail: facility.email,
+          inherited: _scopedEffectiveContact ?? facility.effectiveContact,
+        ),
         statusLabel: statusLabel,
         statusTone: statusTone,
         onEdit: canEditFacility ? _editScopedFacility : null,
@@ -5373,17 +5416,21 @@ class _ManageFacilitiesPanelState extends ConsumerState<ManageFacilitiesPanel> {
             id: 'phone',
             label: l10n.profilePhoneLabel,
             exportValue: (FacilityProfile facility) =>
-                _optionalText(facility.phone),
+                _facilityPhoneLabel(l10n, facility),
             cellBuilder: (_, FacilityProfile facility) =>
-                tenantFacilitySetupAtomicCell(_optionalText(facility.phone)),
+                tenantFacilitySetupAtomicCell(
+                  _facilityPhoneLabel(l10n, facility),
+                ),
           ),
           AppListTableColumn<FacilityProfile>(
             id: 'email',
             label: l10n.profileEmailLabel,
             exportValue: (FacilityProfile facility) =>
-                _optionalText(facility.email),
+                _facilityEmailLabel(l10n, facility),
             cellBuilder: (_, FacilityProfile facility) =>
-                tenantFacilitySetupAtomicCell(_optionalText(facility.email)),
+                tenantFacilitySetupAtomicCell(
+                  _facilityEmailLabel(l10n, facility),
+                ),
           ),
         ],
         items: matching,
@@ -5621,21 +5668,31 @@ class _ManageFacilitiesPanelState extends ConsumerState<ManageFacilitiesPanel> {
           id: 'phone',
           label: l10n.profilePhoneLabel,
           sortComparator: (FacilityProfile left, FacilityProfile right) =>
-              appListTableCompareText(left.phone, right.phone),
+              appListTableCompareText(
+                left.displayContact.phone,
+                right.displayContact.phone,
+              ),
           exportValue: (FacilityProfile facility) =>
-              _optionalText(facility.phone),
+              _facilityPhoneLabel(l10n, facility),
           cellBuilder: (_, FacilityProfile facility) =>
-              tenantFacilitySetupAtomicCell(_optionalText(facility.phone)),
+              tenantFacilitySetupAtomicCell(
+                _facilityPhoneLabel(l10n, facility),
+              ),
         ),
         AppListTableColumn<FacilityProfile>(
           id: 'email',
           label: l10n.profileEmailLabel,
           sortComparator: (FacilityProfile left, FacilityProfile right) =>
-              appListTableCompareText(left.email, right.email),
+              appListTableCompareText(
+                left.displayContact.email,
+                right.displayContact.email,
+              ),
           exportValue: (FacilityProfile facility) =>
-              _optionalText(facility.email),
+              _facilityEmailLabel(l10n, facility),
           cellBuilder: (_, FacilityProfile facility) =>
-              tenantFacilitySetupAtomicCell(_optionalText(facility.email)),
+              tenantFacilitySetupAtomicCell(
+                _facilityEmailLabel(l10n, facility),
+              ),
         ),
         AppListTableColumn<FacilityProfile>(
           id: 'address',
@@ -5781,6 +5838,7 @@ class _ManageFacilitiesPanelState extends ConsumerState<ManageFacilitiesPanel> {
 class _FacilityScopedDetailsSummary extends StatelessWidget {
   const _FacilityScopedDetailsSummary({
     required this.facility,
+    required this.effectiveContact,
     required this.statusLabel,
     required this.statusTone,
     this.onEdit,
@@ -5788,6 +5846,9 @@ class _FacilityScopedDetailsSummary extends StatelessWidget {
   });
 
   final FacilityProfile facility;
+
+  /// Phone/email with tenant fallback.
+  final FacilityEffectiveContact effectiveContact;
   final String statusLabel;
   final AppWorkspaceStatusTone statusTone;
   final Future<void> Function()? onEdit;
@@ -5825,15 +5886,26 @@ class _FacilityScopedDetailsSummary extends StatelessWidget {
       required IconData icon,
       required List<AppInfoSheetItem> items,
       int maxColumns = 3,
+      Widget? footer,
     }) {
+      final Widget grid = AppInfoSheetGrid(
+        emptyValue: emptyValue,
+        maxColumns: maxColumns,
+        items: items,
+      );
       return AppCollapsibleSection(
         title: title,
         titleIcon: icon,
-        child: AppInfoSheetGrid(
-          emptyValue: emptyValue,
-          maxColumns: maxColumns,
-          items: items,
-        ),
+        child: footer == null
+            ? grid
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  grid,
+                  SizedBox(height: theme.spacing.sm),
+                  footer,
+                ],
+              ),
       );
     }
 
@@ -5906,14 +5978,29 @@ class _FacilityScopedDetailsSummary extends StatelessWidget {
         section(
           title: l10n.tenantFacilityFacilityDetailsContactHeading,
           icon: Icons.contact_mail_outlined,
+          footer:
+              effectiveContact.isPhoneInherited ||
+                  effectiveContact.isEmailInherited
+              ? TenantFacilityInheritedContactNote(
+                  message: l10n.tenantFacilityInheritedContactNote,
+                )
+              : null,
           items: <AppInfoSheetItem>[
             AppInfoSheetItem(
-              label: l10n.profilePhoneLabel,
-              value: facility.phone,
+              label: effectiveContact.isPhoneInherited
+                  ? l10n.tenantFacilityInheritedContactLabel(
+                      l10n.profilePhoneLabel,
+                    )
+                  : l10n.profilePhoneLabel,
+              value: effectiveContact.phone,
             ),
             AppInfoSheetItem(
-              label: l10n.profileEmailLabel,
-              value: facility.email,
+              label: effectiveContact.isEmailInherited
+                  ? l10n.tenantFacilityInheritedContactLabel(
+                      l10n.profileEmailLabel,
+                    )
+                  : l10n.profileEmailLabel,
+              value: effectiveContact.email,
             ),
             AppInfoSheetItem(
               label: l10n.tenantFacilityAddressLineLabel,

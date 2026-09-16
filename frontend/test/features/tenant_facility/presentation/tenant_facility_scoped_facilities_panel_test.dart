@@ -256,9 +256,15 @@ void main() {
         managementDialogsSource.contains('tenantFacilityEditFacilityAction'),
         isTrue,
       );
+      // Scoped managers refresh their own facility on realtime updates and
+      // return before the list sync, so listFacilities never runs.
       expect(
         managementDialogsSource.contains(
-          'if (_isScopedFacilityManager) {\n      return;',
+          '_reloadScopedFacility(silent: true),\n'
+          '      )..attach();\n'
+          '      return;\n'
+          '    }\n'
+          '    _realtimeSync ??= PlatformManagementListSync(',
         ),
         isTrue,
       );

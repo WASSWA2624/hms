@@ -17,6 +17,8 @@ jest.mock('@lib/realtime/platform-realtime', () => ({
   publishPlatformRealtimeEvent: jest.fn().mockResolvedValue(1),
   buildTenantDashboardDeltas: jest.fn().mockReturnValue({}),
   buildFacilityDashboardDeltas: jest.fn().mockReturnValue({})}));
+jest.mock('@lib/websocket/crud-realtime', () => ({
+  publishCrudRealtimeEvent: jest.fn().mockResolvedValue(1)}));
 
 jest.mock('@prisma/client', () => ({
   subscription: {
@@ -26,6 +28,7 @@ const tenantRepository = require('@repositories/tenant/tenant.repository');
 const { createAuditLog } = require('@lib/audit');
 const { resolveModelRecordByIdentifier } = require('@lib/identifiers/resolve-entity-id');
 const { publishPlatformRealtimeEvent } = require('@lib/realtime/platform-realtime');
+const { publishCrudRealtimeEvent } = require('@lib/websocket/crud-realtime');
 const {
   listTenants,
   getTenantById,
@@ -815,6 +818,19 @@ describe('Tenant Service', () => {
           similar_match_ids: []
         }
       });
+      // Tenant admins get it too: facility contacts inherit the tenant contact.
+      expect(publishCrudRealtimeEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tenant.updated',
+          resource: { id: 'tenant-123', tenant_id: 'tenant-123' },
+          resource_type: 'tenant',
+          actor_user_id: 'user-123',
+          recipient_roles: ['TENANT_ADMIN', 'FACILITY_ADMIN']
+        })
+      );
+      expect(publishPlatformRealtimeEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ event: 'tenant.updated' })
+      );
     });
 
     it('should reject similar tenants on update unless confirm_similar is true', async () => {

@@ -15,6 +15,8 @@ const { resolvePublicIdentifier } = require('@lib/billing/identifiers');
 const { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } = require('@config/constants');
 const { PERMISSIONS } = require('@config/permissions');
 const { PLATFORM_ADMIN_EVENTS } = require('@lib/websocket/events');
+const { publishCrudRealtimeEvent } = require('@lib/websocket/crud-realtime');
+const { ROLES } = require('@config/roles');
 const {
   publishPlatformRealtimeEvent,
   buildTenantDashboardDeltas,
@@ -140,6 +142,33 @@ const publishTenantRealtimeEvent = async (
     }
   });
 };
+
+// Tenant-scoped admins see facility contacts inherited from the tenant contact.
+const TENANT_REALTIME_RECIPIENT_ROLES = Object.freeze([
+  ROLES.TENANT_ADMIN,
+  ROLES.FACILITY_ADMIN
+]);
+
+/**
+ * Tell the tenant's own admins that the tenant changed, so open facility
+ * details and print branding refresh inherited phone/email.
+ *
+ * @param {Object} tenant - Updated tenant
+ * @param {string|null} actorUserId - User who made the change
+ * @returns {Promise<number>} Delivered event count
+ */
+const publishTenantScopedRealtimeEvent = (tenant, actorUserId) =>
+  publishCrudRealtimeEvent({
+    event: PLATFORM_ADMIN_EVENTS.TENANT_UPDATED,
+    resource: { id: tenant?.id, tenant_id: tenant?.id },
+    resource_type: 'tenant',
+    actor_user_id: actorUserId || null,
+    recipient_roles: TENANT_REALTIME_RECIPIENT_ROLES,
+    payload: {
+      is_active: tenant?.is_active !== false,
+      name: tenant?.name || null
+    }
+  });
 
 const resolveTenantId = async (identifier) => {
   const normalized = String(identifier ?? '').trim();
@@ -624,13 +653,16 @@ const updateTenant = async (id, data, context = {}) => {
     }
   });
 
-  await publishTenantRealtimeEvent(
-    PLATFORM_ADMIN_EVENTS.TENANT_UPDATED,
-    tenant,
-    context.user_id,
-    'update',
-    beforeTenant
-  );
+  await Promise.all([
+    publishTenantRealtimeEvent(
+      PLATFORM_ADMIN_EVENTS.TENANT_UPDATED,
+      tenant,
+      context.user_id,
+      'update',
+      beforeTenant
+    ),
+    publishTenantScopedRealtimeEvent(tenant, context.user_id)
+  ]);
 
   return normalizeTenantRecord(tenant);
 };

@@ -323,7 +323,11 @@ describe('facility.service list filters', () => {
       0,
       20,
       expect.anything(),
-      {},
+      // Own contacts are loaded so each row can resolve its effective contact.
+      expect.objectContaining({
+        contacts: expect.any(Object),
+        addresses: expect.any(Object)
+      }),
       { includeDeleted: false }
     );
   });
@@ -349,7 +353,11 @@ describe('facility.service list filters', () => {
       0,
       20,
       expect.anything(),
-      {},
+      // Own contacts are loaded so each row can resolve its effective contact.
+      expect.objectContaining({
+        contacts: expect.any(Object),
+        addresses: expect.any(Object)
+      }),
       { includeDeleted: false }
     );
   });

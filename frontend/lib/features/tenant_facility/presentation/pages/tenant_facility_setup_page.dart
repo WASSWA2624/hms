@@ -1434,6 +1434,7 @@ class _FacilityProfileFormState extends ConsumerState<_FacilityProfileForm> {
   List<TenantProfile> _tenantOptions = const <TenantProfile>[];
   bool _loadingTenants = false;
   bool _loadingContact = false;
+  FacilityEffectiveContact? _hydratedInheritedContact;
   AppFailure? _tenantLoadFailure;
   String? _nameErrorText;
   List<FacilitySimilarityMatch> _similarMatches =
@@ -1570,6 +1571,54 @@ class _FacilityProfileFormState extends ConsumerState<_FacilityProfileForm> {
     return normalized == null || normalized.isEmpty ? null : normalized;
   }
 
+  static bool _isSameFacility(FacilityProfile? left, FacilityProfile right) {
+    return left != null &&
+        (left.id == right.id || left.mutationId == right.mutationId);
+  }
+
+  /// Tenant phone/email the facility falls back to for fields it leaves empty.
+  static FacilityEffectiveContact _inheritedContactFor(
+    FacilitySetupSnapshot snapshot,
+  ) {
+    return FacilityEffectiveContact.resolve(
+      inherited: snapshot.effectiveContact ?? snapshot.facility?.effectiveContact,
+      tenantPhone: snapshot.tenant?.contactPhone,
+      tenantEmail: snapshot.tenant?.contactEmail,
+    );
+  }
+
+  /// Inherited contact for the edited facility. Only ever shown as a hint, so
+  /// saving never writes a tenant value as the facility's own.
+  FacilityEffectiveContact get _inheritedContact {
+    final FacilityProfile? facility = _activeFacility;
+    if (facility == null) {
+      return const FacilityEffectiveContact();
+    }
+    if (_isSameFacility(widget.snapshot.facility, facility)) {
+      return _inheritedContactFor(widget.snapshot);
+    }
+    return _hydratedInheritedContact ??
+        FacilityEffectiveContact.resolve(inherited: facility.effectiveContact);
+  }
+
+  /// Hint for an empty own field that inherits the tenant value. Hidden once
+  /// the facility has its own value, since edits keep a saved value.
+  String? _inheritedHint({
+    required String current,
+    required String? baseline,
+    required String? inherited,
+    required String Function(String value) hint,
+  }) {
+    final String? inheritedValue = _normalizedOptional(inherited);
+    if (_isCreate ||
+        inheritedValue == null ||
+        baseline != null ||
+        _normalizedOptional(current) != null) {
+      return null;
+    }
+    return hint(inheritedValue);
+  }
+
   String _coalescePreserved(String current, String? baseline) {
     final String? normalized = _normalizedOptional(current);
     if (normalized != null) {
@@ -1626,6 +1675,9 @@ class _FacilityProfileFormState extends ConsumerState<_FacilityProfileForm> {
             snapshot.facility ?? editingFacility;
         setState(() {
           _loadingContact = false;
+          if (_isSameFacility(snapshot.facility, editingFacility)) {
+            _hydratedInheritedContact = _inheritedContactFor(snapshot);
+          }
           if (_normalizedOptional(_nameController.text) == null &&
               loadedFacility.name.trim().isNotEmpty) {
             _nameController.text = loadedFacility.name;
@@ -1824,6 +1876,7 @@ class _FacilityProfileFormState extends ConsumerState<_FacilityProfileForm> {
     final bool fieldsEnabled =
         canEditBase && _hasSelectedTenant && !_loadingContact;
     final bool requireFields = _isCreate;
+    final FacilityEffectiveContact inheritedContact = _inheritedContact;
     final String resolvedCurrency = resolveDefaultCurrency(
       facilityCurrency: _currency,
       tenantCurrency: widget.snapshot.tenant?.currency,
@@ -2002,26 +2055,44 @@ class _FacilityProfileFormState extends ConsumerState<_FacilityProfileForm> {
             onChoose: _pickLogo,
             onClear: fieldsEnabled ? _clearLogo : null,
           ),
-          AppPhoneField(
-            controller: _phoneController,
-            enabled: fieldsEnabled,
-            labelText: l10n.profilePhoneLabel,
-            countryLabelText: l10n.appPhoneCountryLabel,
-            countrySearchLabelText: l10n.appPhoneCountrySearchLabel,
-            countryNoResultsText: l10n.appPhoneCountryNoResults,
-            numberLabelText: l10n.appPhoneNumberLabel,
-            numberHintText: l10n.appPhoneNumberHint,
-            invalidPhoneMessage: l10n.appPhoneInvalidMessage,
-            requiredMessage: l10n.validationRequired,
-            isRequired: requireFields,
+          ListenableBuilder(
+            listenable: _phoneController,
+            builder: (BuildContext context, _) => AppPhoneField(
+              controller: _phoneController,
+              enabled: fieldsEnabled,
+              labelText: l10n.profilePhoneLabel,
+              helperText: _inheritedHint(
+                current: _phoneController.text,
+                baseline: _baselinePhone,
+                inherited: inheritedContact.phone,
+                hint: l10n.tenantFacilityInheritedPhoneHint,
+              ),
+              countryLabelText: l10n.appPhoneCountryLabel,
+              countrySearchLabelText: l10n.appPhoneCountrySearchLabel,
+              countryNoResultsText: l10n.appPhoneCountryNoResults,
+              numberLabelText: l10n.appPhoneNumberLabel,
+              numberHintText: l10n.appPhoneNumberHint,
+              invalidPhoneMessage: l10n.appPhoneInvalidMessage,
+              requiredMessage: l10n.validationRequired,
+              isRequired: requireFields,
+            ),
           ),
-          AppEmailField(
-            controller: _emailController,
-            enabled: fieldsEnabled,
-            labelText: l10n.profileEmailLabel,
-            isRequired: requireFields,
-            requiredMessage: l10n.validationRequired,
-            invalidEmailMessage: l10n.authEmailInvalidMessage,
+          ListenableBuilder(
+            listenable: _emailController,
+            builder: (BuildContext context, _) => AppEmailField(
+              controller: _emailController,
+              enabled: fieldsEnabled,
+              labelText: l10n.profileEmailLabel,
+              helperText: _inheritedHint(
+                current: _emailController.text,
+                baseline: _baselineEmail,
+                inherited: inheritedContact.email,
+                hint: l10n.tenantFacilityInheritedEmailHint,
+              ),
+              isRequired: requireFields,
+              requiredMessage: l10n.validationRequired,
+              invalidEmailMessage: l10n.authEmailInvalidMessage,
+            ),
           ),
           AppTextField(
             controller: _addressLineController,

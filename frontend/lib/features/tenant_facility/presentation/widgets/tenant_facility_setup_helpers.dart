@@ -364,6 +364,50 @@ String tenantFacilityRelatedNameLabel(
   return trimmed;
 }
 
+/// Facility phone/email for table cells, marked in text when the value is
+/// inherited from the tenant.
+String tenantFacilityContactCellLabel(
+  AppLocalizations l10n,
+  String? value, {
+  required bool inherited,
+  String empty = '—',
+}) {
+  final String? trimmed = value?.trim();
+  if (trimmed == null || trimmed.isEmpty) {
+    return empty;
+  }
+  return inherited
+      ? l10n.tenantFacilityInheritedContactValue(trimmed)
+      : trimmed;
+}
+
+/// Icon + text note under facility contacts that are inherited from the
+/// tenant, so the marker never relies on color alone.
+class TenantFacilityInheritedContactNote extends StatelessWidget {
+  const TenantFacilityInheritedContactNote({required this.message, super.key});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final Color color = theme.colorScheme.onSurfaceVariant;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Icon(Icons.apartment_outlined, size: 16, color: color),
+        SizedBox(width: theme.spacing.xs),
+        Expanded(
+          child: Text(
+            message,
+            style: theme.textTheme.bodySmall?.copyWith(color: color),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// Compact primary/secondary cell for dense tables (max 5 data columns).
 class TenantFacilityNestedTableCell extends StatelessWidget {
   const TenantFacilityNestedTableCell({

@@ -6,6 +6,10 @@ import 'package:hosspi_hms/core/config/app_config.dart';
 import 'package:hosspi_hms/core/config/app_config_provider.dart';
 import 'package:hosspi_hms/core/errors/result.dart';
 import 'package:hosspi_hms/core/platform/app_print.dart';
+import 'package:hosspi_hms/core/realtime/realtime_events.dart';
+import 'package:hosspi_hms/core/realtime/realtime_message.dart';
+import 'package:hosspi_hms/core/realtime/realtime_refresh.dart';
+import 'package:hosspi_hms/core/realtime/realtime_scope.dart';
 import 'package:hosspi_hms/core/security/auth_session.dart';
 import 'package:hosspi_hms/core/security/session_controller.dart';
 import 'package:hosspi_hms/core/utils/app_media_url.dart';
@@ -196,6 +200,25 @@ final facilityPrintSetupProvider = FutureProvider<FacilitySetupSnapshot?>((
 
   final String? tenantId = _trimmedOrNull(session?.user?.tenantId);
   String? facilityId = _trimmedOrNull(session?.user?.facilityId);
+  FacilitySetupSnapshot? loaded;
+
+  // Printed phone/email can be inherited from the tenant, so tenant and
+  // facility updates reload this cache.
+  listenForRealtimeRefresh(
+    ref: ref,
+    events: const <String>{
+      RealtimeEvents.tenantUpdated,
+      RealtimeEvents.facilityUpdated,
+    },
+    refreshOnReconnect: false,
+    shouldRefresh: (RealtimeMessage message) => printSetupMatchesRealtimeEvent(
+      message,
+      setup: loaded,
+      sessionTenantId: tenantId,
+      sessionFacilityId: facilityId,
+    ),
+    onRefresh: (_) async => ref.invalidateSelf(),
+  );
 
   // Tenant-level accounts may not carry a facility id on the session. Fall back
   // to whatever facility the generic setup controller could resolve.
@@ -226,11 +249,43 @@ final facilityPrintSetupProvider = FutureProvider<FacilitySetupSnapshot?>((
     facilityId: facilityId,
     tenantId: tenantId,
   );
-  return result.when(
+  loaded = result.when(
     success: (FacilitySetupSnapshot value) => value,
     failure: (_) => null,
   );
+  return loaded;
 });
+
+/// Whether a tenant/facility update can change the cached print [setup].
+/// Events without an id, or a cache without known ids, always match.
+@visibleForTesting
+bool printSetupMatchesRealtimeEvent(
+  RealtimeMessage message, {
+  required FacilitySetupSnapshot? setup,
+  String? sessionTenantId,
+  String? sessionFacilityId,
+}) {
+  final bool isTenantEvent = message.event == RealtimeEvents.tenantUpdated;
+  final String? eventId = RealtimeScope.payloadString(
+    message.payload,
+    isTenantEvent
+        ? const <String>['tenant_id', 'tenantId']
+        : const <String>['facility_id', 'facilityId'],
+  );
+  final Set<String> knownIds = <String?>[
+    if (isTenantEvent) ...<String?>[
+      sessionTenantId,
+      setup?.tenant?.id,
+      setup?.tenant?.resourceUuid,
+      setup?.facility?.tenantId,
+    ] else ...<String?>[
+      sessionFacilityId,
+      setup?.facility?.id,
+      setup?.facility?.resourceUuid,
+    ],
+  ].map(_trimmedOrNull).whereType<String>().toSet();
+  return eventId == null || knownIds.isEmpty || knownIds.contains(eventId);
+}
 
 final printFormTemplateContextProvider = Provider<PrintFormTemplateContext>((
   ref,
@@ -319,14 +374,16 @@ PrintFormBranding? buildFacilityPrintBranding({
 
   final FacilityContactAddress contactAddress =
       setup?.contactAddress ?? const FacilityContactAddress();
-  final String? phone = _firstText(<String?>[
-    contactAddress.phone,
-    facility?.phone,
-  ]);
-  final String? email = _firstText(<String?>[
-    contactAddress.email,
-    facility?.email,
-  ]);
+  // The facility's own phone/email win; a missing one prints the tenant's.
+  final FacilityEffectiveContact contact = FacilityEffectiveContact.resolve(
+    ownPhone: _firstText(<String?>[contactAddress.phone, facility?.phone]),
+    ownEmail: _firstText(<String?>[contactAddress.email, facility?.email]),
+    inherited: setup?.effectiveContact ?? facility?.effectiveContact,
+    tenantPhone: facility == null ? null : setup?.tenant?.contactPhone,
+    tenantEmail: facility == null ? null : setup?.tenant?.contactEmail,
+  );
+  final String? phone = contact.phone;
+  final String? email = contact.email;
   final String fullAddress = _join(<String?>[
     _firstText(<String?>[contactAddress.addressLine1, facility?.addressLine1]),
     _firstText(<String?>[contactAddress.city, facility?.city]),
