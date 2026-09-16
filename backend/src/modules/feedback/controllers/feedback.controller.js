@@ -52,6 +52,11 @@ const getFeedbackSummary = asyncHandler(async (req, res) => {
   sendSuccess(res, 200, 'messages.feedback.summary.success', result);
 });
 
+const getFeedbackFacets = asyncHandler(async (req, res) => {
+  const result = await feedbackService.getFeedbackFacets(req.query, buildFeedbackContext(req));
+  sendSuccess(res, 200, 'messages.feedback.facets.success', result);
+});
+
 const exportFeedback = asyncHandler(async (req, res) => {
   // GET carries filters in the query; POST carries the picked ids in the body.
   const request = { ...req.query, ...req.body };
@@ -70,6 +75,7 @@ const deleteFeedback = asyncHandler(async (req, res) => {
 module.exports = {
   deleteFeedback,
   exportFeedback,
+  getFeedbackFacets,
   getFeedbackSummary,
   listFeedback,
   submitCsatFeedback,

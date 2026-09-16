@@ -1,7 +1,10 @@
 const {
+  FEEDBACK_FILTER_MAX_VALUES,
   FEEDBACK_MESSAGE_MAX_LENGTH,
   deleteFeedbackSchema,
+  exportFeedbackBodySchema,
   exportFeedbackQuerySchema,
+  feedbackFilterQuerySchema,
   listFeedbackQuerySchema,
   submitFeedbackSchema
 } = require('@validations/feedback/feedback.schema');
@@ -77,6 +80,67 @@ describe('feedback schemas', () => {
       sort_by: 'tenant_name',
       order: 'asc'
     });
+  });
+
+  it('normalizes every who, where, and device filter the workbook carries', () => {
+    expect(
+      feedbackFilterQuerySchema.parse({
+        tenant_id: 'ten-9322e26afd, TEN0000002',
+        facility_id: ['fac-fbb67a688f'],
+        role: 'platform_admin,NURSE',
+        plan_tier: 'pro',
+        subscription_status: 'active,Trial',
+        route_name: 'tenantFacilitySetup,hr',
+        app_environment: 'Production',
+        app_version: '1.4.0+12',
+        locale: 'en-GB,en',
+        breakpoint: 'XL,sm',
+        theme: 'Dark',
+        connectivity: 'online',
+        orientation: 'LANDSCAPE'
+      })
+    ).toEqual({
+      tenant_id: ['TEN-9322E26AFD', 'TEN0000002'],
+      facility_id: ['FAC-FBB67A688F'],
+      role: ['PLATFORM_ADMIN', 'NURSE'],
+      plan_tier: ['PRO'],
+      subscription_status: ['ACTIVE', 'TRIAL'],
+      route_name: ['tenantFacilitySetup', 'hr'],
+      app_environment: ['production'],
+      app_version: ['1.4.0+12'],
+      locale: ['en-GB', 'en'],
+      breakpoint: ['xl', 'sm'],
+      theme: ['dark'],
+      connectivity: ['online'],
+      orientation: ['landscape']
+    });
+  });
+
+  it('rejects unknown filter keys everywhere the filters are shared', () => {
+    expect(feedbackFilterQuerySchema.safeParse({ tenant: 'TEN0000001' }).success).toBe(false);
+    expect(listFeedbackQuerySchema.safeParse({ has_user: 'true' }).success).toBe(false);
+    expect(exportFeedbackQuerySchema.safeParse({ screen: 'hr' }).success).toBe(false);
+    expect(exportFeedbackBodySchema.safeParse({ breakpoints: ['xl'] }).success).toBe(false);
+    expect(
+      deleteFeedbackSchema.safeParse({
+        confirm: true,
+        all_matching: true,
+        filters: { theme_mode: ['dark'] }
+      }).success
+    ).toBe(false);
+    expect(
+      deleteFeedbackSchema.safeParse({
+        confirm: true,
+        all_matching: true,
+        filters: { tenant_id: ['TEN0000001'], breakpoint: ['xl'], route_name: ['hr'] }
+      }).success
+    ).toBe(true);
+  });
+
+  it('bounds how many values one filter takes', () => {
+    const tooMany = Array.from({ length: FEEDBACK_FILTER_MAX_VALUES + 1 }, (_, index) => `v${index}`);
+    expect(feedbackFilterQuerySchema.safeParse({ app_version: tooMany }).success).toBe(false);
+    expect(feedbackFilterQuerySchema.safeParse({ role: 'x'.repeat(81) }).success).toBe(false);
   });
 
   it('rejects unknown filter values, oversized pages, and unsortable columns', () => {

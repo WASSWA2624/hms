@@ -120,30 +120,85 @@ const toFilterValues = (value) =>
   (Array.isArray(value) ? value : value ? [value] : []).filter(Boolean);
 
 /**
+ * Every filter dimension, keyed by its filter name, and where its values live.
+ *
+ * - `column`: an indexed feedback column; `labelColumn` names each value in
+ *   facets (tenant and facility names beside their public ids).
+ * - `rolesJson`: any role in the `user_roles_json` array.
+ * - `contextKey`: a key of `client_context_json`.
+ *
+ * JSON filters go through Prisma's JSON filters, so values stay parameterized.
+ */
+const FEEDBACK_FILTER_DIMENSIONS = Object.freeze({
+  category: { column: 'category' },
+  submitter_type: { column: 'submitter_type' },
+  device_type: { column: 'device_type' },
+  platform: { column: 'client_platform' },
+  tenant_id: { column: 'tenant_human_friendly_id', labelColumn: 'tenant_name' },
+  facility_id: { column: 'facility_human_friendly_id', labelColumn: 'facility_name' },
+  role: { rolesJson: true },
+  plan_tier: { column: 'subscription_tier_code' },
+  subscription_status: { column: 'subscription_status' },
+  route_name: { column: 'route_name' },
+  app_environment: { column: 'app_environment' },
+  app_version: { column: 'app_version' },
+  locale: { column: 'locale' },
+  breakpoint: { contextKey: 'breakpoint' },
+  theme: { contextKey: 'theme_mode' },
+  connectivity: { contextKey: 'connectivity' },
+  orientation: { contextKey: 'orientation' }
+});
+
+const FEEDBACK_FILTER_KEYS = Object.freeze(Object.keys(FEEDBACK_FILTER_DIMENSIONS));
+
+// Dimensions read from JSON, which Prisma cannot group by.
+const FEEDBACK_JSON_FILTER_KEYS = Object.freeze(
+  FEEDBACK_FILTER_KEYS.filter((key) => !FEEDBACK_FILTER_DIMENSIONS[key].column)
+);
+
+// Most distinct values a facet lists; the most frequent are kept.
+const FEEDBACK_FACET_VALUE_LIMIT = 200;
+
+const buildDimensionCondition = (key, values) => {
+  const dimension = FEEDBACK_FILTER_DIMENSIONS[key];
+  if (dimension.column) {
+    return { [dimension.column]: { in: values } };
+  }
+  if (dimension.rolesJson) {
+    return {
+      OR: values.map((role) => ({ user_roles_json: { array_contains: [role] } }))
+    };
+  }
+  return {
+    OR: values.map((value) => ({
+      client_context_json: { path: `$.${dimension.contextKey}`, equals: value }
+    }))
+  };
+};
+
+/**
  * Stored feedback matching optional filters. Rows soft-deleted by the first
  * release stay excluded.
  *
- * @param {Object} [filters] - search, category, submitter_type, device_type, platform, from, to
+ * @param {Object} [filters] - search, from, to, and any key of
+ *   FEEDBACK_FILTER_DIMENSIONS
+ * @param {Object} [options]
+ * @param {string[]} [options.omit] - Dimensions to leave out, so a facet can
+ *   count values its own filter would hide
  * @returns {Object} Prisma where clause
  */
-const buildActiveFeedbackWhere = (filters = {}) => {
+const buildActiveFeedbackWhere = (filters = {}, { omit = [] } = {}) => {
   const conditions = [{ deleted_at: null }];
 
-  const categories = toFilterValues(filters.category);
-  if (categories.length > 0) {
-    conditions.push({ category: { in: categories } });
-  }
-  if (filters.submitter_type) {
-    conditions.push({ submitter_type: filters.submitter_type });
-  }
-  const deviceTypes = toFilterValues(filters.device_type);
-  if (deviceTypes.length > 0) {
-    conditions.push({ device_type: { in: deviceTypes } });
-  }
-  const platforms = toFilterValues(filters.platform);
-  if (platforms.length > 0) {
-    conditions.push({ client_platform: { in: platforms } });
-  }
+  FEEDBACK_FILTER_KEYS.forEach((key) => {
+    if (omit.includes(key)) {
+      return;
+    }
+    const values = toFilterValues(filters[key]);
+    if (values.length > 0) {
+      conditions.push(buildDimensionCondition(key, values));
+    }
+  });
   if (filters.from || filters.to) {
     conditions.push({
       submitted_at: {
@@ -281,6 +336,150 @@ const summarizeActiveFeedback = async (filters = {}) => {
   }
 };
 
+const byCountThenValue = (left, right) =>
+  right.count - left.count || String(left.value).localeCompare(String(right.value));
+
+const toFacetValues = (counts, labels = new Map()) =>
+  Array.from(counts.entries())
+    .map(([value, count]) => ({
+      value,
+      ...(labels.has(value) ? { label: labels.get(value) } : {}),
+      count
+    }))
+    .sort(byCountThenValue)
+    .slice(0, FEEDBACK_FACET_VALUE_LIMIT);
+
+/**
+ * Distinct values of one column with how many records hold each. A value
+ * stored under several labels (a renamed tenant) keeps its most common label.
+ */
+const countColumnFacet = async (key, filters) => {
+  const { column, labelColumn } = FEEDBACK_FILTER_DIMENSIONS[key];
+  // Records without a value (e.g. anonymous tenant) group under null, dropped below.
+  const groups = await prisma.feedback.groupBy({
+    by: labelColumn ? [column, labelColumn] : [column],
+    where: buildActiveFeedbackWhere(filters, { omit: [key] }),
+    _count: { _all: true }
+  });
+
+  const counts = new Map();
+  const labels = new Map();
+  const labelCounts = new Map();
+  groups.forEach((group) => {
+    const value = group[column];
+    const count = group._count?._all || 0;
+    if (value === null || value === undefined || value === '') {
+      return;
+    }
+    counts.set(value, (counts.get(value) || 0) + count);
+    const label = labelColumn ? group[labelColumn] : null;
+    if (label && count > (labelCounts.get(value) || 0)) {
+      labels.set(value, label);
+      labelCounts.set(value, count);
+    }
+  });
+  return toFacetValues(counts, labels);
+};
+
+// A row's values for each JSON dimension, as filters compare them.
+const readJsonDimensionValues = (row) => {
+  const context =
+    row.client_context_json && typeof row.client_context_json === 'object'
+      ? row.client_context_json
+      : {};
+  const values = {};
+  FEEDBACK_JSON_FILTER_KEYS.forEach((key) => {
+    const dimension = FEEDBACK_FILTER_DIMENSIONS[key];
+    const raw = dimension.rolesJson
+      ? Array.isArray(row.user_roles_json)
+        ? row.user_roles_json
+        : []
+      : [context[dimension.contextKey]];
+    values[key] = Array.from(
+      new Set(raw.filter((value) => typeof value === 'string' && value.trim() !== ''))
+    );
+  });
+  return values;
+};
+
+/**
+ * Counts for the JSON dimensions. Prisma cannot group by a JSON path, and raw
+ * SQL would have to duplicate every filter this module builds, so the two JSON
+ * columns of the matching rows are read in keyset pages and counted here.
+ * Feedback is a low-volume table; each page stays bounded.
+ */
+const countJsonFacets = async (filters) => {
+  const activeJsonFilters = FEEDBACK_JSON_FILTER_KEYS.map((key) => [
+    key,
+    toFilterValues(filters[key])
+  ]).filter(([, values]) => values.length > 0);
+  const where = buildActiveFeedbackWhere(filters, { omit: FEEDBACK_JSON_FILTER_KEYS });
+  const counts = Object.fromEntries(FEEDBACK_JSON_FILTER_KEYS.map((key) => [key, new Map()]));
+  let cursorId = null;
+  let hasMore = true;
+
+  while (hasMore) {
+    const page = await prisma.feedback.findMany({
+      where,
+      orderBy: [{ id: 'asc' }],
+      take: FEEDBACK_EXPORT_PAGE_SIZE,
+      ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
+      select: { id: true, user_roles_json: true, client_context_json: true }
+    });
+    page.forEach((row) => {
+      const rowValues = readJsonDimensionValues(row);
+      const failing = activeJsonFilters
+        .filter(([key, wanted]) => !rowValues[key].some((value) => wanted.includes(value)))
+        .map(([key]) => key);
+      FEEDBACK_JSON_FILTER_KEYS.forEach((key) => {
+        // Each facet ignores only its own filter.
+        if (failing.some((failed) => failed !== key)) {
+          return;
+        }
+        rowValues[key].forEach((value) => {
+          counts[key].set(value, (counts[key].get(value) || 0) + 1);
+        });
+      });
+    });
+    hasMore = page.length === FEEDBACK_EXPORT_PAGE_SIZE;
+    cursorId = page.length > 0 ? page[page.length - 1].id : null;
+  }
+
+  return Object.fromEntries(
+    FEEDBACK_JSON_FILTER_KEYS.map((key) => [key, toFacetValues(counts[key])])
+  );
+};
+
+/**
+ * Distinct values, with record counts, for every filter dimension. Each
+ * dimension's counts apply every other active filter but not its own, so the
+ * values a user could add to a filter stay listed.
+ *
+ * @param {Object} [filters]
+ * @returns {Promise<{ total: number, facets: Object<string, Object[]> }>}
+ */
+const summarizeFeedbackFacets = async (filters = {}) => {
+  const columnKeys = FEEDBACK_FILTER_KEYS.filter(
+    (key) => FEEDBACK_FILTER_DIMENSIONS[key].column
+  );
+
+  try {
+    const [total, columnFacets, jsonFacets] = await Promise.all([
+      prisma.feedback.count({ where: buildActiveFeedbackWhere(filters) }),
+      Promise.all(columnKeys.map((key) => countColumnFacet(key, filters))),
+      countJsonFacets(filters)
+    ]);
+    const facets = {};
+    FEEDBACK_FILTER_KEYS.forEach((key) => {
+      const columnIndex = columnKeys.indexOf(key);
+      facets[key] = columnIndex >= 0 ? columnFacets[columnIndex] : jsonFacets[key];
+    });
+    return { total, facets };
+  } catch (error) {
+    throw toRepositoryError(error);
+  }
+};
+
 /**
  * Permanently delete feedback: exactly the listed records, or every match for
  * the filters. Rows are removed, not soft-deleted.
@@ -362,6 +561,7 @@ const findCurrentSubscriptionSnapshot = async (tenantId) => {
 };
 
 module.exports = {
+  FEEDBACK_FILTER_KEYS,
   buildActiveFeedbackWhere,
   createFeedback,
   createFeedbackEvent,
@@ -370,5 +570,6 @@ module.exports = {
   findFacilitySnapshot,
   listActiveFeedbackForExport,
   listActiveFeedbackPage,
-  summarizeActiveFeedback
+  summarizeActiveFeedback,
+  summarizeFeedbackFacets
 };

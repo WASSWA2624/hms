@@ -7926,6 +7926,16 @@ model feedback {
   @@index([submitted_at])
   @@index([deleted_at])
   @@index([human_friendly_id])
+  // Download and Clear feedback filters.
+  @@index([tenant_human_friendly_id])
+  @@index([facility_human_friendly_id])
+  @@index([subscription_tier_code])
+  @@index([subscription_status])
+  @@index([route_name])
+  @@index([client_platform])
+  @@index([app_environment])
+  @@index([app_version])
+  @@index([locale])
 }
 
 model patient_report_job {

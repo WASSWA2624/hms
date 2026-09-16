@@ -20845,7 +20845,7 @@ paths:
         - Feedback
       summary: List Feedback
       description: |-
-        Lists stored feedback, newest first, for review and deletion. Multi-value filters take comma-separated values; `from` and `to` bound the submission time inclusively. Platform owners and platform admins only, checked against live roles.
+        Lists stored feedback, newest first, for review and deletion. Multi-value filters take comma-separated values; `from` and `to` bound the submission time inclusively. The same filters narrow the summary, facets, download, and deletion identically, and unknown filter keys are rejected. Platform owners and platform admins only, checked against live roles.
 
         Offline policy: `no-store`.
       operationId: get_api_v1_feedback
@@ -20933,6 +20933,19 @@ paths:
           schema:
             type: string
             format: date-time
+        - $ref: '#/components/parameters/FeedbackTenantIdFilter'
+        - $ref: '#/components/parameters/FeedbackFacilityIdFilter'
+        - $ref: '#/components/parameters/FeedbackRoleFilter'
+        - $ref: '#/components/parameters/FeedbackPlanTierFilter'
+        - $ref: '#/components/parameters/FeedbackSubscriptionStatusFilter'
+        - $ref: '#/components/parameters/FeedbackRouteNameFilter'
+        - $ref: '#/components/parameters/FeedbackAppEnvironmentFilter'
+        - $ref: '#/components/parameters/FeedbackAppVersionFilter'
+        - $ref: '#/components/parameters/FeedbackLocaleFilter'
+        - $ref: '#/components/parameters/FeedbackBreakpointFilter'
+        - $ref: '#/components/parameters/FeedbackThemeFilter'
+        - $ref: '#/components/parameters/FeedbackConnectivityFilter'
+        - $ref: '#/components/parameters/FeedbackOrientationFilter'
       responses:
         '200':
           description: A page of feedback.
@@ -21057,6 +21070,59 @@ paths:
                     to:
                       type: string
                       format: date-time
+                    tenant_id:
+                      type: array
+                      items:
+                        type: string
+                    facility_id:
+                      type: array
+                      items:
+                        type: string
+                    role:
+                      type: array
+                      items:
+                        type: string
+                    plan_tier:
+                      type: array
+                      items:
+                        type: string
+                    subscription_status:
+                      type: array
+                      items:
+                        type: string
+                    route_name:
+                      type: array
+                      items:
+                        type: string
+                    app_environment:
+                      type: array
+                      items:
+                        type: string
+                    app_version:
+                      type: array
+                      items:
+                        type: string
+                    locale:
+                      type: array
+                      items:
+                        type: string
+                    breakpoint:
+                      type: array
+                      items:
+                        type: string
+                    theme:
+                      type: array
+                      items:
+                        type: string
+                    connectivity:
+                      type: array
+                      items:
+                        type: string
+                    orientation:
+                      type: array
+                      items:
+                        type: string
+                  additionalProperties: false
       responses:
         '200':
           description: Feedback deleted permanently.
@@ -21096,7 +21162,7 @@ paths:
         - Feedback
       summary: Get Feedback Summary
       description: |-
-        Counts stored feedback. Platform owners and platform admins only, checked against live roles.
+        Counts stored feedback matching the same filters as listing. Platform owners and platform admins only, checked against live roles.
 
         Offline policy: `no-store`.
       operationId: get_api_v1_feedback_summary
@@ -21104,17 +21170,18 @@ paths:
         - BearerAuth: []
       parameters:
         - $ref: '#/components/parameters/AcceptLanguage'
+        - name: search
+          in: query
+          required: false
+          description: Matches the feedback id, message, user email or name, tenant, facility, route, or screen.
+          schema:
+            type: string
         - name: category
           in: query
           required: false
+          description: Comma-separated GENERAL, PROBLEM, COMPLAINT, SUGGESTION, IMPROVEMENT.
           schema:
             type: string
-            enum:
-              - GENERAL
-              - PROBLEM
-              - COMPLAINT
-              - SUGGESTION
-              - IMPROVEMENT
         - name: submitter_type
           in: query
           required: false
@@ -21126,12 +21193,15 @@ paths:
         - name: device_type
           in: query
           required: false
+          description: Comma-separated MOBILE, TABLET, DESKTOP.
           schema:
             type: string
-            enum:
-              - MOBILE
-              - TABLET
-              - DESKTOP
+        - name: platform
+          in: query
+          required: false
+          description: Comma-separated client platforms, for example web,android.
+          schema:
+            type: string
         - name: from
           in: query
           required: false
@@ -21144,6 +21214,19 @@ paths:
           schema:
             type: string
             format: date-time
+        - $ref: '#/components/parameters/FeedbackTenantIdFilter'
+        - $ref: '#/components/parameters/FeedbackFacilityIdFilter'
+        - $ref: '#/components/parameters/FeedbackRoleFilter'
+        - $ref: '#/components/parameters/FeedbackPlanTierFilter'
+        - $ref: '#/components/parameters/FeedbackSubscriptionStatusFilter'
+        - $ref: '#/components/parameters/FeedbackRouteNameFilter'
+        - $ref: '#/components/parameters/FeedbackAppEnvironmentFilter'
+        - $ref: '#/components/parameters/FeedbackAppVersionFilter'
+        - $ref: '#/components/parameters/FeedbackLocaleFilter'
+        - $ref: '#/components/parameters/FeedbackBreakpointFilter'
+        - $ref: '#/components/parameters/FeedbackThemeFilter'
+        - $ref: '#/components/parameters/FeedbackConnectivityFilter'
+        - $ref: '#/components/parameters/FeedbackOrientationFilter'
       responses:
         '200':
           description: Feedback counts.
@@ -21182,6 +21265,366 @@ paths:
       x-route-family: feedback
       x-offline-policy: no-store
       x-route-source: src/modules/feedback/routes/app-feedback.routes.js
+  /api/v1/feedback/facets:
+    get:
+      tags:
+        - Feedback
+      summary: Get Feedback Facets
+      description: |-
+        Lists the distinct values stored feedback holds for every filter, with how many records hold each, so filter choices show only values that exist. Accepts the same filters as listing; each filter's own values are counted under every other active filter, so values the user could add stay listed. At most 200 values per filter, most frequent first. Platform owners and platform admins only, checked against live roles.
+
+        Offline policy: `no-store`.
+      operationId: get_api_v1_feedback_facets
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: search
+          in: query
+          required: false
+          description: Matches the feedback id, message, user email or name, tenant, facility, route, or screen.
+          schema:
+            type: string
+        - name: category
+          in: query
+          required: false
+          description: Comma-separated GENERAL, PROBLEM, COMPLAINT, SUGGESTION, IMPROVEMENT.
+          schema:
+            type: string
+        - name: submitter_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - AUTHENTICATED
+              - ANONYMOUS
+        - name: device_type
+          in: query
+          required: false
+          description: Comma-separated MOBILE, TABLET, DESKTOP.
+          schema:
+            type: string
+        - name: platform
+          in: query
+          required: false
+          description: Comma-separated client platforms, for example web,android.
+          schema:
+            type: string
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - $ref: '#/components/parameters/FeedbackTenantIdFilter'
+        - $ref: '#/components/parameters/FeedbackFacilityIdFilter'
+        - $ref: '#/components/parameters/FeedbackRoleFilter'
+        - $ref: '#/components/parameters/FeedbackPlanTierFilter'
+        - $ref: '#/components/parameters/FeedbackSubscriptionStatusFilter'
+        - $ref: '#/components/parameters/FeedbackRouteNameFilter'
+        - $ref: '#/components/parameters/FeedbackAppEnvironmentFilter'
+        - $ref: '#/components/parameters/FeedbackAppVersionFilter'
+        - $ref: '#/components/parameters/FeedbackLocaleFilter'
+        - $ref: '#/components/parameters/FeedbackBreakpointFilter'
+        - $ref: '#/components/parameters/FeedbackThemeFilter'
+        - $ref: '#/components/parameters/FeedbackConnectivityFilter'
+        - $ref: '#/components/parameters/FeedbackOrientationFilter'
+      responses:
+        '200':
+          description: Filter values with record counts.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-Offline-Policy:
+              $ref: '#/components/headers/XOfflinePolicy'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResourceEnvelope'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                            description: Records matching every active filter.
+                          facets:
+                            type: object
+                            properties:
+                              category:
+                                type: array
+                                items:
+                                  type: object
+                                  required:
+                                    - value
+                                    - count
+                                  properties:
+                                    value:
+                                      type: string
+                                    label:
+                                      type: string
+                                      description: Display name, for tenant and facility ids.
+                                    count:
+                                      type: integer
+                              submitter_type:
+                                type: array
+                                items:
+                                  type: object
+                                  required:
+                                    - value
+                                    - count
+                                  properties:
+                                    value:
+                                      type: string
+                                    label:
+                                      type: string
+                                      description: Display name, for tenant and facility ids.
+                                    count:
+                                      type: integer
+                              device_type:
+                                type: array
+                                items:
+                                  type: object
+                                  required:
+                                    - value
+                                    - count
+                                  properties:
+                                    value:
+                                      type: string
+                                    label:
+                                      type: string
+                                      description: Display name, for tenant and facility ids.
+                                    count:
+                                      type: integer
+                              platform:
+                                type: array
+                                items:
+                                  type: object
+                                  required:
+                                    - value
+                                    - count
+                                  properties:
+                                    value:
+                                      type: string
+                                    label:
+                                      type: string
+                                      description: Display name, for tenant and facility ids.
+                                    count:
+                                      type: integer
+                              tenant_id:
+                                type: array
+                                items:
+                                  type: object
+                                  required:
+                                    - value
+                                    - count
+                                  properties:
+                                    value:
+                                      type: string
+                                    label:
+                                      type: string
+                                      description: Display name, for tenant and facility ids.
+                                    count:
+                                      type: integer
+                              facility_id:
+                                type: array
+                                items:
+                                  type: object
+                                  required:
+                                    - value
+                                    - count
+                                  properties:
+                                    value:
+                                      type: string
+                                    label:
+                                      type: string
+                                      description: Display name, for tenant and facility ids.
+                                    count:
+                                      type: integer
+                              role:
+                                type: array
+                                items:
+                                  type: object
+                                  required:
+                                    - value
+                                    - count
+                                  properties:
+                                    value:
+                                      type: string
+                                    label:
+                                      type: string
+                                      description: Display name, for tenant and facility ids.
+                                    count:
+                                      type: integer
+                              plan_tier:
+                                type: array
+                                items:
+                                  type: object
+                                  required:
+                                    - value
+                                    - count
+                                  properties:
+                                    value:
+                                      type: string
+                                    label:
+                                      type: string
+                                      description: Display name, for tenant and facility ids.
+                                    count:
+                                      type: integer
+                              subscription_status:
+                                type: array
+                                items:
+                                  type: object
+                                  required:
+                                    - value
+                                    - count
+                                  properties:
+                                    value:
+                                      type: string
+                                    label:
+                                      type: string
+                                      description: Display name, for tenant and facility ids.
+                                    count:
+                                      type: integer
+                              route_name:
+                                type: array
+                                items:
+                                  type: object
+                                  required:
+                                    - value
+                                    - count
+                                  properties:
+                                    value:
+                                      type: string
+                                    label:
+                                      type: string
+                                      description: Display name, for tenant and facility ids.
+                                    count:
+                                      type: integer
+                              app_environment:
+                                type: array
+                                items:
+                                  type: object
+                                  required:
+                                    - value
+                                    - count
+                                  properties:
+                                    value:
+                                      type: string
+                                    label:
+                                      type: string
+                                      description: Display name, for tenant and facility ids.
+                                    count:
+                                      type: integer
+                              app_version:
+                                type: array
+                                items:
+                                  type: object
+                                  required:
+                                    - value
+                                    - count
+                                  properties:
+                                    value:
+                                      type: string
+                                    label:
+                                      type: string
+                                      description: Display name, for tenant and facility ids.
+                                    count:
+                                      type: integer
+                              locale:
+                                type: array
+                                items:
+                                  type: object
+                                  required:
+                                    - value
+                                    - count
+                                  properties:
+                                    value:
+                                      type: string
+                                    label:
+                                      type: string
+                                      description: Display name, for tenant and facility ids.
+                                    count:
+                                      type: integer
+                              breakpoint:
+                                type: array
+                                items:
+                                  type: object
+                                  required:
+                                    - value
+                                    - count
+                                  properties:
+                                    value:
+                                      type: string
+                                    label:
+                                      type: string
+                                      description: Display name, for tenant and facility ids.
+                                    count:
+                                      type: integer
+                              theme:
+                                type: array
+                                items:
+                                  type: object
+                                  required:
+                                    - value
+                                    - count
+                                  properties:
+                                    value:
+                                      type: string
+                                    label:
+                                      type: string
+                                      description: Display name, for tenant and facility ids.
+                                    count:
+                                      type: integer
+                              connectivity:
+                                type: array
+                                items:
+                                  type: object
+                                  required:
+                                    - value
+                                    - count
+                                  properties:
+                                    value:
+                                      type: string
+                                    label:
+                                      type: string
+                                      description: Display name, for tenant and facility ids.
+                                    count:
+                                      type: integer
+                              orientation:
+                                type: array
+                                items:
+                                  type: object
+                                  required:
+                                    - value
+                                    - count
+                                  properties:
+                                    value:
+                                      type: string
+                                    label:
+                                      type: string
+                                      description: Display name, for tenant and facility ids.
+                                    count:
+                                      type: integer
+        '401':
+          $ref: '#/components/responses/UnauthorizedProblem'
+        '403':
+          $ref: '#/components/responses/ForbiddenProblem'
+        '422':
+          $ref: '#/components/responses/ValidationProblem'
+        '500':
+          $ref: '#/components/responses/InternalProblem'
+      x-route-family: feedback
+      x-offline-policy: no-store
+      x-route-source: src/modules/feedback/routes/app-feedback.routes.js
   /api/v1/feedback/export:
     get:
       tags:
@@ -21196,17 +21639,18 @@ paths:
         - BearerAuth: []
       parameters:
         - $ref: '#/components/parameters/AcceptLanguage'
+        - name: search
+          in: query
+          required: false
+          description: Matches the feedback id, message, user email or name, tenant, facility, route, or screen.
+          schema:
+            type: string
         - name: category
           in: query
           required: false
+          description: Comma-separated GENERAL, PROBLEM, COMPLAINT, SUGGESTION, IMPROVEMENT.
           schema:
             type: string
-            enum:
-              - GENERAL
-              - PROBLEM
-              - COMPLAINT
-              - SUGGESTION
-              - IMPROVEMENT
         - name: submitter_type
           in: query
           required: false
@@ -21218,12 +21662,15 @@ paths:
         - name: device_type
           in: query
           required: false
+          description: Comma-separated MOBILE, TABLET, DESKTOP.
           schema:
             type: string
-            enum:
-              - MOBILE
-              - TABLET
-              - DESKTOP
+        - name: platform
+          in: query
+          required: false
+          description: Comma-separated client platforms, for example web,android.
+          schema:
+            type: string
         - name: from
           in: query
           required: false
@@ -21236,6 +21683,19 @@ paths:
           schema:
             type: string
             format: date-time
+        - $ref: '#/components/parameters/FeedbackTenantIdFilter'
+        - $ref: '#/components/parameters/FeedbackFacilityIdFilter'
+        - $ref: '#/components/parameters/FeedbackRoleFilter'
+        - $ref: '#/components/parameters/FeedbackPlanTierFilter'
+        - $ref: '#/components/parameters/FeedbackSubscriptionStatusFilter'
+        - $ref: '#/components/parameters/FeedbackRouteNameFilter'
+        - $ref: '#/components/parameters/FeedbackAppEnvironmentFilter'
+        - $ref: '#/components/parameters/FeedbackAppVersionFilter'
+        - $ref: '#/components/parameters/FeedbackLocaleFilter'
+        - $ref: '#/components/parameters/FeedbackBreakpointFilter'
+        - $ref: '#/components/parameters/FeedbackThemeFilter'
+        - $ref: '#/components/parameters/FeedbackConnectivityFilter'
+        - $ref: '#/components/parameters/FeedbackOrientationFilter'
         - name: utc_offset_minutes
           in: query
           required: false
@@ -61810,6 +62270,97 @@ components:
           - revalidate
           - sync
   parameters:
+    FeedbackTenantIdFilter:
+      name: tenant_id
+      in: query
+      required: false
+      description: 'Comma-separated tenant public ids (human_friendly_id), as recorded on each feedback.'
+      schema:
+        type: string
+    FeedbackFacilityIdFilter:
+      name: facility_id
+      in: query
+      required: false
+      description: 'Comma-separated facility public ids (human_friendly_id), as recorded on each feedback.'
+      schema:
+        type: string
+    FeedbackRoleFilter:
+      name: role
+      in: query
+      required: false
+      description: 'Comma-separated role names; matches feedback whose submitter held any of them.'
+      schema:
+        type: string
+    FeedbackPlanTierFilter:
+      name: plan_tier
+      in: query
+      required: false
+      description: 'Comma-separated subscription plan tiers, for example PRO,BASIC.'
+      schema:
+        type: string
+    FeedbackSubscriptionStatusFilter:
+      name: subscription_status
+      in: query
+      required: false
+      description: 'Comma-separated subscription statuses, for example ACTIVE,TRIAL.'
+      schema:
+        type: string
+    FeedbackRouteNameFilter:
+      name: route_name
+      in: query
+      required: false
+      description: 'Comma-separated app route names, matched as stored.'
+      schema:
+        type: string
+    FeedbackAppEnvironmentFilter:
+      name: app_environment
+      in: query
+      required: false
+      description: 'Comma-separated app environments, for example production.'
+      schema:
+        type: string
+    FeedbackAppVersionFilter:
+      name: app_version
+      in: query
+      required: false
+      description: 'Comma-separated app versions (version+build), matched as stored.'
+      schema:
+        type: string
+    FeedbackLocaleFilter:
+      name: locale
+      in: query
+      required: false
+      description: 'Comma-separated locale tags, matched as stored.'
+      schema:
+        type: string
+    FeedbackBreakpointFilter:
+      name: breakpoint
+      in: query
+      required: false
+      description: 'Comma-separated layout breakpoints from the client context, for example xl,sm.'
+      schema:
+        type: string
+    FeedbackThemeFilter:
+      name: theme
+      in: query
+      required: false
+      description: 'Comma-separated themes from the client context: light, dark.'
+      schema:
+        type: string
+    FeedbackConnectivityFilter:
+      name: connectivity
+      in: query
+      required: false
+      description: 'Comma-separated connectivity states from the client context, for example online,offline.'
+      schema:
+        type: string
+    FeedbackOrientationFilter:
+      name: orientation
+      in: query
+      required: false
+      description: 'Comma-separated orientations from the client context: portrait, landscape.'
+      schema:
+        type: string
     AcceptLanguage:
       name: Accept-Language
       in: header
@@ -63151,7 +63702,7 @@ x-generated-from:
     - path: /api/v1/feedback
       module: feedback
       route_file: src/modules/feedback/routes/app-feedback.routes.js
-      operations: 5
+      operations: 7
     - path: /api/v1/feedback
       module: feedback
       route_file: src/modules/feedback/routes/feedback.routes.js

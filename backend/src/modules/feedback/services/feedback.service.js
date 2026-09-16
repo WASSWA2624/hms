@@ -426,6 +426,21 @@ const getFeedbackSummary = async (filters = {}, context = {}) => {
 };
 
 /**
+ * Distinct values and record counts for every feedback filter, so "Download
+ * feedback" and "Clear feedback" offer only values that exist. Each dimension
+ * is counted under every other active filter but its own.
+ *
+ * @param {Object} filters - Validated feedback filters
+ * @param {Object} context - Request context
+ * @returns {Promise<{ total: number, facets: Object<string, Object[]> }>}
+ */
+const getFeedbackFacets = async (filters = {}, context = {}) => {
+  ensureFeedbackAdmin(context);
+
+  return feedbackRepository.summarizeFeedbackFacets(filters);
+};
+
+/**
  * Build the feedback workbook for download.
  *
  * @param {Object} query - Filters plus utc_offset_minutes and optional human_friendly_ids
@@ -535,6 +550,7 @@ const deleteFeedback = async (body = {}, context = {}) => {
 module.exports = {
   deleteFeedback,
   exportFeedback,
+  getFeedbackFacets,
   getFeedbackSummary,
   listFeedback,
   submitCsatFeedback,

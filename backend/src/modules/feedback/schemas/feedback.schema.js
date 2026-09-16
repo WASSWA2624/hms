@@ -114,25 +114,56 @@ const enumFilterList = (values) =>
     z.array(z.enum(values)).optional()
   );
 
-const textFilterList = (maxLength) =>
+const FEEDBACK_FILTER_MAX_VALUES = 50;
+
+const filterList = (maxLength, normalize) =>
   z.preprocess(
-    (value) => toFilterList(value, (entry) => entry.toLowerCase()),
-    z.array(z.string().max(maxLength)).max(20).optional()
+    (value) => toFilterList(value, normalize),
+    z.array(z.string().max(maxLength)).max(FEEDBACK_FILTER_MAX_VALUES).optional()
   );
 
+// Lower-case values: platforms, environments, breakpoints, themes.
+const textFilterList = (maxLength) => filterList(maxLength, (entry) => entry.toLowerCase());
+
+// Upper-case codes: public ids, role names, plan tiers, statuses.
+const codeFilterList = (maxLength) => filterList(maxLength, (entry) => entry.toUpperCase());
+
+// Values matched as stored: route names, app versions, locales.
+const exactFilterList = (maxLength) => filterList(maxLength, (entry) => entry);
+
 /**
- * Filters shared by listing, counting, exporting, and deleting feedback.
- * `from` and `to` bound `submitted_at` and are inclusive.
+ * Filters shared by listing, counting, faceting, exporting, and deleting
+ * feedback, so each narrows to exactly the same records. `from` and `to` bound
+ * `submitted_at` and are inclusive. Tenants and facilities are named by their
+ * public `human_friendly_id`. Unknown keys are rejected.
  */
-const feedbackFiltersSchema = z.object({
-  search: searchQuerySchema().optional(),
-  category: enumFilterList(FEEDBACK_CATEGORIES),
-  submitter_type: z.enum(FEEDBACK_SUBMITTER_TYPES).optional(),
-  device_type: enumFilterList(FEEDBACK_DEVICE_TYPES),
-  platform: textFilterList(40),
-  from: z.string().datetime({ offset: true }).optional(),
-  to: z.string().datetime({ offset: true }).optional()
-});
+const feedbackFiltersSchema = z
+  .object({
+    search: searchQuerySchema().optional(),
+    category: enumFilterList(FEEDBACK_CATEGORIES),
+    submitter_type: z.enum(FEEDBACK_SUBMITTER_TYPES).optional(),
+    device_type: enumFilterList(FEEDBACK_DEVICE_TYPES),
+    platform: textFilterList(40),
+    from: z.string().datetime({ offset: true }).optional(),
+    to: z.string().datetime({ offset: true }).optional(),
+    // Who
+    tenant_id: codeFilterList(32),
+    facility_id: codeFilterList(32),
+    role: codeFilterList(80),
+    plan_tier: codeFilterList(40),
+    subscription_status: codeFilterList(40),
+    // Where
+    route_name: exactFilterList(120),
+    app_environment: textFilterList(40),
+    app_version: exactFilterList(64),
+    // Device, from the client context
+    locale: exactFilterList(35),
+    breakpoint: textFilterList(16),
+    theme: textFilterList(16),
+    connectivity: textFilterList(16),
+    orientation: textFilterList(16)
+  })
+  .strict();
 
 const feedbackFilterQuerySchema = feedbackFiltersSchema;
 
@@ -190,6 +221,7 @@ module.exports = {
   FEEDBACK_DELETE_MAX_IDS,
   FEEDBACK_DEVICE_TYPES,
   FEEDBACK_EXPORT_MAX_IDS,
+  FEEDBACK_FILTER_MAX_VALUES,
   FEEDBACK_MESSAGE_MAX_LENGTH,
   FEEDBACK_MESSAGE_MIN_LENGTH,
   FEEDBACK_SORT_FIELDS,

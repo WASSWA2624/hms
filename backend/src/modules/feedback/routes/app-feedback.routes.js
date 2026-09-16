@@ -65,7 +65,7 @@ router.post(
  * @authentication Required
  * @permissions PLATFORM_OWNER, PLATFORM_ADMIN
  * @urlParams None
- * @queryParams page, limit, sort_by, order, search, category, submitter_type, device_type, platform, from, to
+ * @queryParams page, limit, sort_by, order, search, category, submitter_type, device_type, platform, from, to, tenant_id, facility_id, role, plan_tier, subscription_status, route_name, app_environment, app_version, locale, breakpoint, theme, connectivity, orientation
  * @bodyParams None
  * @returns {Object[]} Paginated feedback rows
  * @throws 401 Unauthorized
@@ -85,7 +85,7 @@ router.get(
  * @authentication Required
  * @permissions PLATFORM_OWNER, PLATFORM_ADMIN
  * @urlParams None
- * @queryParams search, category, submitter_type, device_type, platform, from, to
+ * @queryParams search, category, submitter_type, device_type, platform, from, to, tenant_id, facility_id, role, plan_tier, subscription_status, route_name, app_environment, app_version, locale, breakpoint, theme, connectivity, orientation
  * @bodyParams None
  * @returns {Object} total, authenticated, anonymous, latest_submitted_at
  * @throws 401 Unauthorized
@@ -99,13 +99,34 @@ router.get(
 );
 
 /**
+ * @description Distinct values and record counts for every feedback filter
+ * @method GET
+ * @route /api/v1/feedback/facets
+ * @authentication Required
+ * @permissions PLATFORM_OWNER, PLATFORM_ADMIN
+ * @urlParams None
+ * @queryParams search, category, submitter_type, device_type, platform, from, to, tenant_id, facility_id, role, plan_tier, subscription_status, route_name, app_environment, app_version, locale, breakpoint, theme, connectivity, orientation
+ * @bodyParams None
+ * @returns {Object} total, facets (per filter: value, optional label, count)
+ * @throws 400 Validation error
+ * @throws 401 Unauthorized
+ * @throws 403 Forbidden
+ */
+router.get(
+  '/facets',
+  ...requireFeedbackAdmin(),
+  validateRequest({ query: feedbackFilterQuerySchema }),
+  feedbackController.getFeedbackFacets
+);
+
+/**
  * @description Download stored feedback as HOSSPI-FEEDBACK-DDMMYYYY-HHmmss.xlsx
  * @method GET
  * @route /api/v1/feedback/export
  * @authentication Required
  * @permissions PLATFORM_OWNER, PLATFORM_ADMIN
  * @urlParams None
- * @queryParams search, category, submitter_type, device_type, platform, from, to, utc_offset_minutes
+ * @queryParams search, category, submitter_type, device_type, platform, from, to, tenant_id, facility_id, role, plan_tier, subscription_status, route_name, app_environment, app_version, locale, breakpoint, theme, connectivity, orientation, utc_offset_minutes
  * @bodyParams None
  * @returns {Buffer} Excel workbook
  * @throws 401 Unauthorized
@@ -126,7 +147,7 @@ router.get(
  * @permissions PLATFORM_OWNER, PLATFORM_ADMIN
  * @urlParams None
  * @queryParams None
- * @bodyParams human_friendly_ids, search, category, submitter_type, device_type, platform, from, to, utc_offset_minutes
+ * @bodyParams human_friendly_ids, search, category, submitter_type, device_type, platform, from, to, tenant_id, facility_id, role, plan_tier, subscription_status, route_name, app_environment, app_version, locale, breakpoint, theme, connectivity, orientation, utc_offset_minutes
  * @returns {Buffer} Excel workbook
  * @throws 400 Validation error
  * @throws 401 Unauthorized

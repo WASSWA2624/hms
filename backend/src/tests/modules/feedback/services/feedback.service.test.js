@@ -6,7 +6,8 @@ jest.mock('@repositories/feedback/feedback.repository', () => ({
   findFacilitySnapshot: jest.fn(),
   listActiveFeedbackForExport: jest.fn(),
   listActiveFeedbackPage: jest.fn(),
-  summarizeActiveFeedback: jest.fn()
+  summarizeActiveFeedback: jest.fn(),
+  summarizeFeedbackFacets: jest.fn()
 }));
 jest.mock('@repositories/auth/auth.repository', () => ({
   findUserById: jest.fn()
@@ -32,6 +33,7 @@ const { HttpError } = require('@lib/errors');
 const {
   deleteFeedback,
   exportFeedback,
+  getFeedbackFacets,
   getFeedbackSummary,
   listFeedback,
   submitFeedback
@@ -283,12 +285,14 @@ describe('feedback service', () => {
 
       await expect(listFeedback({}, context)).rejects.toBeInstanceOf(HttpError);
       await expect(getFeedbackSummary({}, context)).rejects.toBeInstanceOf(HttpError);
+      await expect(getFeedbackFacets({}, context)).rejects.toBeInstanceOf(HttpError);
       await expect(exportFeedback({}, context)).rejects.toBeInstanceOf(HttpError);
       await expect(
         deleteFeedback({ confirm: true, human_friendly_ids: ['FBK0000001'] }, context)
       ).rejects.toBeInstanceOf(HttpError);
       expect(feedbackRepository.listActiveFeedbackPage).not.toHaveBeenCalled();
       expect(feedbackRepository.summarizeActiveFeedback).not.toHaveBeenCalled();
+      expect(feedbackRepository.summarizeFeedbackFacets).not.toHaveBeenCalled();
       expect(feedbackRepository.listActiveFeedbackForExport).not.toHaveBeenCalled();
       expect(feedbackRepository.deleteFeedbackPermanently).not.toHaveBeenCalled();
     });
@@ -496,6 +500,32 @@ describe('feedback service', () => {
 
       expect(feedbackRepository.deleteFeedbackPermanently).toHaveBeenCalledWith({ filters });
       expect(result.deleted_count).toBe(17);
+    });
+
+    it('returns filter values with counts for platform admins', async () => {
+      const facets = {
+        total: 2,
+        facets: { tenant_id: [{ value: 'TEN0000001', label: 'IHK Group', count: 2 }] }
+      };
+      feedbackRepository.summarizeFeedbackFacets.mockResolvedValue(facets);
+      const filters = { route_name: ['hr'], breakpoint: ['xl'] };
+
+      await expect(getFeedbackFacets(filters, ownerContext)).resolves.toEqual(facets);
+      expect(feedbackRepository.summarizeFeedbackFacets).toHaveBeenCalledWith(filters);
+    });
+
+    it('exports and deletes with the same new filters it was given', async () => {
+      const filters = { tenant_id: ['TEN0000001'], route_name: ['hr'], breakpoint: ['xl'] };
+      feedbackRepository.listActiveFeedbackForExport.mockResolvedValue([]);
+      feedbackRepository.deleteFeedbackPermanently.mockResolvedValue(0);
+
+      await exportFeedback({ ...filters, utc_offset_minutes: 180 }, ownerContext);
+      await deleteFeedback({ confirm: true, all_matching: true, filters }, ownerContext);
+
+      expect(feedbackRepository.listActiveFeedbackForExport).toHaveBeenCalledWith(filters, {
+        humanFriendlyIds: null
+      });
+      expect(feedbackRepository.deleteFeedbackPermanently).toHaveBeenCalledWith({ filters });
     });
 
     it('refuses a deletion without a target', async () => {

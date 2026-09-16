@@ -12,6 +12,7 @@ jest.mock('@middlewares/rateLimit.middleware', () => ({
 jest.mock('@controllers/feedback/feedback.controller', () => ({
   deleteFeedback: function deleteFeedback() {},
   exportFeedback: function exportFeedback() {},
+  getFeedbackFacets: function getFeedbackFacets() {},
   getFeedbackSummary: function getFeedbackSummary() {},
   listFeedback: function listFeedback() {},
   submitFeedback: function submitFeedback() {}
@@ -46,6 +47,7 @@ describe('app-feedback.routes contract', () => {
       'DELETE /',
       'GET /',
       'GET /export',
+      'GET /facets',
       'GET /summary',
       'POST /',
       'POST /export'
@@ -64,6 +66,7 @@ describe('app-feedback.routes contract', () => {
   it.each([
     ['get', '/', 'listFeedback'],
     ['get', '/summary', 'getFeedbackSummary'],
+    ['get', '/facets', 'getFeedbackFacets'],
     ['get', '/export', 'exportFeedback'],
     ['post', '/export', 'exportFeedback'],
     ['delete', '/', 'deleteFeedback']
@@ -75,7 +78,7 @@ describe('app-feedback.routes contract', () => {
   });
 
   it('authorizes management for platform owners and platform admins only', () => {
-    expect(authorizeCalls).toHaveLength(5);
+    expect(authorizeCalls).toHaveLength(6);
     authorizeCalls.forEach((call) => {
       expect(call).toEqual([['PLATFORM_OWNER', 'PLATFORM_ADMIN']]);
     });
