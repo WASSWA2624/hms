@@ -54739,12 +54739,6 @@ abstract class AppLocalizations {
   /// **'Next page'**
   String get feedbackNextPageLabel;
 
-  /// How much feedback is selected for deletion.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =0{No feedback selected} =1{1 record selected} other{{count} records selected}}'**
-  String feedbackSelectedCount(int count);
-
   /// Button that permanently deletes the selected feedback.
   ///
   /// In en, this message translates to:

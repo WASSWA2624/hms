@@ -133,9 +133,11 @@ void main() {
       await tester.tap(find.text('Laboratory filters'));
       await tester.pumpAndSettle();
 
+      // The filter panel's heading names the group; the field itself carries
+      // that name only for assistive tech.
       final Finder statusField = find.byWidgetPredicate(
         (Widget widget) =>
-            widget is AppSelectField<String> && widget.labelText == 'Status',
+            widget is AppSelectField<String> && widget.semanticLabel == 'Status',
       );
       expect(statusField, findsOneWidget);
       tester
@@ -174,9 +176,11 @@ void main() {
 
       await tester.tap(find.text('Laboratory filters'));
       await tester.pumpAndSettle();
+      // The filter panel's heading names the group; the field itself carries
+      // that name only for assistive tech.
       final Finder statusField = find.byWidgetPredicate(
         (Widget widget) =>
-            widget is AppSelectField<String> && widget.labelText == 'Status',
+            widget is AppSelectField<String> && widget.semanticLabel == 'Status',
       );
       tester
           .widget<AppSelectField<String>>(statusField)

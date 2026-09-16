@@ -3606,43 +3606,43 @@ class _AppListTableFooterBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
 
-    return Padding(
-      padding: EdgeInsets.only(top: theme.spacing.xs, bottom: theme.spacing.sm),
-      child: Stack(
-        alignment: Alignment.center,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(child: leading ?? const SizedBox.shrink()),
-              SizedBox(width: theme.spacing.sm),
-              ValueListenableBuilder<bool>(
-                valueListenable: canGoToTopListenable,
-                builder: (BuildContext context, bool canGoToTop, _) {
-                  return AppButton(
-                    iconOnly: true,
-                    dense: true,
-                    leadingIcon: Icons.vertical_align_top,
-                    label: goToTopLabel,
-                    semanticLabel: goToTopLabel,
-                    tooltip: goToTopLabel,
-                    onPressed: canGoToTop
-                        ? () {
-                            unawaited(onGoToTop());
-                          }
-                        : null,
-                  );
-                },
-              ),
-            ],
-          ),
-          if (loadingMore)
-            IgnorePointer(
-              child: _AppListTableLoadingDots(
-                semanticLabel: loadingMoreLabel,
-              ),
+    // The bar is exactly as tall as the controls in it. The table body above
+    // already ends in the horizontal scrollbar gutter, so padding here would
+    // only push the pagination away from the rows it belongs to.
+    return Stack(
+      alignment: Alignment.center,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            Expanded(child: leading ?? const SizedBox.shrink()),
+            SizedBox(width: theme.spacing.sm),
+            ValueListenableBuilder<bool>(
+              valueListenable: canGoToTopListenable,
+              builder: (BuildContext context, bool canGoToTop, _) {
+                return AppButton(
+                  iconOnly: true,
+                  dense: true,
+                  leadingIcon: Icons.vertical_align_top,
+                  label: goToTopLabel,
+                  semanticLabel: goToTopLabel,
+                  tooltip: goToTopLabel,
+                  onPressed: canGoToTop
+                      ? () {
+                          unawaited(onGoToTop());
+                        }
+                      : null,
+                );
+              },
             ),
-        ],
-      ),
+          ],
+        ),
+        if (loadingMore)
+          IgnorePointer(
+            child: _AppListTableLoadingDots(
+              semanticLabel: loadingMoreLabel,
+            ),
+          ),
+      ],
     );
   }
 }

@@ -30132,18 +30132,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get feedbackNextPageLabel => 'Next page';
 
   @override
-  String feedbackSelectedCount(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count records selected',
-      one: '1 record selected',
-      zero: 'No feedback selected',
-    );
-    return '$_temp0';
-  }
-
-  @override
   String get feedbackDeleteSelectedAction => 'Delete permanently';
 
   @override

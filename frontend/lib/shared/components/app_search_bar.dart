@@ -1112,6 +1112,7 @@ class _AppSearchBarFiltersDialogState
               if (widget.searchFields.isNotEmpty)
                 AppSelectField<String>.searchable(
                   value: _field,
+                  semanticLabel: widget.searchFieldLabel,
                   hintText: widget.allFieldsLabel,
                   options: <AppSelectOption<String>>[
                     AppSelectOption<String>(
@@ -1234,6 +1235,9 @@ class _AppSearchBarFiltersDialogState
         isActive: selected != null,
         child: AppSelectField<String>.searchable(
           value: selected,
+          // The panel heading carries the visible name; the field still needs
+          // its own for assistive tech.
+          semanticLabel: group.label,
           hintText: group.allLabel ?? widget.allFieldsLabel,
           options: <AppSelectOption<String>>[
             AppSelectOption<String>(

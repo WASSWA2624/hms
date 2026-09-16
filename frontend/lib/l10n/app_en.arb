@@ -38627,15 +38627,6 @@
   "@feedbackNextPageLabel": {
     "description": "Button that shows the next page of feedback."
   },
-  "feedbackSelectedCount": "{count, plural, =0{No feedback selected} =1{1 record selected} other{{count} records selected}}",
-  "@feedbackSelectedCount": {
-    "description": "How much feedback is selected for deletion.",
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "feedbackDeleteSelectedAction": "Delete permanently",
   "@feedbackDeleteSelectedAction": {
     "description": "Button that permanently deletes the selected feedback."

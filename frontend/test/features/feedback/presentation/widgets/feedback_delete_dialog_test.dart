@@ -162,6 +162,24 @@ Future<void> _tapRow(WidgetTester tester, String referenceId) async {
   await tester.pump();
 }
 
+/// How many rows on the page are ticked. The ticked boxes are the only record
+/// of the selection; the dialog shows no running count.
+int _checkedRowCount(WidgetTester tester) {
+  return tester
+      .widgetList<Checkbox>(find.byType(Checkbox))
+      .where(
+        (Checkbox box) =>
+            box.key != FeedbackDeleteDialog.pageCheckboxKey &&
+            (box.value ?? false),
+      )
+      .length;
+}
+
+/// Whether anything at all is picked, on this page or another.
+bool _hasSelection(WidgetTester tester) {
+  return tester.widget<AppButton>(_deleteButton).onPressed != null;
+}
+
 bool? _rowChecked(WidgetTester tester, String referenceId) {
   return tester
       .widget<Checkbox>(
@@ -198,9 +216,9 @@ void main() {
       findsOneWidget,
     );
     expect(call.sort, FeedbackSort.newestFirst);
-    // Nothing is selected, so no selection summary and nothing to delete.
-    expect(find.textContaining('selected'), findsNothing);
-    expect(tester.widget<AppButton>(_deleteButton).onPressed, isNull);
+    // Nothing is picked, so there is nothing to delete.
+    expect(_checkedRowCount(tester), 0);
+    expect(_hasSelection(tester), isFalse);
   });
 
   testWidgets('deletes exactly the ticked records after confirmation', (
@@ -216,7 +234,7 @@ void main() {
 
     await _tapRow(tester, 'FBK0000001');
     await _tapRow(tester, 'FBK0000003');
-    expect(find.text('2 records selected'), findsOneWidget);
+    expect(_checkedRowCount(tester), 2);
     expect(_rowChecked(tester, 'FBK0000002'), isFalse);
 
     await tester.tap(_deleteButton);
@@ -249,15 +267,15 @@ void main() {
     await tester.tap(find.text('Feedback message 2'));
     await tester.pump();
     expect(_rowChecked(tester, 'FBK0000002'), isTrue);
-    expect(find.text('1 record selected'), findsOneWidget);
+    expect(_checkedRowCount(tester), 1);
 
     await tester.tap(find.byKey(FeedbackDeleteDialog.pageCheckboxKey));
     await tester.pump();
-    expect(find.text('20 records selected'), findsOneWidget);
+    expect(_checkedRowCount(tester), 20);
 
     await tester.tap(find.byKey(FeedbackDeleteDialog.pageCheckboxKey));
     await tester.pump();
-    expect(find.textContaining('selected'), findsNothing);
+    expect(_checkedRowCount(tester), 0);
     expect(_rowChecked(tester, 'FBK0000002'), isFalse);
   });
 
@@ -274,10 +292,16 @@ void main() {
     expect(repository.pageCalls.last.request.pageIndex, 1);
     expect(find.text('Feedback message 21'), findsOneWidget);
     expect(find.text('21-25 of 25'), findsOneWidget);
-    expect(find.text('1 record selected'), findsOneWidget);
+    // The page-one pick is off screen, but still picked.
+    expect(_checkedRowCount(tester), 0);
+    expect(_hasSelection(tester), isTrue);
 
     await _tapRow(tester, 'FBK0000025');
-    expect(find.text('2 records selected'), findsOneWidget);
+    await tester.tap(_deleteButton);
+    await tester.pumpAndSettle();
+    await _confirmDelete(tester);
+
+    expect(repository.deletedIds.single, <String>{'FBK0000001', 'FBK0000025'});
   });
 
   testWidgets('sorting a column reorders the whole list from the first page', (
@@ -289,7 +313,7 @@ void main() {
     await tester.tap(find.byTooltip('Next page'));
     await tester.pumpAndSettle();
     await _tapRow(tester, 'FBK0000021');
-    expect(find.text('1 record selected'), findsOneWidget);
+    expect(_hasSelection(tester), isTrue);
 
     await tester.tap(find.text('Submitted'));
     await tester.pumpAndSettle();
@@ -304,7 +328,7 @@ void main() {
     );
     // The same records still match, so the selection survives the reorder.
     expect(sorted.request.pageIndex, 0);
-    expect(find.text('1 record selected'), findsOneWidget);
+    expect(_hasSelection(tester), isTrue);
 
     await tester.tap(find.text('Submitted'));
     await tester.pumpAndSettle();
@@ -333,7 +357,7 @@ void main() {
       await tester.tap(find.byTooltip('Next page'));
       await tester.pumpAndSettle();
       await _tapRow(tester, 'FBK0000021');
-      expect(find.text('1 record selected'), findsOneWidget);
+      expect(_hasSelection(tester), isTrue);
 
       await tester.enterText(
         find.descendant(
@@ -347,7 +371,7 @@ void main() {
 
       expect(repository.pageCalls.last.filters.search, 'printer');
       expect(repository.pageCalls.last.request.pageIndex, 0);
-      expect(find.textContaining('selected'), findsNothing);
+      expect(_hasSelection(tester), isFalse);
 
       final AppSearchBar searchBar = tester.widget<AppSearchBar>(
         find.byType(AppSearchBar),

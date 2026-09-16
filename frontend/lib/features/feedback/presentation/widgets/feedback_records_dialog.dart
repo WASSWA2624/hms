@@ -26,6 +26,9 @@ abstract final class FeedbackFilterKeys {
 /// Picks stored feedback from a paged table, then hands the picked records to
 /// [onConfirm].
 ///
+/// The ticked boxes are the only record of what is picked: no running count,
+/// no clear-selection action, so the toolbar stays search and filters alone.
+///
 /// Clear feedback and Download feedback differ only in what happens to the
 /// records at the end, so both drive this one dialog. Feedback loads a page at
 /// a time from the server and narrows by search, a submission date range,
@@ -256,7 +259,6 @@ class _FeedbackRecordsDialogState<T>
       columnVisibilityApplyLabel: l10n.receptionApplyColumnsAction,
       columnVisibilityResetLabel: l10n.receptionResetColumnsAction,
       columnVisibilityCloseLabel: l10n.commonCloseActionLabel,
-      surfaceHeader: _selectionSummary(l10n),
       search: AppListTableSearch<FeedbackRecord>(
         controller: _searchController,
         semanticLabel: l10n.feedbackSearchLabel,
@@ -281,7 +283,6 @@ class _FeedbackRecordsDialogState<T>
         filterValue: _filterValue,
         hasActiveFilters: _filterValue.isActive,
         onFilterChanged: _applyFilters,
-        trailingActions: _selectionActions(l10n),
       ),
       loadingBuilder: (_) => AppWorkspaceStatePanel.loading(
         title: l10n.feedbackLoadingTitle,
@@ -306,33 +307,6 @@ class _FeedbackRecordsDialogState<T>
       mobileItemBuilder: (BuildContext context, FeedbackRecord record) =>
           _mobileItem(l10n, locale, record),
     );
-  }
-
-  /// How many records are picked, shown inside the table rather than above the
-  /// toolbar so the search and filters stay the first thing on screen.
-  Widget _selectionSummary(AppLocalizations l10n) {
-    return _selectionListener(() {
-      final ThemeData theme = Theme.of(context);
-      if (_selectedCount == 0) {
-        return const SizedBox.shrink();
-      }
-
-      return Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: theme.spacing.sm,
-          vertical: theme.spacing.xs,
-        ),
-        child: Semantics(
-          liveRegion: true,
-          child: Text(
-            l10n.feedbackSelectedCount(_selectedCount),
-            style: theme.textTheme.labelLarge?.copyWith(
-              color: theme.colorScheme.primary,
-            ),
-          ),
-        ),
-      );
-    });
   }
 
   List<AppListTableColumn<FeedbackRecord>> _columns(
@@ -577,17 +551,6 @@ class _FeedbackRecordsDialogState<T>
     ];
   }
 
-  List<AppSearchBarAction> _selectionActions(AppLocalizations l10n) {
-    return <AppSearchBarAction>[
-      if (_selectedCount > 0)
-        AppSearchBarAction(
-          icon: Icons.deselect,
-          label: l10n.commonClearSelectionActionLabel,
-          onPressed: _clearSelection,
-        ),
-    ];
-  }
-
   String _submittedAtText(FeedbackRecord record, Locale locale) {
     final DateTime? submittedAt = record.submittedAt;
     return submittedAt == null
@@ -638,10 +601,6 @@ class _FeedbackRecordsDialogState<T>
         _selectedIds.removeAll(ids);
       }
     });
-  }
-
-  void _clearSelection() {
-    _updateSelection(_selectedIds.clear);
   }
 
   static String _referenceIdOf(FeedbackRecord record) => record.referenceId;
