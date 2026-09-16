@@ -1,6 +1,6 @@
 {
     "name": "HOSSPI Hospital Management System",
-    "short_name": "HOSSPI HMS",
+    "short_name": "HOSSPI",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#1565C0",
