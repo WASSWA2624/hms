@@ -118,13 +118,3 @@ Deleting feedback — a single record, a selection, or "all matching" through *C
 1. **Retention.** Screenshots live and die with the feedback row; no separate retention window is assumed.
 2. **Caps.** 10 shots signed in, 3 signed out, 2 MB each, 12 MB per submission. Raise them if 10 proves tight in use — it is one constant per side.
 3. **ZIP library.** `archiver` is assumed for streaming; `jszip` is the buffered alternative.
-
-## Source (verbatim request)
-
-> Let us update the feedback flow or functionality as follows. Currently, when I click the feedback button, it opens the feedback context menu, which is okay because I am able to give feedback. But I want us to update it such that when I'm on the platform admin account — it currently gives me three menus, that is the *Give us feedback* menu, *Download feedback* and then *Clear feedback*. When I click *Give us feedback*, that dialogue is okay, but I want us to advance it in such a way that I am able to take screenshots. These screenshots should be such that it automatically takes the screenshot of the previous screen where the *Give us feedback* dialogue was triggered from — that should be captured by default. Then I should have buttons where I can take screenshots, I can navigate through the app and take screenshots from different parts of the app, of the device, of the screen; I can navigate to another screen in the app and take screenshots. I can take screenshots including the *Give us feedback* dialogue itself, but I may also exclude it. So I should be able to give different screen feedbacks. And then also, when I am downloading — on *Download feedback* I should be able to have several filters, because right now I can see the submission date, that is okay, the feedback type, which is okay — I think the filters are okay there. But basically we should focus on *Give us feedback*: I should be able to navigate through the app so that as I go it takes screenshots, it takes all the screenshots as I navigate through. So that's what I want us to implement.
-
-> In addition, there should be a way to select the context to which the feedback applies. For example, entire app, or selected screens (allow to select one or more). The download should be an archive which contains the excel, the screenshots and a markdown prompt generator similar to the one shown [in the Tapture generator] but tailored to the HOSSPI HMS.
-
-> Deleting the feedbacks also deletes the associated screenshots.
-
-> One should be able to capture multiple screenshots.
