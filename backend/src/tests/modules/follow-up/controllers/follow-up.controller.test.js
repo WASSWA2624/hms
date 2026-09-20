@@ -28,7 +28,7 @@ describe('Follow-up Controller', () => {
       query: {},
       params: {},
       body: {},
-      user: { id: 'user-1' },
+      user: { id: 'user-1', tenant_id: 'tenant-1', roles: ['TENANT_ADMIN'] },
       ip: '127.0.0.1'
     };
     res = {};
@@ -44,6 +44,18 @@ describe('Follow-up Controller', () => {
 
       await listFollowUps(req, res);
 
+      expect(followUpService.listFollowUps).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tenant_id: 'tenant-1',
+          is_elevated: false,
+        }),
+        1,
+        20,
+        undefined,
+        'asc',
+        'user-1',
+        '127.0.0.1'
+      );
       expect(sendPaginated).toHaveBeenCalledWith(
         res,
         'messages.follow_up.list.success',

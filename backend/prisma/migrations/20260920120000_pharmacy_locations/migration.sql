@@ -8,6 +8,12 @@
 -- Guarded with information_schema + PREPARE because MySQL has no
 -- `ADD COLUMN IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS`, and Prisma cannot
 -- run DELIMITER.
+--
+-- ENGINE=InnoDB is pinned explicitly because the production host defaults to
+-- MyISAM, which silently ignores foreign key definitions and then fails
+-- ADD CONSTRAINT with errno 1005. A prior failed run of this migration may
+-- have left the new tables as MyISAM; the CONVERT block after CREATE TABLE
+-- upgrades those leftovers so the foreign keys can apply on retry.
 
 -- ---------------------------------------------------------------- new tables
 
@@ -40,7 +46,7 @@ CREATE TABLE IF NOT EXISTS `pharmacy_location` (
   INDEX `pharmacy_location_deleted_at_idx`(`deleted_at`),
   INDEX `pharmacy_location_human_friendly_id_idx`(`human_friendly_id`),
   PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS `pharmacy_location_user` (
   `id` VARCHAR(36) NOT NULL,
@@ -64,7 +70,7 @@ CREATE TABLE IF NOT EXISTS `pharmacy_location_user` (
   INDEX `pharmacy_location_user_deleted_at_idx`(`deleted_at`),
   INDEX `pharmacy_location_user_human_friendly_id_idx`(`human_friendly_id`),
   PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS `pharmacy_location_price` (
   `id` VARCHAR(36) NOT NULL,
@@ -89,7 +95,7 @@ CREATE TABLE IF NOT EXISTS `pharmacy_location_price` (
   INDEX `pharmacy_location_price_deleted_at_idx`(`deleted_at`),
   INDEX `pharmacy_location_price_human_friendly_id_idx`(`human_friendly_id`),
   PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS `pharmacy_stock_order` (
   `id` VARCHAR(36) NOT NULL,
@@ -125,7 +131,7 @@ CREATE TABLE IF NOT EXISTS `pharmacy_stock_order` (
   INDEX `pharmacy_stock_order_deleted_at_idx`(`deleted_at`),
   INDEX `pharmacy_stock_order_human_friendly_id_idx`(`human_friendly_id`),
   PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS `pharmacy_stock_order_item` (
   `id` VARCHAR(36) NOT NULL,
@@ -152,7 +158,58 @@ CREATE TABLE IF NOT EXISTS `pharmacy_stock_order_item` (
   INDEX `pharmacy_stock_order_item_deleted_at_idx`(`deleted_at`),
   INDEX `pharmacy_stock_order_item_human_friendly_id_idx`(`human_friendly_id`),
   PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci ENGINE=InnoDB;
+
+-- -------------------------------------------- convert leftovers to InnoDB
+
+-- CREATE TABLE IF NOT EXISTS is a no-op when a previous failed run already
+-- created the table as MyISAM. Foreign keys cannot land until the engine is
+-- InnoDB, so convert anything that is not.
+
+SET @engine := (
+  SELECT ENGINE FROM information_schema.TABLES
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pharmacy_location' LIMIT 1
+);
+SET @sql := IF(@engine IS NOT NULL AND @engine <> 'InnoDB',
+  'ALTER TABLE `pharmacy_location` ENGINE=InnoDB',
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @engine := (
+  SELECT ENGINE FROM information_schema.TABLES
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pharmacy_location_user' LIMIT 1
+);
+SET @sql := IF(@engine IS NOT NULL AND @engine <> 'InnoDB',
+  'ALTER TABLE `pharmacy_location_user` ENGINE=InnoDB',
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @engine := (
+  SELECT ENGINE FROM information_schema.TABLES
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pharmacy_location_price' LIMIT 1
+);
+SET @sql := IF(@engine IS NOT NULL AND @engine <> 'InnoDB',
+  'ALTER TABLE `pharmacy_location_price` ENGINE=InnoDB',
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @engine := (
+  SELECT ENGINE FROM information_schema.TABLES
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pharmacy_stock_order' LIMIT 1
+);
+SET @sql := IF(@engine IS NOT NULL AND @engine <> 'InnoDB',
+  'ALTER TABLE `pharmacy_stock_order` ENGINE=InnoDB',
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @engine := (
+  SELECT ENGINE FROM information_schema.TABLES
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pharmacy_stock_order_item' LIMIT 1
+);
+SET @sql := IF(@engine IS NOT NULL AND @engine <> 'InnoDB',
+  'ALTER TABLE `pharmacy_stock_order_item` ENGINE=InnoDB',
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- ------------------------------------------------- location columns on stock
 

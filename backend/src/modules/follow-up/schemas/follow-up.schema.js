@@ -69,6 +69,8 @@ const listFollowUpsQuerySchema = listQuerySchema.extend({
   status: z.enum(FOLLOW_UP_STATUS_VALUES).optional(),
   scheduled_before: isoDateSchema.optional(),
   scheduled_after: isoDateSchema.optional(),
+  tenant_id: uuidOrFriendlyIdentifierSchema.optional(),
+  facility_id: uuidOrFriendlyIdentifierSchema.optional(),
 });
 
 module.exports = {

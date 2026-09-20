@@ -41,6 +41,53 @@ const FOLLOW_UP_PATIENT_INCLUDE = Object.freeze({
   },
 });
 
+const emptyFollowUpList = (page, limit) => ({
+  followUps: [],
+  pagination: {
+    page,
+    limit,
+    total: 0,
+    totalPages: 0,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  },
+});
+
+const resolveTenantFacilityScope = async (filters = {}) => {
+  const isElevated = filters.is_elevated === true;
+  const tenantId = await resolveIdentifierForFilter({
+    value: filters.tenant_id,
+    model: "tenant",
+  });
+  const facilityId = await resolveIdentifierForFilter({
+    value: filters.facility_id,
+    model: "facility",
+    where: tenantId ? { tenant_id: tenantId } : {},
+  });
+  return {
+    isElevated,
+    tenantId: tenantId || null,
+    facilityId: facilityId || null,
+  };
+};
+
+const encounterScopeWhere = ({ tenantId, facilityId }) => ({
+  deleted_at: null,
+  ...(tenantId ? { tenant_id: tenantId } : {}),
+  ...(facilityId ? { facility_id: facilityId } : {}),
+});
+
+const applyEncounterScope = (whereClause, scope) => {
+  if (!scope.tenantId && !scope.facilityId) return whereClause;
+  return {
+    ...whereClause,
+    encounter: {
+      ...(whereClause.encounter || {}),
+      ...encounterScopeWhere(scope),
+    },
+  };
+};
+
 const normalizeText = (value) => {
   if (value == null) return null;
   const text = String(value).trim();
@@ -295,26 +342,22 @@ const listFollowUps = async (filters, page, limit, sortBy, order) => {
   try {
     const skip = (page - 1) * limit;
     const orderBy = sortBy ? { [sortBy]: order } : { scheduled_at: "asc" };
-    const whereClause = {};
+    const scope = await resolveTenantFacilityScope(filters);
+    // Follow-ups have no tenant_id of their own — they hang off encounter.
+    // Unscoped reads return every tenant's patients, including demo data.
+    if (!scope.isElevated && !scope.tenantId) {
+      return emptyFollowUpList(page, limit);
+    }
+    let whereClause = {};
 
     if (filters.encounter_id) {
       const encounterId = await resolveIdentifierForFilter({
         value: filters.encounter_id,
         model: "encounter",
-        where: { deleted_at: null },
+        where: encounterScopeWhere(scope),
       });
       if (encounterId === null) {
-        return {
-          followUps: [],
-          pagination: {
-            page,
-            limit,
-            total: 0,
-            totalPages: 0,
-            hasNextPage: false,
-            hasPreviousPage: false,
-          },
-        };
+        return emptyFollowUpList(page, limit);
       }
       if (encounterId !== undefined) {
         whereClause.encounter_id = encounterId;
@@ -336,6 +379,8 @@ const listFollowUps = async (filters, page, limit, sortBy, order) => {
       if (filters.scheduled_after)
         whereClause.scheduled_at.gte = new Date(filters.scheduled_after);
     }
+
+    whereClause = applyEncounterScope(whereClause, scope);
 
     const [followUps, total] = await Promise.all([
       followUpRepository.findMany(
@@ -379,19 +424,35 @@ const resolveFollowUpId = async (value) => {
   return resolved;
 };
 
+const followUpScopeWhere = (scope) => {
+  if (!scope.tenantId && !scope.facilityId) return {};
+  return { encounter: encounterScopeWhere(scope) };
+};
+
+const loadFollowUpInScope = async (id, scope, include) => {
+  const followUpId = await resolveFollowUpId(id);
+  const followUp = await followUpRepository.findById(
+    followUpId,
+    include,
+    followUpScopeWhere(scope)
+  );
+  if (!followUp) {
+    throw new HttpError("errors.follow_up.not_found", 404);
+  }
+  return followUp;
+};
+
 /**
  * Get follow-up by ID
  */
-const getFollowUpById = async (id) => {
+const getFollowUpById = async (id, _userId, _ipAddress, scope = {}) => {
   try {
-    const followUpId = await resolveFollowUpId(id);
-    const followUp = await followUpRepository.findById(
-      followUpId,
+    const resolvedScope = await resolveTenantFacilityScope(scope);
+    const followUp = await loadFollowUpInScope(
+      id,
+      resolvedScope,
       FOLLOW_UP_PATIENT_INCLUDE
     );
-    if (!followUp) {
-      throw new HttpError("errors.follow_up.not_found", 404);
-    }
     return serializeFollowUp(followUp);
   } catch (error) {
     if (error instanceof HttpError) throw error;
@@ -404,7 +465,7 @@ const getFollowUpById = async (id) => {
 /**
  * Ensures a patient has at most one active SCHEDULED follow-up.
  */
-const assertNoScheduledFollowUpForPatient = async (patientId) => {
+const assertNoScheduledFollowUpForPatient = async (patientId, scope = {}) => {
   if (!patientId) {
     return;
   }
@@ -414,7 +475,7 @@ const assertNoScheduledFollowUpForPatient = async (patientId) => {
       status: "SCHEDULED",
       encounter: {
         patient_id: patientId,
-        deleted_at: null,
+        ...encounterScopeWhere(scope),
       },
     },
     select: { id: true },
@@ -427,24 +488,28 @@ const assertNoScheduledFollowUpForPatient = async (patientId) => {
 /**
  * Create follow-up
  */
-const createFollowUp = async (data, userId, ipAddress) => {
+const createFollowUp = async (data, userId, ipAddress, scope = {}) => {
   try {
+    const resolvedScope = await resolveTenantFacilityScope(scope);
     const encounterId = await resolveIdentifierForPayload({
       value: data.encounter_id,
       field: "encounter_id",
       model: "encounter",
-      where: { deleted_at: null },
+      where: encounterScopeWhere(resolvedScope),
     });
     const status = normalizeStatus(data.status, "SCHEDULED");
     const encounter = await prisma.encounter.findFirst({
-      where: { id: encounterId, deleted_at: null },
+      where: { id: encounterId, ...encounterScopeWhere(resolvedScope) },
       select: { id: true, patient_id: true },
     });
     if (!encounter) {
       throw new HttpError("errors.follow_up.encounter_not_found", 404);
     }
     if (status === "SCHEDULED") {
-      await assertNoScheduledFollowUpForPatient(encounter.patient_id);
+      await assertNoScheduledFollowUpForPatient(
+        encounter.patient_id,
+        resolvedScope
+      );
     }
 
     const payload = {
@@ -475,13 +540,10 @@ const createFollowUp = async (data, userId, ipAddress) => {
 /**
  * Update follow-up
  */
-const updateFollowUp = async (id, data, userId, ipAddress) => {
+const updateFollowUp = async (id, data, userId, ipAddress, scope = {}) => {
   try {
-    const followUpId = await resolveFollowUpId(id);
-    const before = await followUpRepository.findById(followUpId);
-    if (!before) {
-      throw new HttpError("errors.follow_up.not_found", 404);
-    }
+    const resolvedScope = await resolveTenantFacilityScope(scope);
+    const before = await loadFollowUpInScope(id, resolvedScope);
 
     const payload = { ...data };
     if (payload.status) {
@@ -492,7 +554,7 @@ const updateFollowUp = async (id, data, userId, ipAddress) => {
       payload.status = nextStatus;
     }
 
-    const followUp = await followUpRepository.update(followUpId, payload);
+    const followUp = await followUpRepository.update(before.id, payload);
 
     createAuditLog({
       user_id: userId,
@@ -515,21 +577,18 @@ const updateFollowUp = async (id, data, userId, ipAddress) => {
 /**
  * Delete follow-up (soft delete)
  */
-const deleteFollowUp = async (id, userId, ipAddress) => {
+const deleteFollowUp = async (id, userId, ipAddress, scope = {}) => {
   try {
-    const followUpId = await resolveFollowUpId(id);
-    const before = await followUpRepository.findById(followUpId);
-    if (!before) {
-      throw new HttpError("errors.follow_up.not_found", 404);
-    }
+    const resolvedScope = await resolveTenantFacilityScope(scope);
+    const before = await loadFollowUpInScope(id, resolvedScope);
 
-    await followUpRepository.softDelete(followUpId);
+    await followUpRepository.softDelete(before.id);
 
     createAuditLog({
       user_id: userId,
       action: "DELETE",
       entity: "follow_up",
-      entity_id: followUpId,
+      entity_id: before.id,
       diff: { before },
       ip_address: ipAddress,
     }).catch(() => {});
@@ -548,12 +607,10 @@ const transitionFollowUp = async (
   userId,
   ipAddress,
   action = "UPDATE",
+  scope = {},
 ) => {
-  const followUpId = await resolveFollowUpId(id);
-  const before = await followUpRepository.findById(followUpId);
-  if (!before) {
-    throw new HttpError("errors.follow_up.not_found", 404);
-  }
+  const resolvedScope = await resolveTenantFacilityScope(scope);
+  const before = await loadFollowUpInScope(id, resolvedScope);
 
   const normalizedTarget = normalizeStatus(targetStatus);
   if (before.status === normalizedTarget) {
@@ -570,7 +627,7 @@ const transitionFollowUp = async (
     updatePayload.completed_by_user_id = userId || null;
   }
 
-  const followUp = await followUpRepository.update(followUpId, updatePayload);
+  const followUp = await followUpRepository.update(before.id, updatePayload);
 
   createAuditLog({
     user_id: userId,
@@ -590,15 +647,27 @@ const transitionFollowUp = async (
   return followUp;
 };
 
-const completeFollowUp = async (id, data = {}, userId, ipAddress) =>
-  transitionFollowUp(id, "COMPLETED", data, userId, ipAddress, "COMPLETE");
+const completeFollowUp = async (id, data = {}, userId, ipAddress, scope = {}) =>
+  transitionFollowUp(id, "COMPLETED", data, userId, ipAddress, "COMPLETE", scope);
 
-const cancelFollowUp = async (id, data = {}, userId, ipAddress) =>
-  transitionFollowUp(id, "CANCELLED", data, userId, ipAddress, "CANCEL");
+const cancelFollowUp = async (id, data = {}, userId, ipAddress, scope = {}) =>
+  transitionFollowUp(id, "CANCELLED", data, userId, ipAddress, "CANCEL", scope);
 
-const getFollowUpReminderDueSummary = async () => {
+const getFollowUpReminderDueSummary = async (scope = {}) => {
   const now = new Date();
   const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const resolvedScope = await resolveTenantFacilityScope(scope);
+  if (!resolvedScope.isElevated && !resolvedScope.tenantId) {
+    return {
+      generated_at: now.toISOString(),
+      due_now: 0,
+      due_in_24h: 0,
+    };
+  }
+  const scopedEncounter =
+    resolvedScope.tenantId || resolvedScope.facilityId
+      ? { encounter: encounterScopeWhere(resolvedScope) }
+      : {};
 
   const [dueNowCount, dueIn24hCount] = await Promise.all([
     prisma.follow_up.count({
@@ -607,6 +676,7 @@ const getFollowUpReminderDueSummary = async () => {
         status: "SCHEDULED",
         scheduled_at: { lte: now },
         reminder_due_sent_at: null,
+        ...scopedEncounter,
       },
     }),
     prisma.follow_up.count({
@@ -615,6 +685,7 @@ const getFollowUpReminderDueSummary = async () => {
         status: "SCHEDULED",
         scheduled_at: { gt: now, lte: in24h },
         reminder_24h_sent_at: null,
+        ...scopedEncounter,
       },
     }),
   ]);

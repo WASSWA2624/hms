@@ -121,7 +121,7 @@ describe('Lab Follow-ups billing-sections scan', () => {
 
   it('Lab Follow-ups list read does not touch patient billing ledger', async () => {
     const result = await listFollowUps(
-      { status: 'SCHEDULED' },
+      { status: 'SCHEDULED', tenant_id: 'tenant-1' },
       1,
       20,
       'scheduled_at',
@@ -138,6 +138,10 @@ describe('Lab Follow-ups billing-sections scan', () => {
     expect(followUpRepository.findMany).toHaveBeenCalledWith(
       {
         status: 'SCHEDULED',
+        encounter: {
+          tenant_id: 'tenant-1',
+          deleted_at: null,
+        },
       },
       0,
       20,
@@ -150,7 +154,7 @@ describe('Lab Follow-ups billing-sections scan', () => {
   });
 
   it('Lab Follow-ups list GET is idempotent on replay (no double billing post)', async () => {
-    const filters = { status: 'SCHEDULED' };
+    const filters = { status: 'SCHEDULED', tenant_id: 'tenant-1' };
     const first = await listFollowUps(filters, 1, 20, 'scheduled_at', 'asc');
     const second = await listFollowUps(filters, 1, 20, 'scheduled_at', 'asc');
 
@@ -239,7 +243,7 @@ describe('Lab Follow-ups billing-sections scan', () => {
 
   it('unauthorized actor cannot settle via Lab Follow-ups handlers', async () => {
     await listFollowUps(
-      { status: 'SCHEDULED' },
+      { status: 'SCHEDULED', tenant_id: 'tenant-1' },
       1,
       20,
       'scheduled_at',

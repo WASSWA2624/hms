@@ -11,6 +11,48 @@ const followUpService = require('@services/follow-up/follow-up.service');
 const { asyncHandler } = require('@lib/async');
 const { sendSuccess, sendPaginated, sendNoContent } = require('@lib/response');
 const { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT } = require('@config/constants');
+const { ELEVATED_ROLES, normalizeRoleName } = require('@config/roles');
+
+const ELEVATED_ROLE_SET = new Set(ELEVATED_ROLES);
+
+const normalizeScopeValue = (value) => {
+  if (typeof value !== 'string') return '';
+  return value.trim();
+};
+
+const hasElevatedRole = (user = {}) => {
+  const roles = [
+    ...(Array.isArray(user.roles) ? user.roles : []),
+    user.role,
+  ]
+    .map((role) => normalizeRoleName(role) || String(role || '').trim().toUpperCase())
+    .filter(Boolean);
+
+  return roles.some((role) => ELEVATED_ROLE_SET.has(role));
+};
+
+const buildFollowUpScope = (req = {}) => {
+  const queryTenantId = normalizeScopeValue(req.query?.tenant_id);
+  const queryFacilityId = normalizeScopeValue(req.query?.facility_id);
+  const bodyTenantId = normalizeScopeValue(req.body?.tenant_id);
+  const bodyFacilityId = normalizeScopeValue(req.body?.facility_id);
+  const userTenantId = normalizeScopeValue(req.user?.tenant_id);
+  const userFacilityId = normalizeScopeValue(req.user?.facility_id);
+  const isElevated = hasElevatedRole(req.user);
+
+  const tenantId = isElevated
+    ? (bodyTenantId || queryTenantId)
+    : (userTenantId || bodyTenantId || queryTenantId);
+  const facilityId = isElevated
+    ? (bodyFacilityId || queryFacilityId)
+    : (userFacilityId || bodyFacilityId || queryFacilityId);
+
+  return {
+    ...(tenantId ? { tenant_id: tenantId } : {}),
+    ...(facilityId ? { facility_id: facilityId } : {}),
+    is_elevated: isElevated,
+  };
+};
 
 /**
  * List follow-ups with pagination
@@ -38,6 +80,7 @@ const listFollowUps = asyncHandler(async (req, res) => {
     status,
     scheduled_before,
     scheduled_after,
+    ...buildFollowUpScope(req),
   };
 
   const userId = req.user?.id;
@@ -68,7 +111,12 @@ const getFollowUpById = asyncHandler(async (req, res) => {
   const userId = req.user?.id;
   const ipAddress = req.ip;
 
-  const followUp = await followUpService.getFollowUpById(id, userId, ipAddress);
+  const followUp = await followUpService.getFollowUpById(
+    id,
+    userId,
+    ipAddress,
+    buildFollowUpScope(req)
+  );
 
   sendSuccess(res, 200, 'messages.follow_up.get.success', followUp);
 });
@@ -84,7 +132,12 @@ const createFollowUp = asyncHandler(async (req, res) => {
   const userId = req.user?.id;
   const ipAddress = req.ip;
 
-  const followUp = await followUpService.createFollowUp(req.body, userId, ipAddress);
+  const followUp = await followUpService.createFollowUp(
+    req.body,
+    userId,
+    ipAddress,
+    buildFollowUpScope(req)
+  );
 
   sendSuccess(res, 201, 'messages.follow_up.create.success', followUp);
 });
@@ -101,7 +154,13 @@ const updateFollowUp = asyncHandler(async (req, res) => {
   const userId = req.user?.id;
   const ipAddress = req.ip;
 
-  const followUp = await followUpService.updateFollowUp(id, req.body, userId, ipAddress);
+  const followUp = await followUpService.updateFollowUp(
+    id,
+    req.body,
+    userId,
+    ipAddress,
+    buildFollowUpScope(req)
+  );
 
   sendSuccess(res, 200, 'messages.follow_up.update.success', followUp);
 });
@@ -118,7 +177,7 @@ const deleteFollowUp = asyncHandler(async (req, res) => {
   const userId = req.user?.id;
   const ipAddress = req.ip;
 
-  await followUpService.deleteFollowUp(id, userId, ipAddress);
+  await followUpService.deleteFollowUp(id, userId, ipAddress, buildFollowUpScope(req));
 
   sendNoContent(res);
 });
@@ -128,7 +187,13 @@ const completeFollowUp = asyncHandler(async (req, res) => {
   const userId = req.user?.id;
   const ipAddress = req.ip;
 
-  const followUp = await followUpService.completeFollowUp(id, req.body, userId, ipAddress);
+  const followUp = await followUpService.completeFollowUp(
+    id,
+    req.body,
+    userId,
+    ipAddress,
+    buildFollowUpScope(req)
+  );
   sendSuccess(res, 200, 'messages.follow_up.update.success', followUp);
 });
 
@@ -137,7 +202,13 @@ const cancelFollowUp = asyncHandler(async (req, res) => {
   const userId = req.user?.id;
   const ipAddress = req.ip;
 
-  const followUp = await followUpService.cancelFollowUp(id, req.body, userId, ipAddress);
+  const followUp = await followUpService.cancelFollowUp(
+    id,
+    req.body,
+    userId,
+    ipAddress,
+    buildFollowUpScope(req)
+  );
   sendSuccess(res, 200, 'messages.follow_up.update.success', followUp);
 });
 
@@ -150,8 +221,10 @@ const dispatchFollowUpReminders = asyncHandler(async (req, res) => {
   sendSuccess(res, 200, 'messages.follow_up.reminders.dispatch.success', result);
 });
 
-const getFollowUpReminderDueSummary = asyncHandler(async (_req, res) => {
-  const result = await followUpService.getFollowUpReminderDueSummary();
+const getFollowUpReminderDueSummary = asyncHandler(async (req, res) => {
+  const result = await followUpService.getFollowUpReminderDueSummary(
+    buildFollowUpScope(req)
+  );
   sendSuccess(res, 200, 'messages.follow_up.reminders.summary.success', result);
 });
 

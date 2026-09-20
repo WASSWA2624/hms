@@ -158,6 +158,18 @@ describe('Follow-up Schemas', () => {
       expect(result.success).toBe(true);
     });
 
+    it('should accept tenant and facility scope identifiers', () => {
+      const result = listFollowUpsQuerySchema.safeParse({
+        tenant_id: 'TEN0000003',
+        facility_id: 'FAC0000001',
+        page: 1,
+        limit: 20
+      });
+      expect(result.success).toBe(true);
+      expect(result.data.tenant_id).toBe('TEN0000003');
+      expect(result.data.facility_id).toBe('FAC0000001');
+    });
+
     it('should reject invalid encounter_id', () => {
       const data = { encounter_id: 'not-a-uuid' };
       const result = listFollowUpsQuerySchema.safeParse(data);

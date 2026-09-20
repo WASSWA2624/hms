@@ -121,7 +121,7 @@ describe('ICU Follow-ups billing-sections scan', () => {
 
   it('ICU Follow-ups list read does not touch patient billing ledger', async () => {
     const result = await listFollowUps(
-      { status: 'SCHEDULED', encounter_type: 'ICU' },
+      { status: 'SCHEDULED', encounter_type: 'ICU', tenant_id: 'tenant-1' },
       1,
       20,
       'scheduled_at',
@@ -142,6 +142,7 @@ describe('ICU Follow-ups billing-sections scan', () => {
         encounter: {
           encounter_type: 'ICU',
           deleted_at: null,
+          tenant_id: 'tenant-1',
         },
       },
       0,
@@ -155,7 +156,7 @@ describe('ICU Follow-ups billing-sections scan', () => {
   });
 
   it('ICU Follow-ups list GET is idempotent on replay (no double billing post)', async () => {
-    const filters = { status: 'SCHEDULED', encounter_type: 'ICU' };
+    const filters = { status: 'SCHEDULED', encounter_type: 'ICU', tenant_id: 'tenant-1' };
     const first = await listFollowUps(filters, 1, 20, 'scheduled_at', 'asc');
     const second = await listFollowUps(filters, 1, 20, 'scheduled_at', 'asc');
 
@@ -244,7 +245,7 @@ describe('ICU Follow-ups billing-sections scan', () => {
 
   it('unauthorized actor cannot settle via ICU Follow-ups handlers', async () => {
     await listFollowUps(
-      { status: 'SCHEDULED', encounter_type: 'ICU' },
+      { status: 'SCHEDULED', encounter_type: 'ICU', tenant_id: 'tenant-1' },
       1,
       20,
       'scheduled_at',

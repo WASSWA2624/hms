@@ -120,7 +120,7 @@ describe('discharge Follow-ups billing-sections scan (IPD)', () => {
 
   it('IPD Follow-ups list read does not touch patient billing ledger', async () => {
     const result = await listFollowUps(
-      { status: 'SCHEDULED', encounter_type: 'IPD' },
+      { status: 'SCHEDULED', encounter_type: 'IPD', tenant_id: 'tenant-1' },
       1,
       20,
       'scheduled_at',
@@ -141,6 +141,7 @@ describe('discharge Follow-ups billing-sections scan (IPD)', () => {
         encounter: {
           encounter_type: 'IPD',
           deleted_at: null,
+          tenant_id: 'tenant-1',
         },
       },
       0,
@@ -154,7 +155,7 @@ describe('discharge Follow-ups billing-sections scan (IPD)', () => {
   });
 
   it('IPD Follow-ups list GET is idempotent on replay (no double billing post)', async () => {
-    const filters = { status: 'SCHEDULED', encounter_type: 'IPD' };
+    const filters = { status: 'SCHEDULED', encounter_type: 'IPD', tenant_id: 'tenant-1' };
     const first = await listFollowUps(filters, 1, 20, 'scheduled_at', 'asc');
     const second = await listFollowUps(filters, 1, 20, 'scheduled_at', 'asc');
 
@@ -243,7 +244,7 @@ describe('discharge Follow-ups billing-sections scan (IPD)', () => {
 
   it('unauthorized actor cannot settle via discharge Follow-ups handlers', async () => {
     await listFollowUps(
-      { status: 'SCHEDULED', encounter_type: 'IPD' },
+      { status: 'SCHEDULED', encounter_type: 'IPD', tenant_id: 'tenant-1' },
       1,
       20,
       'scheduled_at',

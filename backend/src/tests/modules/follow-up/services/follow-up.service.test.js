@@ -111,7 +111,7 @@ describe("Follow-up Service", () => {
       followUpRepository.count.mockResolvedValue(1);
 
       const result = await listFollowUps(
-        {},
+        { tenant_id: "tenant-1" },
         1,
         20,
         "created_at",
@@ -121,7 +121,12 @@ describe("Follow-up Service", () => {
       );
 
       expect(followUpRepository.findMany).toHaveBeenCalledWith(
-        {},
+        {
+          encounter: {
+            tenant_id: "tenant-1",
+            deleted_at: null,
+          },
+        },
         0,
         20,
         { created_at: "desc" },
@@ -147,7 +152,7 @@ describe("Follow-up Service", () => {
       followUpRepository.count.mockResolvedValue(0);
 
       await listFollowUps(
-        { encounter_type: "IPD", status: "SCHEDULED" },
+        { tenant_id: "tenant-1", encounter_type: "IPD", status: "SCHEDULED" },
         1,
         20,
         "scheduled_at",
@@ -161,12 +166,56 @@ describe("Follow-up Service", () => {
           status: "SCHEDULED",
           encounter: {
             encounter_type: "IPD",
-            deleted_at: null}},
+            deleted_at: null,
+            tenant_id: "tenant-1"}},
         0,
         20,
         { scheduled_at: "asc" },
         expect.objectContaining({
           encounter: expect.any(Object)})
+      );
+    });
+
+    it("returns no follow-ups when a tenant user has no tenant scope", async () => {
+      const result = await listFollowUps({}, 1, 20, "scheduled_at", "asc");
+
+      expect(followUpRepository.findMany).not.toHaveBeenCalled();
+      expect(result.followUps).toEqual([]);
+      expect(result.pagination.total).toBe(0);
+    });
+
+    it("does not list another tenant's follow-ups", async () => {
+      followUpRepository.findMany.mockResolvedValue([]);
+      followUpRepository.count.mockResolvedValue(0);
+
+      await listFollowUps(
+        { tenant_id: "fairbanks-tenant" },
+        1,
+        20,
+        "scheduled_at",
+        "asc",
+      );
+
+      expect(followUpRepository.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          encounter: expect.objectContaining({
+            tenant_id: "fairbanks-tenant",
+            deleted_at: null,
+          }),
+        }),
+        0,
+        20,
+        { scheduled_at: "asc" },
+        expect.objectContaining({
+          encounter: expect.any(Object),
+        }),
+      );
+      expect(followUpRepository.findMany.mock.calls[0][0]).not.toEqual(
+        expect.objectContaining({
+          encounter: expect.objectContaining({
+            tenant_id: "demo-tenant",
+          }),
+        }),
       );
     });
   });
@@ -206,6 +255,42 @@ describe("Follow-up Service", () => {
       await expect(
         getFollowUpById("fu-1", "user-1", "127.0.0.1"),
       ).rejects.toThrow(HttpError);
+    });
+
+    it("looks up the follow-up inside the actor tenant", async () => {
+      followUpRepository.findById.mockResolvedValue({
+        id: "fu-1",
+        human_friendly_id: "FU-1",
+        encounter_id: "enc-1",
+        status: "SCHEDULED",
+        encounter: {
+          id: "enc-1",
+          human_friendly_id: "ENC-1",
+          tenant_id: "tenant-1",
+          patient: {
+            id: "pat-1",
+            human_friendly_id: "PAT-1",
+            first_name: "Ada",
+            last_name: "Lovelace",
+            contacts: [],
+          },
+        },
+      });
+
+      await getFollowUpById("fu-1", "user-1", "127.0.0.1", {
+        tenant_id: "tenant-1",
+      });
+
+      expect(followUpRepository.findById).toHaveBeenCalledWith(
+        "fu-1",
+        expect.objectContaining({ encounter: expect.any(Object) }),
+        {
+          encounter: {
+            tenant_id: "tenant-1",
+            deleted_at: null,
+          },
+        },
+      );
     });
   });
 

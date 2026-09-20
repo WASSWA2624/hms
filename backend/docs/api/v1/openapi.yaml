@@ -21850,6 +21850,18 @@ paths:
         - $ref: '#/components/parameters/Order'
         - $ref: '#/components/parameters/Since'
         - $ref: '#/components/parameters/Search'
+        - name: tenant_id
+          in: query
+          required: false
+          description: Tenant public id. Tenant users are always scoped to their own tenant; platform operators may pass this to inspect one tenant.
+          schema:
+            type: string
+        - name: facility_id
+          in: query
+          required: false
+          description: Facility public id. Tenant users are scoped to their facility when one is assigned.
+          schema:
+            type: string
       responses:
         '200':
           description: Successful response envelope.

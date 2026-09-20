@@ -119,7 +119,7 @@ describe('clinical Follow-ups billing-sections scan', () => {
 
   it('Follow-ups list read does not touch patient billing ledger', async () => {
     const result = await listFollowUps(
-      { status: 'SCHEDULED' },
+      { status: 'SCHEDULED', tenant_id: 'tenant-1' },
       1,
       20,
       'scheduled_at',
@@ -137,7 +137,7 @@ describe('clinical Follow-ups billing-sections scan', () => {
   });
 
   it('Follow-ups list GET is idempotent on replay (no double billing post)', async () => {
-    const filters = { status: 'SCHEDULED' };
+    const filters = { status: 'SCHEDULED', tenant_id: 'tenant-1' };
     const first = await listFollowUps(filters, 1, 20, 'scheduled_at', 'asc');
     const second = await listFollowUps(filters, 1, 20, 'scheduled_at', 'asc');
 
@@ -272,7 +272,7 @@ describe('clinical Follow-ups billing-sections scan', () => {
   });
 
   it('unauthorized actor without write scopes still cannot settle via follow-up handlers', async () => {
-    await listFollowUps({ status: 'SCHEDULED' }, 1, 20, 'scheduled_at', 'asc');
+    await listFollowUps({ status: 'SCHEDULED', tenant_id: 'tenant-1' }, 1, 20, 'scheduled_at', 'asc');
 
     expect(clinicalRequestBilling.receiveClinicalRequestPayment).not.toHaveBeenCalled();
     expect(clinicalRequestBilling.adjustClinicalRequestBilling).not.toHaveBeenCalled();

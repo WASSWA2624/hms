@@ -17,12 +17,13 @@ const { HttpError } = require('@lib/errors');
  * @param {Object} include - Relations to include
  * @returns {Promise<Object|null>} Follow-up object or null
  */
-const findById = async (id, include) => {
+const findById = async (id, include, extraWhere = {}) => {
   try {
     return await prisma.follow_up.findFirst({
       where: {
         id,
-        deleted_at: null
+        deleted_at: null,
+        ...extraWhere
       },
       include
     });
