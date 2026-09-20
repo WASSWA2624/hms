@@ -2117,13 +2117,29 @@ const resolveOpdDisplayState = (encounter, flow = null) => {
   const closedOrDischarged = normalizeStatus(encounter?.status) === 'CLOSED' || currentFlow.stage === STAGES.DISCHARGED;
   const admissionConfirmed = hasConfirmedAdmission(encounter, currentFlow);
   const admissionPending = Boolean(currentFlow.admission_pending || (currentFlow.admission_id && !admissionConfirmed));
+  // Payment is a parallel fact about the visit, not a workflow position. It is
+  // reported as `payment_due` on every state so the UI can show the balance and
+  // a Pay action beside whatever clinical step is actually current, and it only
+  // becomes the headline status while nothing clinical has started yet.
+  const paymentDue = !hasCompletedConsultationPayment(currentFlow);
+  const vitalsRecorded = hasRecordedVitals(encounter);
+  const clinicalWorkStarted =
+    vitalsRecorded ||
+    providerAssigned ||
+    Boolean(currentFlow.review_completed) ||
+    labState.pending ||
+    labState.ready ||
+    radiologyState.pending ||
+    radiologyState.ready ||
+    pharmacyState.pending ||
+    pharmacyState.ready;
   let code = null;
 
   if (closedOrDischarged) code = 'DISCHARGED';
   else if (admissionConfirmed || currentFlow.stage === STAGES.ADMITTED) code = 'ADMITTED';
   else if (admissionPending) code = 'ADMISSION_PENDING';
-  else if (!hasCompletedConsultationPayment(currentFlow)) code = 'PAYMENT_DUE';
-  else if (!hasRecordedVitals(encounter)) code = 'VITALS_NEEDED';
+  else if (paymentDue && !clinicalWorkStarted) code = 'PAYMENT_DUE';
+  else if (!vitalsRecorded) code = 'VITALS_NEEDED';
   else if (!providerAssigned) code = 'DOCTOR_NEEDED';
   else if (labState.pending) code = labState.code;
   else if (radiologyState.pending) code = radiologyState.code;
@@ -2140,6 +2156,7 @@ const resolveOpdDisplayState = (encounter, flow = null) => {
   return {
     stage: resolvedStage,
     next_step: nextStep,
+    payment_due: paymentDue,
     display_code: code,
     display_status: displayLabelByCode(code, assignedStaff),
     display_next_step: nextStep,
@@ -2173,6 +2190,7 @@ const attachResolvedDisplayToFlow = (encounter, flow) => {
     ...flow,
     stage: resolved.stage || flow?.stage || null,
     next_step: resolved.next_step || flow?.next_step || null,
+    payment_due: resolved.payment_due,
     display_code: resolved.display_code,
     display_status: resolved.display_status,
     display_next_step: resolved.display_next_step,
@@ -2191,6 +2209,7 @@ const applyResolvedStageToFlow = (encounter, flow) => {
   const resolved = resolveOpdDisplayState(encounter, flow);
   flow.stage = resolved.stage || flow.stage;
   flow.next_step = resolved.next_step || getNextStep(flow.stage);
+  flow.payment_due = resolved.payment_due;
   flow.display_code = resolved.display_code;
   flow.display_status = resolved.display_status;
   flow.display_next_step = resolved.display_next_step;
@@ -4072,9 +4091,16 @@ const updateActiveEncounterContext = async (id, data, context = {}) => {
       const requestedStage = normalizeIdentifier(data.initial_stage).toUpperCase();
       if (requestedStage && WORKFLOW_STAGE_SET.has(requestedStage) && !TERMINAL_STAGES.has(requestedStage)) {
         setFlowStage(flow, requestedStage);
-      } else if (consultation.require_payment && !consultation.is_paid) {
+      } else if (
+        consultation.require_payment &&
+        !consultation.is_paid &&
+        // Never drag a visit backwards into payment-due once triage or the
+        // consultation has started. The outstanding balance stays on
+        // `flow.consultation` and surfaces as `payment_due` instead.
+        flow.stage === STAGES.WAITING_CONSULTATION_PAYMENT
+      ) {
         setFlowStage(flow, STAGES.WAITING_CONSULTATION_PAYMENT);
-      } else if (flow.stage === STAGES.WAITING_CONSULTATION_PAYMENT) {
+      } else if (flow.stage === STAGES.WAITING_CONSULTATION_PAYMENT && consultation.is_paid) {
         setFlowStage(flow, STAGES.WAITING_VITALS);
       }
       if (providerUserId && flow.stage === STAGES.WAITING_DOCTOR_ASSIGNMENT) {
@@ -6077,4 +6103,6 @@ module.exports = {
   getBillingDefaults,
   correctStage,
   syncDiagnosticsStage,
-  syncConsultationBillingFromInvoicePayment};
+  syncConsultationBillingFromInvoicePayment,
+  // Exported for tests: the status a surface shows for an encounter.
+  resolveOpdDisplayState};

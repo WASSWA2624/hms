@@ -16,6 +16,19 @@ const {
   reverseClinicalRequestBilling,
   extractStoredClinicalBilling,
   buildProcedureBillingFromRequest} = require('@lib/billing/clinical-request-billing');
+const { resolveModelIdByIdentifier } = require('@lib/identifiers/resolve-entity-id');
+
+/**
+ * Resolve an encounter UUID from either a UUID or a human-friendly id (ENC…).
+ *
+ * @param {string} identifier - Encounter UUID or human-friendly id
+ * @returns {Promise<string|null>} Encounter UUID, or null when unresolvable
+ */
+const resolveEncounterId = async (identifier) => {
+  const normalized = typeof identifier === 'string' ? identifier.trim() : '';
+  if (!normalized) return null;
+  return resolveModelIdByIdentifier({ model: 'encounter', identifier: normalized });
+};
 
 /**
  * List procedures with pagination and filtering
@@ -37,7 +50,12 @@ const listProcedures = async (filters, page, limit, sortBy, order, userId, ipAdd
     // Build filter object
     const whereClause = {};
     
-    if (filters.encounter_id) whereClause.encounter_id = filters.encounter_id;
+    if (filters.encounter_id) {
+      // Fall back to the raw value when it cannot be resolved: it simply matches
+      // no rows, rather than turning into an `IS NULL` filter.
+      whereClause.encounter_id =
+        (await resolveEncounterId(filters.encounter_id)) || filters.encounter_id;
+    }
     if (filters.code) whereClause.code = { contains: filters.code };
 
     const [procedures, total] = await Promise.all([
@@ -97,6 +115,10 @@ const getProcedureById = async (id, userId, ipAddress) => {
 const createProcedure = async (data, userId, ipAddress) => {
   try {
     const { billing: requestBilling, ...procedureData } = data;
+    procedureData.encounter_id = await resolveEncounterId(procedureData.encounter_id);
+    if (!procedureData.encounter_id) {
+      throw new HttpError('errors.encounter.not_found', 404, [{ field: 'encounter_id' }]);
+    }
     const procedure = await procedureRepository.create(procedureData);
 
     const encounter = await prisma.encounter.findFirst({

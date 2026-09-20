@@ -10,6 +10,7 @@
 const { z } = require('zod');
 const { 
   uuidSchema, 
+  uuidOrFriendlyIdentifierSchema,
   listQuerySchema,
   isoDateSchema
 } = require('@lib/validation/zod');
@@ -23,7 +24,10 @@ const {
  * Used for POST /procedures endpoint
  */
 const createProcedureSchema = z.object({
-  encounter_id: uuidSchema,
+  // Accepts a UUID or a human-friendly encounter id (ENC…), matching the lab
+  // and radiology request endpoints, so a procedure can be requested from any
+  // surface that holds either identifier.
+  encounter_id: uuidOrFriendlyIdentifierSchema,
   code: z.string().trim().max(80).optional().nullable(),
   description: z.string().trim().min(1).max(65535),
   performed_at: isoDateSchema.optional().nullable(),
@@ -59,7 +63,7 @@ const procedureIdParamsSchema = z.object({
  * Extends base listQuerySchema with procedure-specific filters
  */
 const listProceduresQuerySchema = listQuerySchema.extend({
-  encounter_id: uuidSchema.optional(),
+  encounter_id: uuidOrFriendlyIdentifierSchema.optional(),
   code: z.string().trim().optional()
 });
 
