@@ -319,6 +319,18 @@ const ICONS = {
       <circle cx="4.5" cy="18" r="1" />
     </>
   ),
+  find: (
+    <>
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="M15.5 15.5L21 21" />
+    </>
+  ),
+  close: (
+    <>
+      <path d="M6 6l12 12" />
+      <path d="M18 6L6 18" />
+    </>
+  ),
   info: (
     <>
       <circle cx="12" cy="12" r="9" />

@@ -6,14 +6,14 @@
  */
 
 import { StructuredData } from '@/components/common';
-import { ManualHero, ManualBody } from '@/components/manual';
+import { ManualView } from '@/components/manual';
 import { APP_NAME, APP_URL, APP_LOGIN_URL } from '@/lib/constants';
 import { HMS_NAME } from '@/lib/product';
 import { USER_MANUAL, USER_MANUAL_PDF_PATH, numberUserManual } from '@/lib/userManual';
 import figures from '@/lib/userManualFigures.json';
 import pdfInfo from '@/lib/userManualPdf.json';
 
-const PAGE_DESCRIPTION = `Step-by-step user manual for ${HMS_NAME}: registration, sign-in, setup, users and roles, the patient journey, billing, accounts and reports, with annotated screenshots.`;
+const PAGE_DESCRIPTION = `Step-by-step user manual for ${HMS_NAME}: search any task, then follow registration, sign-in, setup, users and roles, the patient journey, billing, accounts and reports, with annotated screenshots.`;
 
 export const metadata = {
   title: 'User manual',
@@ -23,6 +23,7 @@ export const metadata = {
     'HOSSPI HMS manual',
     'hospital management system user manual',
     'HMS user guide PDF',
+    'HOSSPI user guide search',
   ],
   alternates: {
     canonical: `${APP_URL}/user-manual`,
@@ -105,7 +106,9 @@ export default function UserManualPage() {
   return (
     <>
       <StructuredData data={manualSchema} />
-      <ManualHero
+      <ManualView
+        chapters={chapters}
+        figures={figures}
         eyebrow={HMS_NAME}
         title="User manual"
         intro={USER_MANUAL.intro}
@@ -114,7 +117,6 @@ export default function UserManualPage() {
         appHref={APP_LOGIN_URL}
         appLabel="Open the app"
       />
-      <ManualBody chapters={chapters} figures={figures} />
     </>
   );
 }

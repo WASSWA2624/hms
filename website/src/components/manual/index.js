@@ -6,4 +6,6 @@
 
 export { ManualHero } from './ManualHero';
 export { ManualBody } from './ManualBody';
+export { ManualView } from './ManualView';
+export { ManualSearch } from './ManualSearch';
 export { ManualDownloadButton } from './ManualDownloadButton';

@@ -23,16 +23,20 @@
  * @param {Object} props
  * @param {Array<Object>} props.chapters - Numbered chapters from numberUserManual()
  * @param {Object} props.figures - Screenshot data keyed by figure id
+ * @param {Array<Object>} [props.searchIndex] - Prebuilt search index; built here if omitted
+ * @param {React.Ref} [props.searchRef] - Ref forwarded to the contents search field
  * @returns {JSX.Element} Rendered manual body
  * @file src/components/manual/ManualBody.js
  */
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, useImperativeHandle } from 'react';
 import styled, { useTheme } from 'styled-components';
 import { Icon } from '@/components/ui';
 import { ManualBlocks } from './ManualBlocks';
+import { ManualSearch } from './ManualSearch';
 import { ManualToc } from './ManualToc';
+import { buildManualSearchIndex } from '@/lib/manualSearch';
 
 const CONTENTS_ID = 'manual-contents';
 const CONTENTS_STORAGE_KEY = 'hosspi-manual-contents';
@@ -435,7 +439,12 @@ StyledSection.displayName = 'StyledManualSection';
 StyledSectionTitle.displayName = 'StyledManualSectionTitle';
 StyledAudience.displayName = 'StyledManualAudience';
 
-export const ManualBody = React.memo(({ chapters, figures }) => {
+export const ManualBody = React.memo(React.forwardRef(({
+  chapters,
+  figures,
+  searchIndex: searchIndexProp,
+  searchRef,
+}, ref) => {
   const theme = useTheme();
   const panesQuery = panesMedia({ theme });
   const panes = useMediaQuery(panesQuery);
@@ -456,10 +465,15 @@ export const ManualBody = React.memo(({ chapters, figures }) => {
     ])),
     [chapters]
   );
+  const searchIndex = useMemo(
+    () => searchIndexProp || buildManualSearchIndex(chapters),
+    [chapters, searchIndexProp]
+  );
 
   const [activeId, setActiveId] = useState(ids[0]);
   const [flowContentsOpen, setFlowContentsOpen] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(null);
+  const [searching, setSearching] = useState(false);
 
   const shellRef = useRef(null);
   const barRef = useRef(null);
@@ -530,6 +544,23 @@ export const ManualBody = React.memo(({ chapters, figures }) => {
     return true;
   }, [inPanes]);
 
+  const selectSection = useCallback((id, options = {}) => {
+    if (!scrollToSection(id, options)) {
+      return false;
+    }
+    setFlowContentsOpen(false);
+    document.getElementById(`${id}-title`)?.focus({ preventScroll: true });
+    return true;
+  }, [scrollToSection]);
+
+  useImperativeHandle(ref, () => ({
+    revealSearch() {
+      writeContentsPreference('expanded');
+      setFlowContentsOpen(true);
+    },
+    selectSection,
+  }), [selectSection]);
+
   // Contents entries and cross references inside the chapters.
   const handleClick = useCallback((event) => {
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
@@ -564,12 +595,12 @@ export const ManualBody = React.memo(({ chapters, figures }) => {
     const handleHashChange = () => {
       const id = decodeURIComponent(window.location.hash.slice(1));
       if (id && document.getElementById(id)) {
-        scrollToSection(id, { updateHash: false });
+        selectSection(id, { updateHash: false });
       }
     };
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [scrollToSection]);
+  }, [selectSection]);
 
   // Keep the reader's place when the window switches between the two layouts.
   useEffect(() => {
@@ -796,7 +827,16 @@ export const ManualBody = React.memo(({ chapters, figures }) => {
           aria-label="User manual contents"
           data-manual-scroll
         >
-          <ManualToc chapters={chapters} activeId={activeId} />
+          <ManualSearch
+            ref={searchRef}
+            variant="sidebar"
+            index={searchIndex}
+            activeId={activeId}
+            shortcut={false}
+            onActiveChange={setSearching}
+            onSelect={selectSection}
+          />
+          {!searching && <ManualToc chapters={chapters} activeId={activeId} />}
         </StyledContentsNav>
       </StyledContentsPane>
 
@@ -835,6 +875,6 @@ export const ManualBody = React.memo(({ chapters, figures }) => {
       </StyledContentPane>
     </StyledShell>
   );
-});
+}));
 
 ManualBody.displayName = 'ManualBody';

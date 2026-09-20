@@ -95,12 +95,13 @@ export const USER_MANUAL = {
           blocks: [
             {
               type: 'p',
-              text: 'The chapters follow the order in which a facility starts using HOSSPI HMS: registration and sign-in first, then setup and staff accounts, then the patient journey, and finally billing, accounts and reporting. Read the chapters that match your work, or use the contents to go straight to a task.',
+              text: 'The chapters follow the order in which a facility starts using HOSSPI HMS: registration and sign-in first, then setup and staff accounts, then the patient journey, and finally billing, accounts and reporting. Read the chapters that match your work, search for a task, or use the contents to go straight to one.',
             },
             {
               type: 'list',
               items: [
                 '**Numbered markers** on a screenshot match the numbered steps beneath it: marker 1 shows where to carry out step 1, and so on.',
+                'On the website, type in the **search** box or press **Ctrl K** (⌘ K on a Mac) to jump to a task. You can use your own words rather than the heading, for example “take a payment”.',
                 'Words in **bold** are the exact labels you see on screen, such as buttons, menu items, tabs and field names.',
                 'Fields marked with an asterisk (*) must be completed before a form can be saved.',
               ],

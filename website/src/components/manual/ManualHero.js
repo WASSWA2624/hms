@@ -10,6 +10,7 @@
  * @param {string} props.downloadLabel - Download button text
  * @param {string} props.appHref - Application URL
  * @param {string} props.appLabel - Application link text
+ * @param {React.ReactNode} [props.search] - Search field rendered under the intro
  * @returns {JSX.Element} Rendered hero
  * @file src/components/manual/ManualHero.js
  */
@@ -40,6 +41,15 @@ const StyledInner = styled.div`
   @media (min-width: ${props => props.theme.breakpoints.md}) {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
+  }
+`;
+
+const StyledSearchSlot = styled.div`
+  min-width: 0;
+
+  @media (min-width: ${props => props.theme.breakpoints.md}) {
+    grid-column: 1 / -1;
+    max-width: 44rem;
   }
 `;
 
@@ -148,6 +158,7 @@ StyledActions.displayName = 'StyledManualHeroActions';
 StyledAppLink.displayName = 'StyledManualHeroAppLink';
 StyledMeta.displayName = 'StyledManualHeroMeta';
 StyledArt.displayName = 'StyledManualHeroArt';
+StyledSearchSlot.displayName = 'StyledManualHeroSearchSlot';
 
 export const ManualHero = React.memo(({
   eyebrow,
@@ -157,6 +168,7 @@ export const ManualHero = React.memo(({
   downloadLabel,
   appHref,
   appLabel,
+  search,
 }) => {
   return (
     <StyledHero aria-labelledby="user-manual-title">
@@ -186,6 +198,7 @@ export const ManualHero = React.memo(({
         <StyledArt aria-hidden="true">
           <Image src="/logos/icon-256.png" alt="" width={256} height={256} priority />
         </StyledArt>
+        {search && <StyledSearchSlot>{search}</StyledSearchSlot>}
       </StyledInner>
     </StyledHero>
   );
