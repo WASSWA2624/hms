@@ -46,8 +46,8 @@ export function userManualFileName(date = new Date()) {
 export const USER_MANUAL = {
   title: 'HOSSPI HMS User Manual',
   subtitle: 'Step-by-step guide for hospital staff and administrators',
-  version: '1.0',
-  updated: '2026-09-14',
+  version: '1.1',
+  updated: '2026-09-20',
   intro:
     'Everything you need to run your facility on HOSSPI HMS, in the order you will need it: registering and signing in, setting up your facility, giving staff their accounts, looking after patients from arrival to discharge, and billing, accounts and reporting. Every task is explained step by step, with numbered screenshots.',
   chapters: [
@@ -66,7 +66,7 @@ export const USER_MANUAL = {
             },
             {
               type: 'p',
-              text: 'You can use HOSSPI HMS in any modern web browser at **app.hosspi.com**, or in the HOSSPI apps for Android, iOS, Windows, macOS and Linux. Your account and your records are the same on every device, and so are the steps in this manual.',
+              text: 'You can use HOSSPI HMS in any modern web browser at **app.hosspi.com**, or in the HOSSPI apps for Android, iOS, Windows, macOS and Linux. On a phone or tablet the home-screen name is **HOSSPI**; once you open the app, the product name is **HOSSPI HMS**. Your account and your records are the same on every device, and so are the steps in this manual.',
             },
           ],
         },
@@ -362,6 +362,11 @@ export const USER_MANUAL = {
               title: 'Your dashboard matches your role',
               text: 'The layout is the same for everyone, but the cards, quick actions, alerts and charts change with your role. An administrator sees facilities, users and revenue, while a receptionist’s dashboard focuses on the front desk and a pharmacist’s on dispensing. Select an alert, such as **Facility Setup Pending**, to go straight to the records it refers to.',
             },
+            {
+              type: 'note',
+              tone: 'tip',
+              text: 'The **Feedback** button sits at the bottom right of every screen, including the sign-in page. Select it to [send feedback](#send-feedback). Drag it if it is in the way.',
+            },
           ],
         },
         {
@@ -408,6 +413,33 @@ export const USER_MANUAL = {
               tone: 'warning',
               title: 'Sign out of shared computers',
               text: 'Your session stays open until you sign out. Always select **Logout** before you leave a shared or public computer.',
+            },
+          ],
+        },
+        {
+          id: 'send-feedback',
+          title: 'Send feedback',
+          audience: 'Everyone',
+          blocks: [
+            {
+              type: 'p',
+              text: 'Use **Feedback** to tell HOSSPI about a problem, a complaint, a suggestion or an improvement. You can send it whether or not you are signed in. HOSSPI HMS records the screen you were on automatically, so you do not need to describe where you were.',
+            },
+            {
+              type: 'steps',
+              figure: 'feedback-submit',
+              caption: 'Give us feedback.',
+              items: [
+                'Select **Feedback** at the bottom right of the screen. If you only see the icon, rest the pointer on it to show the **Feedback** label. Drag the button if it covers something you need.',
+                'Choose the **Feedback type**: **General feedback**, **Problem**, **Complaint**, **Suggestion** or **Improvement**.',
+                'Enter the **Details**. Describe what you expected, what happened, and anything that would help HOSSPI staff reproduce it.',
+                'Select **Send feedback**. HOSSPI HMS shows a thank-you message with a reference you can quote later.',
+              ],
+            },
+            {
+              type: 'note',
+              tone: 'tip',
+              text: 'A microphone appears beside many text fields, including **Details**. Select **Dictate with microphone** to speak instead of typing. While it is listening, the tooltip reads **Listening — tap to stop**.',
             },
           ],
         },
@@ -526,11 +558,17 @@ export const USER_MANUAL = {
                 'Choose a **Default currency** if this facility prices services in a different currency from the tenant default.',
                 'Enter a **Default consultation fee** if this facility charges a different fee from the tenant default.',
                 'Select **Choose image** to add the facility’s logo: a JPG, PNG or WebP image of up to 5 MB. Crop it, then save.',
-                'Enter the facility’s **Phone** number.',
-                'Enter the facility’s **Email** address.',
+                'Enter the facility’s **Phone** number. Leave it empty to keep using the tenant phone; the field shows **Leave empty to keep using the tenant phone** with that number.',
+                'Enter the facility’s **Email** address. Leave it empty to keep using the tenant email.',
                 'Add the **Address line**, **City** and **Country** if you wish.',
                 'Select **Save facility**.',
               ],
+            },
+            {
+              type: 'note',
+              tone: 'info',
+              title: 'Contacts marked From tenant',
+              text: 'If a facility has no phone or email of its own, HOSSPI HMS uses the organisation’s. Those values appear as **Phone · From tenant** and **Email · From tenant** on the facility’s details, and as **(from tenant)** in lists, until the facility adds its own.',
             },
             {
               type: 'note',
