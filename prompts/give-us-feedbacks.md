@@ -34,7 +34,8 @@ Tapping *Give us feedback* captures the app frame **as it was when the control w
 ### 2. Capture more screens without losing the draft
 
 - Move the draft (category, message, scope, shots) out of `FeedbackSubmitDialog` into a host-owned, session-scoped controller (Riverpod, e.g. `feedbackDraftProvider`) so it survives the dialog closing, navigation and rotation. Clear it on submit, on explicit discard, and on sign-out.
-- A **"Capture another screen"** action puts the flow into capture mode: the dialog closes, the draft is kept, and the floating control becomes a capture control offering *Capture*, *Back to feedback* and *Cancel*. The user can navigate anywhere in the app and capture as many screens as the limit allows.
+- A **"Capture another screen"** action puts the flow into capture mode: the dialog closes, the draft is kept, and the floating control becomes a capture control offering *Capture*, *Back to feedback* and *Cancel*.
+- **Capture mode stays on until the reporter leaves it.** One tap of *Capture* takes one shot and returns to the app, still in capture mode, so the reporter can navigate and shoot repeatedly — several screens in a row, or several shots of the same screen (mid-scroll, a menu open, an error state). Each capture confirms itself briefly and shows a running count ("3 of 10"); the count is the only thing that ends the run, and it says so when the cap is reached.
 - Reopening the dialog (or *Back to feedback*) restores the message, the category, the scope and every shot exactly as they were.
 - While in capture mode, make the state obvious — the control is labelled, and a dismissible hint says the draft is being kept.
 
@@ -54,11 +55,11 @@ Capturing a screen in capture mode adds that screen to the selection and switche
 
 ### 5. Managing the shots
 
-In the dialog: a thumbnail strip with each shot's screen name, ordered by capture time. Per shot — preview full size, optional crop (reuse `AppImageCropDialog`, the reporter's way of cropping out anything they don't want to send), optional short caption, remove. Each shot stores its own capture context (route path, route name, screen title, viewport, orientation, theme, captured-at), not the dialog's.
+In the dialog: a horizontally scrollable thumbnail strip holding every shot, ordered by capture time and numbered, each labelled with its screen name. Several shots of the same screen are normal — do not deduplicate them, and keep them distinguishable by number and capture time. Per shot — preview full size, optional crop (reuse `AppImageCropDialog`, the reporter's way of cropping out anything they don't want to send), optional short caption, remove. Each shot stores its own capture context (route path, route name, screen title, viewport, orientation, theme, captured-at), not the dialog's. The strip must stay usable at `xs` width with the cap reached.
 
 ### 6. Limits and failure handling
 
-- At most **5** shots per submission; longest edge downscaled to **1600 px**; encoded as JPEG (quality ~80) with the `image` package; hard caps of **2 MB** per file and **8 MB** per request, enforced on the client *and* the server.
+- Up to **10** shots per submission (**3** when signed out), from any mix of screens; longest edge downscaled to **1600 px**; encoded as JPEG (quality ~80) with the `image` package; hard caps of **2 MB** per file and **12 MB** per request, enforced on the client *and* the server. Put the cap in one named constant per side (`feedbackMaxScreenshots` / `FEEDBACK_MAX_SCREENSHOTS`) so it is one edit to change, and drive the UI's counter and disabled state from it rather than repeating the number.
 - Capture is best-effort: if `RenderRepaintBoundary.toImage` fails (notably on web renderers where it can throw), show a plain message, drop that shot, and let the feedback be submitted without it. **Never block submitting feedback because a screenshot failed.**
 - Submitting with no shots stays valid and must not get slower.
 
@@ -108,14 +109,14 @@ Deleting feedback — a single record, a selection, or "all matching" through *C
 ## Verification
 
 - **Backend** (`backend/src/tests/modules/feedback/`, `backend/src/tests/lib/feedback/`): multipart submit stores rows, scope screens and blobs; JSON submit still works; oversized, too many, and non-image uploads are rejected; anonymous caps enforced; screenshot fetch is 403 for non-admins; `applies_to` and `applies_to_route` filters narrow list, summary, export and delete identically; deleting feedback (by id and all-matching) removes every blob and child row; the archive contains the workbook, the images named as specified, and the generator file byte-for-byte.
-- **Frontend** (`frontend/test/features/feedback/`): the first shot is attached automatically and excludes the launcher; entering capture mode, navigating, capturing and reopening preserves message, category, scope and shots; the include-dialog toggle changes what is captured; the screen picker lists only reachable screens and capturing a screen adds it to the selection; remove and crop update the draft; a failed capture surfaces a message and still allows submit; the repository sends multipart with per-shot context and the scope payload; the download saves a `.zip`.
+- **Frontend** (`frontend/test/features/feedback/`): the first shot is attached automatically and excludes the launcher; capture mode survives repeated captures — several screens in a row plus two shots of the same screen all land in the strip, in order, with the counter tracking them and the cap disabling further capture; entering capture mode, navigating, capturing and reopening preserves message, category, scope and shots; the include-dialog toggle changes what is captured; the screen picker lists only reachable screens and capturing a screen adds it to the selection; remove and crop update the draft; a failed capture surfaces a message and still allows submit; the repository sends multipart with per-shot context and the scope payload; the download saves a `.zip`.
 - **Run:** `cd backend && npm run prisma:migrate && npm run lint && node scripts/run-jest.js src/tests/modules/feedback src/tests/lib/feedback && npm run openapi:validate`; `cd frontend && flutter gen-l10n && flutter analyze && flutter test test/features/feedback/`.
 - **Manual:** on web and Android — raise feedback from an OPD encounter, confirm the automatic shot; set the scope to two picked screens; capture two more screens, one with the dialog included; submit; download and confirm the archive holds the workbook with `Applies To` and `Screens` filled in, exactly those images, and the generator; clear that record and confirm the images are gone from storage.
 
 ## Decisions to confirm before building
 
 1. **Retention.** Screenshots live and die with the feedback row; no separate retention window is assumed.
-2. **Anonymous cap.** A lower cap (2 shots) for signed-out reporters is assumed.
+2. **Caps.** 10 shots signed in, 3 signed out, 2 MB each, 12 MB per submission. Raise them if 10 proves tight in use — it is one constant per side.
 3. **ZIP library.** `archiver` is assumed for streaming; `jszip` is the buffered alternative.
 
 ## Source (verbatim request)
@@ -125,3 +126,5 @@ Deleting feedback — a single record, a selection, or "all matching" through *C
 > In addition, there should be a way to select the context to which the feedback applies. For example, entire app, or selected screens (allow to select one or more). The download should be an archive which contains the excel, the screenshots and a markdown prompt generator similar to the one shown [in the Tapture generator] but tailored to the HOSSPI HMS.
 
 > Deleting the feedbacks also deletes the associated screenshots.
+
+> One should be able to capture multiple screenshots.
