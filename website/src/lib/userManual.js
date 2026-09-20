@@ -1146,7 +1146,7 @@ export const USER_MANUAL = {
             {
               type: 'note',
               tone: 'tip',
-              text: 'Fields marked with a red asterisk (*) must be completed. To speak instead of typing, select the microphone in a field and dictate its value.',
+              text: 'Fields marked with a red asterisk (*) must be completed. To speak instead of typing, select the microphone beside a field. Its tooltip is **Dictate with microphone**. While HOSSPI HMS is listening, the tooltip reads **Listening — tap to stop**.',
             },
           ],
         },
@@ -1169,6 +1169,7 @@ export const USER_MANUAL = {
                 'Select **Add** in a section, such as **Allergies**, to record something new.',
                 'Select **Edit** beside an entry to correct it.',
                 'Select **Edit** at the bottom of the window to change the patient’s registration details.',
+                'Select **Delete** to hide the patient from active records. See [Delete a patient](#delete-a-patient).',
               ],
             },
             {
@@ -1180,6 +1181,38 @@ export const USER_MANUAL = {
               tone: 'warning',
               title: 'Keep allergies up to date',
               text: 'Allergy alerts appear wherever staff work with the patient, including when medicines are prescribed and dispensed. Record a new allergy as soon as you learn of it.',
+            },
+          ],
+        },
+        {
+          id: 'delete-a-patient',
+          title: 'Delete a patient',
+          audience: 'Administrators and authorised staff',
+          blocks: [
+            {
+              type: 'p',
+              text: 'Deleting a patient hides their record from everyday lists. Linked details such as allergies, contacts and medical history are hidden with them. You can restore the record later. Only some roles see **Delete**; if it is missing, ask your administrator.',
+            },
+            {
+              type: 'steps',
+              figure: 'patients-delete',
+              caption: 'Confirming a patient deletion.',
+              items: [
+                'Open the patient’s record, or find them on the **Patient registry** and use **Delete** in the **Actions** column.',
+                'HOSSPI HMS checks for live work that still belongs to the patient, such as an open visit. If anything is in the way, **Cannot delete patient** lists what to clear first.',
+                'If deletion is allowed, **Delete patient** tells you which linked records will be hidden with the patient. Select **Delete**.',
+                'The list then shows **Patient registry record deleted.**',
+              ],
+            },
+            {
+              type: 'p',
+              text: 'To bring a patient back, open their record (or their row) and select **Restore**. Confirm **Restore patient** to restore the patient and the linked records from the latest deletion.',
+            },
+            {
+              type: 'note',
+              tone: 'warning',
+              title: 'Permanent delete',
+              text: 'Facility, tenant and platform administrators can select **Permanent delete** on a patient who is already deleted. HOSSPI HMS asks you to type the patient’s name, then to confirm again. Personal and clinical data are purged; invoices, payments, claims and the audit trail stay in anonymised form. This cannot be undone.',
             },
           ],
         },
