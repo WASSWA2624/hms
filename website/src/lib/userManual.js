@@ -426,20 +426,21 @@ export const USER_MANUAL = {
               text: 'Use **Feedback** to tell HOSSPI about a problem, a complaint, a suggestion or an improvement. You can send it whether or not you are signed in. HOSSPI HMS records the screen you were on automatically, so you do not need to describe where you were.',
             },
             {
+              type: 'p',
+              text: 'Select **Feedback** at the bottom right of the screen. If you only see the icon, rest the pointer on it to show the **Feedback** label. Drag the button if it is in the way.',
+            },
+            {
               type: 'steps',
               figure: 'feedback-submit',
               caption: 'Give us feedback.',
               items: [
-                'Select **Feedback** at the bottom right of the screen. If you only see the icon, rest the pointer on it to show the **Feedback** label. Drag the button if it covers something you need.',
                 'Choose the **Feedback type**: **General feedback**, **Problem**, **Complaint**, **Suggestion** or **Improvement**.',
-                'Enter the **Details**. Describe what you expected, what happened, and anything that would help HOSSPI staff reproduce it.',
-                'Select **Send feedback**. HOSSPI HMS shows a thank-you message with a reference you can quote later.',
+                'Enter the **Details**. Describe what you expected, what happened, and anything that would help HOSSPI staff reproduce it. The microphone beside the field is **Dictate with microphone**; while it is listening, **Listening — tap to stop**.',
               ],
             },
             {
-              type: 'note',
-              tone: 'tip',
-              text: 'A microphone appears beside many text fields, including **Details**. Select **Dictate with microphone** to speak instead of typing. While it is listening, the tooltip reads **Listening — tap to stop**.',
+              type: 'p',
+              text: 'Select **Send feedback**. HOSSPI HMS shows a thank-you message with a reference you can quote later.',
             },
           ],
         },
@@ -1169,8 +1170,11 @@ export const USER_MANUAL = {
                 'Select **Add** in a section, such as **Allergies**, to record something new.',
                 'Select **Edit** beside an entry to correct it.',
                 'Select **Edit** at the bottom of the window to change the patient’s registration details.',
-                'Select **Delete** to hide the patient from active records. See [Delete a patient](#delete-a-patient).',
               ],
+            },
+            {
+              type: 'p',
+              text: 'Select **Delete** at the bottom of the window, or in the **Actions** column of the registry, to hide the patient from active records. See [Delete a patient](#delete-a-patient).',
             },
             {
               type: 'p',
@@ -1195,8 +1199,6 @@ export const USER_MANUAL = {
             },
             {
               type: 'steps',
-              figure: 'patients-delete',
-              caption: 'Confirming a patient deletion.',
               items: [
                 'Open the patient’s record, or find them on the **Patient registry** and use **Delete** in the **Actions** column.',
                 'HOSSPI HMS checks for live work that still belongs to the patient, such as an open visit. If anything is in the way, **Cannot delete patient** lists what to clear first.',
@@ -1363,9 +1365,13 @@ export const USER_MANUAL = {
                 'The tabs follow patients through the department, as described in the table below.',
                 'Search by patient, identifier or assigned staff.',
                 '**Start OPD encounter** begins a visit. See [Start an OPD encounter](#start-an-opd-encounter).',
-                'For a patient who is **Waiting Vitals**, select **Record vitals**. See [Record triage and vital signs](#record-triage-and-vital-signs).',
+                'For a patient who is **Vitals needed**, select **Record vitals**. See [Record triage and vital signs](#record-triage-and-vital-signs).',
                 'For a patient who is **Confirmed — waiting**, select **Start encounter** when the doctor is ready to see them.',
               ],
+            },
+            {
+              type: 'p',
+              text: 'On the **Triage** tab, **Discharge planning** closes a visit that will not continue, for example if the patient left before they were seen.',
             },
             {
               type: 'table',
@@ -1400,7 +1406,7 @@ export const USER_MANUAL = {
                 'Choose the **Arrival mode**: **Walk-in**, **Appointment**, **Emergency** or **Follow-up**.',
                 'Choose the doctor who will see the patient, if you know who it is.',
                 'Enter a **Consultation fee** only if this visit is charged differently; otherwise the usual fee applies. Check the currency beside it.',
-                'Keep **Payment required** ticked if the patient must pay before they are seen. Until they pay, they appear under **Payment gate** at reception.',
+                'Keep **Payment required** ticked if the patient must pay the consultation fee. Until they pay, they appear under **Payment gate** at reception with the status **Payment due**. Nurses can still record vital signs and assign a doctor while payment is outstanding.',
                 'Select **Start encounter**.',
               ],
             },
@@ -1433,7 +1439,7 @@ export const USER_MANUAL = {
             },
             {
               type: 'p',
-              text: 'The patient then waits for their doctor. To give the patient to a different doctor, select their row on the worklist, then **Change doctor** under **Quick actions**.',
+              text: 'The patient then waits for their doctor. To give the patient to a different doctor, select their row on the worklist, then **Change doctor** under **Quick actions**. You can record vital signs even when the visit still shows **Payment due**.',
             },
           ],
         },
@@ -1463,6 +1469,7 @@ export const USER_MANUAL = {
                 'Search by patient, encounter, queue, provider or location.',
                 'If a patient still needs vital signs, **Record vitals** opens the same form that nurses use.',
                 'Select **Review encounter** to open the patient’s encounter.',
+                '**Disposition** records what happens next, on any open visit. See [Procedures, referrals, follow-ups and admission](#other-clinical-actions).',
               ],
             },
           ],
@@ -1482,6 +1489,7 @@ export const USER_MANUAL = {
                 'Select **Edit** beside **Clinical Notes** to write or update your notes for the visit.',
                 'Every order appears in its own section, such as **Pharmacy orders**, **Lab orders** and **Radiology orders**, together with its status.',
                 'Select **Add** beside **Patient diagnoses** to record a diagnosis.',
+                '**Disposition** records the outcome of the visit, such as sending the patient home, admitting them or referring them, including on visits that have not yet reached a full doctor review.',
               ],
             },
             {
@@ -1506,7 +1514,7 @@ export const USER_MANUAL = {
               items: [
                 'Format the note with the toolbar: bold, italic, underline, and bulleted or numbered lists.',
                 '**Format note with AI** rewrites your note in clear, professional medical language. It does not add facts, but always read the result before you save it. It needs an internet connection.',
-                'Select the microphone to dictate the note instead of typing it.',
+                'Select the microphone to dictate the note instead of typing it. The tooltip is **Dictate with microphone**; while it is listening, **Listening — tap to stop**.',
                 'Write the note, for example the history, examination findings and your plan.',
                 'Select **Save changes**.',
               ],
@@ -1600,7 +1608,7 @@ export const USER_MANUAL = {
           blocks: [
             {
               type: 'p',
-              text: 'Select **Prescribe**, then **Add medicine**.',
+              text: 'Select **Prescribe**, then **Add medicine**. On a narrow screen, once medicines are already on the list the button reads **Add more medicines**.',
             },
             {
               type: 'steps',
@@ -1618,12 +1626,12 @@ export const USER_MANUAL = {
               figure: 'clinical-prescribe',
               caption: 'Completing the prescription.',
               items: [
-                'Select **Add medicine** again to add more medicines.',
-                'Enter the **Quantity** to supply.',
+                'Select **Add medicine** again to add more medicines, or tick lines and select **Remove selected** to take them off.',
+                'Enter the **Qty** to supply. The unit is taken from the medicine.',
                 'Enter the **Dose amount** and choose the **Dose unit**.',
                 'Enter the **Duration** and choose the **Duration unit**.',
-                'Select **Edit** to set the **Medication route**, **Frequency** and **Instructions**, then **Done**. Select **Delete** to remove a medicine. HOSSPI HMS warns you when the quantity does not match the dose, frequency and duration.',
-                'Select **Review billing** to check the charges.',
+                'Select **Settings** and **Prescription columns** if you want **Medication route**, **Frequency** and **Instructions** on the list. Otherwise select **Edit** on the line to set them, then **Done**. Select **Delete** to remove a medicine. HOSSPI HMS warns you when the quantity does not match the dose, frequency and duration, and when the dose unit does not match the medicine’s strength unit.',
+                'Select **Review billing** to check the charges. **Total** at the bottom of the list is the amount for the medicines on this prescription.',
                 'Select **Prescribe**. The prescription appears on the pharmacy worklist.',
               ],
             },
@@ -1652,6 +1660,7 @@ export const USER_MANUAL = {
                 ['**Refer**', 'Enter the **External facility** and the **Reason** for the referral, add any **Notes**, then select **Save referral**.'],
                 ['**Follow up**', 'Choose the **Follow-up date** and **Follow-up time**, add any **Notes**, then select **Save follow-up**. The visit appears under **Follow-ups** at reception and on the worklists.'],
                 ['**Request admission**', 'Enter the **Admission reason** and any **Notes**, then select **Request admission**. The request waits in the ward team’s **Admission Queue**. See [The admissions worklist](#the-admissions-worklist).'],
+                ['**Disposition**', 'Choose what happens next, for example sending the patient home, admitting them or referring them, then complete the form. On the **Triage** tab the same action is labelled **Discharge planning**, for visits that will not continue.'],
                 ['**Print**', 'Print a summary of the encounter.'],
               ],
             },
@@ -1799,7 +1808,7 @@ export const USER_MANUAL = {
       id: 'pharmacy',
       title: 'Pharmacy',
       summary:
-        'Dispense prescriptions from the consulting rooms and wards, and sell medicines to walk-in customers.',
+        'Dispense prescriptions from the consulting rooms and wards, sell medicines to walk-in customers, and move stock between the Main Pharmacy and the Hospital Pharmacy.',
       sections: [
         {
           id: 'the-pharmacy-worklist',
@@ -1815,11 +1824,11 @@ export const USER_MANUAL = {
               figure: 'pharmacy-worklist',
               caption: 'The pharmacy worklist.',
               items: [
-                'Choose a tab: **New orders**, **Partial**, **Pending payment**, **Completed orders**, **Cancelled orders** or **All orders**. **More tabs** holds the rest, such as the catalogue and stock.',
+                'Choose a tab: **New orders**, **Partial**, **Pending payment**, **Completed orders**, **Cancelled orders** or **All orders**. **More tabs** holds the rest, including **Catalog and stock** and **Suppliers**.',
                 'Search by patient, order, encounter, medication or batch.',
                 '**Open reports** shows the pharmacy’s reports.',
                 '**Walk-in order** sells medicines to a customer without a prescription. See [Sell to a walk-in customer](#sell-to-a-walk-in-customer).',
-                'Select **Dispense** to supply the medicines in an order. The **Dispense** column shows how many items have been supplied, for example **0 / 4**, and **Care location** shows whether the order is from outpatients or a ward.',
+                'Select **Dispense** to supply the medicines in an order. The **Dispense** column shows how many items have been supplied, for example **0 / 4**, and **Care location** shows whether the order is from **Outpatient**, a **Ward**, or **Discharge meds**.',
               ],
             },
           ],
@@ -1866,10 +1875,90 @@ export const USER_MANUAL = {
               caption: 'A walk-in order.',
               items: [
                 'Choose who is buying: **Anonymous**, **Existing patient** or **New patient**.',
-                'For an existing patient, select **Select patient** and find them.',
+                'For an existing patient, select **Select patient** and find them. For a new patient, register them first. **Add medicine** stays unavailable until the patient is chosen; HOSSPI HMS shows **Select or register the patient first to add medicines.** **Anonymous** sales can add medicines immediately.',
                 'Select **Add medicine**, tick the medicines as described in [Prescribe medicines](#prescribe-medicines), then select **Add selected medicines**.',
-                'Enter the **Qty** of each medicine and check its dose and duration. Select **Delete** to remove a medicine.',
-                'Select **Create order**.',
+                'Enter the **Qty** of each medicine and check its dose and duration. Tick lines and select **Remove selected**, or select **Delete** on a line, to take a medicine off.',
+                'Check **Total**, then select **Create order**.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'main-and-hospital-pharmacy',
+          title: 'Main Pharmacy and Hospital Pharmacy',
+          audience: 'Pharmacy staff and administrators',
+          blocks: [
+            {
+              type: 'p',
+              text: 'A facility can run more than one pharmacy. Each has its own stock and its own prices. **Main Pharmacy** buys from suppliers and holds the bulk stock. **Hospital Pharmacy** dispenses to patients and orders what it is short of from the Main Pharmacy. A facility can also add a **Branch Pharmacy**, **Theatre Pharmacy** or **Ward Pharmacy**.',
+            },
+            {
+              type: 'p',
+              text: 'Open **Pharmacy**, then **More tabs**, then **Catalog and stock**. Select the **Stock orders** tab. If you can work in more than one pharmacy, a **Pharmacy** list at the top lets you **Switch pharmacy**. Pharmacies you may only look at are marked **(Read only)**.',
+            },
+            {
+              type: 'note',
+              tone: 'info',
+              title: 'Stock is not shared',
+              text: 'Creating or approving an order does not move stock. Stock moves when it is **issued** and **received**. If the screen shows **No pharmacy configured**, ask an administrator to set up a **Main Pharmacy** and a **Hospital Pharmacy** for the facility.',
+            },
+            {
+              type: 'p',
+              text: '**Suppliers** (purchase orders, goods receiving, batches, expiry and costs) belong to the pharmacy that handles procurement, usually the Main Pharmacy. On another pharmacy the screen reads **Procurement is handled by** that pharmacy, and asks you to switch to it.',
+            },
+            {
+              type: 'table',
+              columns: ['Your access', 'What you can do there'],
+              rows: [
+                ['**Manage**', 'Dispense, order stock, and edit that pharmacy’s prices, including the **Hospital supply price** on the Main Pharmacy.'],
+                ['**Dispense**', 'Dispense and raise or receive stock orders. You cannot edit prices.'],
+                ['**View only**', 'Read the worklist, availability and prices. You cannot dispense or order.'],
+              ],
+            },
+          ],
+        },
+        {
+          id: 'order-stock-between-pharmacies',
+          title: 'Order stock between pharmacies',
+          audience: 'Pharmacy staff',
+          blocks: [
+            {
+              type: 'p',
+              text: 'On **Catalog and stock**, open **Stock orders**. Switch **Pharmacy** to the pharmacy that needs the stock, usually **Hospital Pharmacy**. A **Supplied by** badge names the pharmacy that will fill the order.',
+            },
+            {
+              type: 'steps',
+              items: [
+                'Under **Stock and supplier availability**, compare **My stock** with what the supplying pharmacy has **available**. Tick **Below reorder level** to show only short lines.',
+                'Select **Order** on each medicine you need. The button shows the quantity you have staged, for example **Order · 10**.',
+                'Select **Order stock**. The order appears under **My requests**. If it stays **Draft**, select **Submit**.',
+                'Switch **Pharmacy** to the supplying pharmacy, usually **Main Pharmacy**. Open **To supply**, then **Approve** or **Reject**.',
+                'When the status is **Approved**, select **Issue stock**. Quantity may show how many units are **in transit**.',
+                'Switch back to the requesting pharmacy. On **My requests**, select **Receive stock**.',
+              ],
+            },
+            {
+              type: 'p',
+              text: 'Statuses you will see include **Draft**, **Awaiting review**, **Under review**, **Approved**, **Partly approved**, **Rejected**, **Issued**, **Partly received**, **Received** and **Cancelled**. Select **Cancel order** when an order should not continue.',
+            },
+          ],
+        },
+        {
+          id: 'set-pharmacy-prices',
+          title: 'Set pharmacy prices',
+          audience: 'Pharmacy staff with Manage access',
+          blocks: [
+            {
+              type: 'p',
+              text: 'On **Stock orders**, select **Pharmacy prices**. Each pharmacy sets its own price. Changing the walk-in price does not change the hospital supply price.',
+            },
+            {
+              type: 'steps',
+              items: [
+                'Check that the badge names the pharmacy you mean to price. Switch **Pharmacy** first if it does not.',
+                'On the Main Pharmacy the sell column is **Walk-in price**. On the Hospital Pharmacy it is **Selling price**. Amounts that have not been set show **Not set**.',
+                'Staff with **Manage** access also see **Hospital supply price**, **Acquisition cost** and **Edit**.',
+                'Select **Edit**, enter the new amounts, then **Save**.',
               ],
             },
           ],
@@ -2784,6 +2873,9 @@ export const USER_MANUAL = {
                 ['I see a message that the subscription has expired.', 'Ask an administrator to renew it. See [Renew or change your subscription](#renew-or-change-your-subscription).'],
                 ['I cannot find a screen.', 'Type part of its name in **Search menu**. See [Find a screen with Search menu](#find-a-screen-with-search-menu).'],
                 ['Text is too small to read comfortably.', 'Increase the **Text size** or switch on **Bold text**. See [Make the screen easier to read](#make-the-screen-easier-to-read).'],
+                ['The microphone will not start, or dictation stops.', 'Check that the browser or app is allowed to use the microphone, and that you are **Online**. The tooltip explains the problem, for example **Speech dictation needs an internet connection.** While it is working, **Listening — tap to stop** ends dictation.'],
+                ['Pharmacy shows **No pharmacy configured**.', 'Ask an administrator to set up a **Main Pharmacy** and a **Hospital Pharmacy** for the facility. See [Main Pharmacy and Hospital Pharmacy](#main-and-hospital-pharmacy).'],
+                ['**Cannot delete patient** lists items still in progress.', 'Finish or clear the live visits, orders or bills named in the message, then try **Delete** again. See [Delete a patient](#delete-a-patient).'],
               ],
             },
           ],
@@ -2812,7 +2904,10 @@ export const USER_MANUAL = {
                 ['**ICU**', 'Intensive care unit.'],
                 ['**Triage**', 'Deciding how urgently a patient needs care, usually with their vital signs.'],
                 ['**Vitals**', 'Measurements such as blood pressure, temperature, pulse, breathing rate, oxygen saturation, weight and height.'],
-                ['**Disposition**', 'The decision at the end of a consultation, such as sending the patient home, admitting them or referring them.'],
+                ['**Disposition**', 'The decision for an open visit, such as sending the patient home, admitting them or referring them. On triage before a doctor sees the patient, the same action is labelled **Discharge planning**.'],
+                ['**Main Pharmacy**', 'The pharmacy that buys from suppliers and holds the facility’s bulk stock. Other pharmacies order from it.'],
+                ['**Hospital Pharmacy**', 'The pharmacy that dispenses to patients and orders stock from the Main Pharmacy.'],
+                ['**Stock order**', 'A request from one pharmacy to another for medicines. Stock moves only when the order is issued and received.'],
                 ['**Order** or **request**', 'A request for a laboratory test, imaging study or medicine made during an encounter.'],
                 ['**Formulary**', 'The medicines your facility has approved for use.'],
                 ['**Price book**', 'The prices your facility charges for services and items.'],
@@ -2833,6 +2928,10 @@ export const USER_MANUAL = {
           blocks: [
             {
               type: 'p',
+              text: 'To report a problem, a complaint or an idea from inside HOSSPI HMS, select **Feedback**. See [Send feedback](#send-feedback).',
+            },
+            {
+              type: 'p',
               text: 'Start with your facility administrator, who manages your account, your roles and your facility’s settings.',
             },
             {
@@ -2851,7 +2950,7 @@ export const USER_MANUAL = {
               type: 'note',
               tone: 'tip',
               title: 'Report a problem clearly',
-              text: 'Tell us your facility’s name, the screen you were using, what you expected to happen, what happened instead and roughly when. A screenshot helps.',
+              text: 'Tell us your facility’s name, the screen you were using, what you expected to happen, what happened instead and roughly when. **Send feedback** includes the screen automatically. A screenshot still helps for anything the form cannot see.',
             },
           ],
         },

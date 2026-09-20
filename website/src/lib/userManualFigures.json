@@ -3732,5 +3732,27 @@
         "h": 142.93
       }
     ]
+  },
+  "feedback-submit": {
+    "src": "/images/user-manual/feedback-submit.jpg",
+    "width": 584,
+    "height": 417,
+    "alt": "The Give us feedback form with the Feedback type choices and the Details field.",
+    "markers": [
+      {
+        "n": 1,
+        "x": 2.4,
+        "y": 16.5,
+        "w": 95.2,
+        "h": 33
+      },
+      {
+        "n": 2,
+        "x": 2.4,
+        "y": 51.5,
+        "w": 95.2,
+        "h": 45
+      }
+    ]
   }
 }
