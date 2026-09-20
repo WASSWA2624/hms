@@ -2,11 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:hosspi_hms/l10n/app_localizations.dart';
 
 /// Human-readable patient age with localized units.
-String formatPatientAge(AppLocalizations l10n, DateTime? dateOfBirth) {
-  if (dateOfBirth == null) {
+String formatPatientAge(AppLocalizations l10n, DateTime? birthDate) {
+  if (birthDate == null) {
     return l10n.profileUnknownValue;
   }
 
+  // Date of birth is a calendar day, not an instant: the API sends it as UTC
+  // midnight. Rebuilding it as a local day keeps the age arithmetic (and the
+  // newborn day count below) in a single timezone.
+  final DateTime dateOfBirth = birthDate.isUtc
+      ? DateTime(birthDate.year, birthDate.month, birthDate.day)
+      : birthDate;
   final DateTime today = DateTime.now();
   var years = today.year - dateOfBirth.year;
   var months = today.month - dateOfBirth.month;

@@ -2067,7 +2067,9 @@ bool _matchesPatientTableSearch(
     patient.primaryIdentifierValue,
     patient.primaryPhone,
     patient.primaryEmail,
-    dateOfBirth == null ? null : AppFormatters.mediumDate(dateOfBirth, locale),
+    dateOfBirth == null
+        ? null
+        : AppFormatters.calendarDate(dateOfBirth, locale),
     dateOfBirth?.toIso8601String(),
     age,
     gender,
@@ -3861,7 +3863,7 @@ _PatientReportDocument _buildPatientReportDocument(
         ),
         _PatientReportRow(
           label: l10n.patientsDobLabel,
-          value: _formatOptionalDate(context, patient.dateOfBirth),
+          value: _formatOptionalCalendarDate(context, patient.dateOfBirth),
         ),
         _PatientReportRow(
           label: l10n.patientsGenderLabel,
@@ -6017,6 +6019,14 @@ String _formatOptionalDate(BuildContext context, DateTime? value) {
   return value == null
       ? context.l10n.profileUnknownValue
       : AppFormatters.mediumDate(value, Localizations.localeOf(context));
+}
+
+/// Stored calendar days (date of birth) must not shift with the device
+/// timezone, so they bypass the local-time normalisation.
+String _formatOptionalCalendarDate(BuildContext context, DateTime? value) {
+  return value == null
+      ? context.l10n.profileUnknownValue
+      : AppFormatters.calendarDate(value, Localizations.localeOf(context));
 }
 
 String _formatOptionalDateTime(BuildContext context, DateTime? value) {

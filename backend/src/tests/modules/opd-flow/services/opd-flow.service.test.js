@@ -1261,39 +1261,82 @@ visit_queue: {
     ).rejects.toBeInstanceOf(HttpError);
   });
 
-  it('blocks vitals when consultation payment is required and unpaid', async () => {
+  it('records vitals while the consultation payment is still outstanding', async () => {
+    const encounterRecord = {
+      id: 'enc-1',
+      tenant_id: 'tenant-1',
+      facility_id: 'facility-1',
+      patient_id: 'pat-1',
+      encounter_type: 'OPD',
+      extension_json: {
+        opd_flow: {
+          stage: 'WAITING_CONSULTATION_PAYMENT',
+          consultation: {
+            require_payment: true,
+            is_paid: false
+          }
+        }
+      }
+    };
+
     const tx = {
       admission: {
         findFirst: jest.fn().mockResolvedValue(null)
       },
       encounter: {
-        findFirst: jest.fn().mockResolvedValue({
-          id: 'enc-1',
-          encounter_type: 'OPD',
-          extension_json: {
-            opd_flow: {
-              stage: 'WAITING_VITALS',
-              consultation: {
-                require_payment: true,
-                is_paid: false
-              }
-            }
-          }
+        findFirst: jest.fn().mockResolvedValue(encounterRecord),
+        update: jest.fn().mockResolvedValue(encounterRecord)
+      },
+      vital_sign: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        update: jest.fn(),
+        create: jest.fn().mockResolvedValue({
+          id: 'vital-1',
+          encounter_id: 'enc-1',
+          vital_type: 'TEMPERATURE',
+          value: '37.1'
         })
+      },
+      triage_assessment: {
+        update: jest.fn(),
+        create: jest.fn(),
+        findFirst: jest.fn().mockResolvedValue(null)
+      },
+      visit_queue: {
+        update: jest.fn(),
+        findFirst: jest.fn().mockResolvedValue(null)
+      },
+      appointment: {
+        findFirst: jest.fn().mockResolvedValue(null)
+      },
+      invoice: {
+        findFirst: jest.fn().mockResolvedValue(null)
+      },
+      payment: {
+        findFirst: jest.fn().mockResolvedValue(null)
+      },
+      emergency_case: {
+        findFirst: jest.fn().mockResolvedValue(null)
       }
     };
 
     prisma.$transaction.mockImplementation(async (callback) => callback(tx));
 
-    await expect(
-      opdFlowService.recordVitals(
-        'enc-1',
-        {
-          vitals: [{ vital_type: 'TEMPERATURE', value: '37.1' }]
-        },
-        { user_id: 'usr-1' }
-      )
-    ).rejects.toBeInstanceOf(HttpError);
+    await opdFlowService.recordVitals(
+      'enc-1',
+      {
+        vitals: [{ vital_type: 'TEMPERATURE', value: '37.1' }]
+      },
+      { user_id: 'usr-1', tenant_id: 'tenant-1', facility_id: 'facility-1' }
+    );
+
+    expect(tx.vital_sign.create).toHaveBeenCalled();
+    const persistedFlow =
+      tx.encounter.update.mock.calls[0][0].data.extension_json.opd_flow;
+    // Triage moves the visit on; the unpaid consultation stays flagged for
+    // Reception/Billing instead of blocking care.
+    expect(persistedFlow.stage).toBe('WAITING_DOCTOR_ASSIGNMENT');
+    expect(persistedFlow.consultation.is_paid).toBe(false);
   });
 
   it('allows audit-safe consultation billing correction after payment', async () => {
@@ -2165,6 +2208,133 @@ visit_queue: {
     expect(tx.radiology_order.create).toHaveBeenCalled();
     expect(tx.pharmacy_order.create).toHaveBeenCalled();
     expect(result.flow.stage).toBe('LAB_AND_RADIOLOGY_REQUESTED');
+  });
+
+  it('attends an unassigned patient from the vitals stage and claims the encounter', async () => {
+    const tx = {
+      admission: {
+        findFirst: jest.fn().mockResolvedValue(null)
+      },
+      encounter: {
+        findFirst: jest
+          .fn()
+          .mockResolvedValueOnce({
+            id: 'enc-1',
+            tenant_id: 'tenant-1',
+            patient_id: 'pat-1',
+            provider_user_id: null,
+            extension_json: {
+              opd_flow: {
+                stage: 'WAITING_VITALS',
+                review_completed: false,
+                visit_queue_id: null,
+                appointment_id: null,
+                consultation: {
+                  require_payment: true,
+                  is_paid: false,
+                  invoice_id: null,
+                  payment_id: null
+                }
+              }
+            }
+          })
+          .mockResolvedValue({
+            id: 'enc-1',
+            encounter_type: 'OPD',
+            extension_json: {
+              opd_flow: {
+                stage: 'WAITING_DISPOSITION',
+                visit_queue_id: null,
+                appointment_id: null,
+                consultation: { invoice_id: null, payment_id: null }
+              }
+            }
+          }),
+        update: jest
+          .fn()
+          .mockResolvedValue({ id: 'enc-1', tenant_id: 'tenant-1' })
+      },
+      clinical_note: { create: jest.fn().mockResolvedValue({ id: 'cn-1' }) },
+      diagnosis: { createMany: jest.fn() },
+      procedure: { createMany: jest.fn() },
+      lab_order: { create: jest.fn() },
+      lab_order_item: { createMany: jest.fn() },
+      lab_test: { findFirst: jest.fn() },
+      lab_panel: { findFirst: jest.fn() },
+      radiology_order: { create: jest.fn() },
+      radiology_procedure: { findFirst: jest.fn() },
+      pharmacy_order: { create: jest.fn() },
+      pharmacy_order_item: { createMany: jest.fn() },
+      drug: { findFirst: jest.fn() },
+      visit_queue: { findFirst: jest.fn(), update: jest.fn() },
+      appointment: { findFirst: jest.fn() },
+      invoice: { findFirst: jest.fn() },
+      payment: { findFirst: jest.fn() },
+      emergency_case: { findFirst: jest.fn() },
+      triage_assessment: { findFirst: jest.fn() }
+    };
+
+    prisma.$transaction.mockImplementation(async (callback) => callback(tx));
+
+    await opdFlowService.doctorReview(
+      'enc-1',
+      { note: 'Seen on arrival, no doctor had been assigned.' },
+      { user_id: 'doc-9' }
+    );
+
+    const updateArgs = tx.encounter.update.mock.calls[0][0].data;
+    expect(updateArgs.provider_user_id).toBe('doc-9');
+    expect(updateArgs.extension_json.opd_flow.review_completed).toBe(true);
+    expect(updateArgs.extension_json.opd_flow.stage).toBe('WAITING_DISPOSITION');
+  });
+
+  it('closes a visit that never had a doctor review and records why', async () => {
+    const tx = {
+      admission: { findFirst: jest.fn().mockResolvedValue(null) },
+      encounter: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'enc-1',
+          tenant_id: 'tenant-1',
+          patient_id: 'pat-1',
+          extension_json: {
+            opd_flow: {
+              stage: 'WAITING_VITALS',
+              review_completed: false,
+              visit_queue_id: null,
+              appointment_id: null
+            }
+          }
+        }),
+        update: jest
+          .fn()
+          .mockResolvedValue({ id: 'enc-1', tenant_id: 'tenant-1' })
+      },
+      admission_create: undefined,
+      visit_queue: { findFirst: jest.fn(), update: jest.fn() },
+      appointment: { findFirst: jest.fn() },
+      invoice: { findFirst: jest.fn() },
+      payment: { findFirst: jest.fn() },
+      emergency_case: { findFirst: jest.fn() },
+      triage_assessment: { findFirst: jest.fn() }
+    };
+
+    prisma.$transaction.mockImplementation(async (callback) => callback(tx));
+
+    await opdFlowService.disposition(
+      'enc-1',
+      { decision: 'DISCHARGE', reason: 'Patient left before consultation' },
+      { user_id: 'doc-1' }
+    );
+
+    const persistedFlow =
+      tx.encounter.update.mock.calls[0][0].data.extension_json.opd_flow;
+    expect(persistedFlow.closed_without_review).toBe(true);
+    expect(persistedFlow.stage).toBe('DISCHARGED');
+    expect(
+      persistedFlow.timeline.some(
+        (event) => event.event === 'DISPOSITION_WITHOUT_REVIEW'
+      )
+    ).toBe(true);
   });
 
   it('resolves standard lab catalog requests during doctor review', async () => {

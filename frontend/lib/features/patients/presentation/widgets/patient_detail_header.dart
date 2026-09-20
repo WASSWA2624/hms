@@ -25,10 +25,12 @@ String patientIdentifierTypeLabel(AppLocalizations l10n, Patient patient) {
   };
 }
 
+/// Renders a stored calendar day (date of birth). Uses the non-shifting
+/// formatter so the date never moves a day across a timezone boundary.
 String formatPatientOptionalDate(BuildContext context, DateTime? value) {
   return value == null
       ? context.l10n.profileUnknownValue
-      : AppFormatters.mediumDate(value, Localizations.localeOf(context));
+      : AppFormatters.calendarDate(value, Localizations.localeOf(context));
 }
 
 /// Demographic / bio summary for the Patient Details section body.

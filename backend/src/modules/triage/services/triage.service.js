@@ -30,7 +30,14 @@ const STAGES = Object.freeze({
   DISCHARGED: 'DISCHARGED'
 });
 
-const TRIAGE_QUEUE_STAGES = Object.freeze([STAGES.WAITING_VITALS, STAGES.WAITING_DOCTOR_ASSIGNMENT]);
+// Triage does not wait for billing. Patients whose consultation payment is
+// still outstanding stay visible in the triage queue so vitals can be taken
+// while Reception/Billing settle the invoice in parallel.
+const TRIAGE_QUEUE_STAGES = Object.freeze([
+  STAGES.WAITING_CONSULTATION_PAYMENT,
+  STAGES.WAITING_VITALS,
+  STAGES.WAITING_DOCTOR_ASSIGNMENT
+]);
 
 const WORKFLOW_STAGE_SET = new Set(Object.values(STAGES));
 const TERMINAL_STAGES = new Set([STAGES.ADMITTED, STAGES.DISCHARGED]);
@@ -52,7 +59,7 @@ const ROUTE_DESTINATIONS = Object.freeze({
 const ROUTE_DESTINATION_SET = new Set(Object.values(ROUTE_DESTINATIONS));
 
 const NEXT_STEP_BY_STAGE = Object.freeze({
-  [STAGES.WAITING_CONSULTATION_PAYMENT]: 'Collect consultation payment before clinical intake.',
+  [STAGES.WAITING_CONSULTATION_PAYMENT]: 'Consultation payment is outstanding - triage can continue in parallel.',
   [STAGES.WAITING_VITALS]: 'Record vital signs and triage urgency.',
   [STAGES.WAITING_DOCTOR_ASSIGNMENT]: 'Assign patient to a provider or route to the right service.',
   [STAGES.WAITING_DOCTOR_REVIEW]: 'Provider consultation is ready to begin.',

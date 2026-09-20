@@ -48,6 +48,15 @@ const STAGES = {
 };
 
 const TERMINAL_STAGES = new Set([STAGES.ADMITTED, STAGES.DISCHARGED]);
+// Stages that sit before the consultation itself. Any of them may be skipped:
+// billing, vitals and doctor assignment are independent of each other, so
+// recording vitals or starting a review from any of them pulls the flow
+// forward instead of rejecting the action.
+const PRE_CONSULTATION_STAGES = new Set([
+  STAGES.WAITING_CONSULTATION_PAYMENT,
+  STAGES.WAITING_VITALS,
+  STAGES.WAITING_DOCTOR_ASSIGNMENT
+]);
 const WORKFLOW_STAGE_SET = new Set(Object.values(STAGES));
 const WORKFLOW_STAGE_ORDER = Object.values(STAGES);
 const QUEUE_SCOPES = Object.freeze({
@@ -599,7 +608,8 @@ const NEXT_STEP_BY_STAGE = {
 };
 
 const STAGE_ROLE_TEAM_MAP = {
-  [STAGES.WAITING_CONSULTATION_PAYMENT]: [ROLES.RECEPTIONIST, ROLES.BILLING],
+  // Nurses are notified too: triage can start while the invoice is settled.
+  [STAGES.WAITING_CONSULTATION_PAYMENT]: [ROLES.RECEPTIONIST, ROLES.BILLING, ROLES.NURSE],
   [STAGES.WAITING_VITALS]: [ROLES.NURSE],
   [STAGES.WAITING_DOCTOR_ASSIGNMENT]: [ROLES.RECEPTIONIST, ROLES.NURSE],
   [STAGES.WAITING_DOCTOR_REVIEW]: [ROLES.DOCTOR],
@@ -4427,15 +4437,12 @@ const recordVitals = async (id, data, context = {}) => {
       ensureNonTerminalStage(flow);
       const stageBefore = flow.stage;
 
-      const isEmergency = encounter.encounter_type === 'EMERGENCY';
-      if (!isEmergency && flow.consultation?.require_payment && !flow.consultation?.is_paid) {
-        throw new HttpError('errors.opd_flow.consultation_payment_required', 400);
-      }
-
+      // Triage is never gated on billing. Vitals may be recorded while the
+      // consultation payment is pending, partial, unpaid or awaiting approval;
+      // the outstanding balance stays on the flow for Reception/Billing to act
+      // on. Vitals are likewise accepted at any open stage so a nurse can chart
+      // before, during or after the consultation.
       const isVitalsUpdate = data.update_existing === true;
-      if (!isVitalsUpdate && flow.stage !== STAGES.WAITING_VITALS && flow.stage !== STAGES.WAITING_DOCTOR_ASSIGNMENT) {
-        throw new HttpError('errors.opd_flow.invalid_stage_transition', 400);
-      }
 
       const normalizedVitals = data.vitals.map((vital) => {
         const normalizedVital = normalizeVitalForPersistence(vital);
@@ -4526,7 +4533,7 @@ const recordVitals = async (id, data, context = {}) => {
         }
       }
 
-      if (flow.stage === STAGES.WAITING_VITALS || flow.stage === STAGES.WAITING_DOCTOR_ASSIGNMENT) {
+      if (PRE_CONSULTATION_STAGES.has(flow.stage)) {
         setFlowStage(flow, resolvePostVitalsStage(encounter));
       }
       appendTimelineEvent(flow, isVitalsUpdate ? 'VITALS_UPDATED' : 'VITALS_RECORDED', context, {
@@ -4813,25 +4820,30 @@ const doctorReview = async (id, data, context = {}) => {
     ensureNonTerminalStage(flow);
     const stageBefore = flow.stage;
 
-    if (flow.stage === STAGES.WAITING_DOCTOR_ASSIGNMENT && normalizeIdentifier(encounter.provider_user_id)) {
+    // A clinician may attend any open visit: before payment, before vitals and
+    // before anybody has been formally assigned. Pre-consultation stages are
+    // pulled forward to doctor review instead of being rejected, so no patient
+    // is stranded waiting for an administrative step.
+    if (PRE_CONSULTATION_STAGES.has(flow.stage)) {
       setFlowStage(flow, STAGES.WAITING_DOCTOR_REVIEW);
-    }
-
-    const reviewUpdateStages = new Set([
-      STAGES.WAITING_DOCTOR_REVIEW,
-      STAGES.LAB_REQUESTED,
-      STAGES.RADIOLOGY_REQUESTED,
-      STAGES.LAB_AND_RADIOLOGY_REQUESTED,
-      STAGES.PHARMACY_REQUESTED,
-      STAGES.WAITING_DISPOSITION
-    ]);
-    if (!reviewUpdateStages.has(flow.stage)) {
-      throw new HttpError('errors.opd_flow.invalid_stage_transition', 400);
     }
 
     const authorUserId = context.user_id || encounter.provider_user_id;
     if (!authorUserId) {
       throw new HttpError('errors.opd_flow.invalid_stage_transition', 400, [{ field: 'author_user_id' }]);
+    }
+
+    // The attending clinician claims an unassigned encounter by attending it.
+    // The route already restricts this action to doctors/admins.
+    const claimsUnassignedEncounter =
+      !normalizeIdentifier(encounter.provider_user_id) && Boolean(normalizeIdentifier(context.user_id));
+    if (claimsUnassignedEncounter) {
+      encounter.provider_user_id = context.user_id;
+      flow.provider_user_id = context.user_id;
+      flow.attending_claimed_at = new Date().toISOString();
+      appendTimelineEvent(flow, 'DOCTOR_SELF_ASSIGNED', context, {
+        provider_user_id: context.user_id
+      });
     }
 
     const noteText = typeof data.note === 'string' ? data.note.trim() : '';
@@ -5108,6 +5120,7 @@ const doctorReview = async (id, data, context = {}) => {
     const updatedEncounter = await tx.encounter.update({
       where: { id: encounter.id },
       data: {
+        ...(claimsUnassignedEncounter ? { provider_user_id: context.user_id } : {}),
         extension_json: {
           ...(encounter.extension_json || {}),
           opd_flow: flow
@@ -5161,8 +5174,15 @@ const disposition = async (id, data, context = {}) => {
     const dispositionReason = normalizeNotes(data.reason);
     const dispositionNotes = normalizeNotes(data.notes);
 
+    // A visit can legitimately end without a recorded consultation (patient
+    // left, nurse-only visit, wrong queue). Rather than blocking the close, the
+    // flow records that no review was captured so the audit trail stays honest.
     if (!flow.review_completed) {
-      throw new HttpError('errors.opd_flow.doctor_review_required', 400);
+      flow.closed_without_review = true;
+      appendTimelineEvent(flow, 'DISPOSITION_WITHOUT_REVIEW', context, {
+        decision: data.decision || null,
+        stage_from: stageBefore
+      });
     }
 
     let admission = null;

@@ -61,19 +61,26 @@ bool isClinicalTriageDischargeContext({String? sourceQueue, String? stage}) {
       };
 }
 
+/// Whether a clinician can close out the visit from here.
+///
+/// Every open OPD stage qualifies. A visit that ends before payment, before
+/// vitals or before a doctor was assigned is a real outcome (patient left,
+/// nurse-only visit, wrong queue) and the backend records that no review was
+/// captured, so there is nothing to gain by hiding the action.
 bool isClinicalDoctorDispositionContext({String? sourceQueue, String? stage}) {
   final String normalizedSource = _normalize(sourceQueue);
   final String normalizedStage = _normalize(stage);
   if (normalizedSource == 'TRIAGE') {
     return false;
   }
-  return switch (normalizedStage) {
-    'WAITING_DOCTOR_REVIEW' ||
-    'WAITING_DISPOSITION' ||
-    'LAB_REQUESTED' ||
-    'RADIOLOGY_REQUESTED' ||
-    'LAB_AND_RADIOLOGY_REQUESTED' ||
-    'PHARMACY_REQUESTED' => true,
+  return !isClinicalTerminalOpdStage(normalizedStage);
+}
+
+/// OPD stages that have already closed the encounter.
+bool isClinicalTerminalOpdStage(String? stage) {
+  return switch (_normalize(stage)) {
+    'ADMITTED' || 'DISCHARGED' || 'CANCELLED' || 'CLOSED' || 'COMPLETED' =>
+      true,
     _ => false,
   };
 }
