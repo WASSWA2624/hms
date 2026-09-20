@@ -1,9 +1,5 @@
 # Give us feedback: screenshots, feedback scope, and a self-describing download archive
 
-**Source:** direct request (dictated; verbatim transcript at the end) · **Stack:** frontend + backend
-**Verified against:** `main` at `a5347239c`
-**House style:** [`prompts/feedback/feedback.md`](feedback/feedback.md) working agreements apply
-
 ## Objective
 
 Three changes to the feedback flow:
@@ -25,7 +21,11 @@ The existing "Download feedback" **filters are not part of this work** — they 
 - **Model:** `feedback` (`backend/prisma/schema.prisma`) stores context snapshots only. **There is no attachment table, no scope column, no upload route and no blob storage for feedback yet** — all of that is new.
 - **Reusable pieces:** widget-to-PNG capture via `RepaintBoundary` plus an off-screen overlay (`frontend/lib/shared/reporting/module_reporting_chart_capture.dart`); crop dialog `AppImageCropDialog`; upload/preview components `app_image_upload_field.dart`, `app_file_upload_panel.dart`; the screen catalogue `AppRoutes`/`AppRouteData` (`frontend/lib/app/router/app_routes.dart`) with `RouteAccessCatalog` for what a user may reach; multi-select picker pattern `app_role_selection_table_dialog.dart`; backend `createStorageService()` (`backend/src/lib/storage/factory.js` — local or S3 by env, encrypted at rest) and `multer`, already used by the workspace import routes.
 
+
+
 ## Required behavior
+
+
 
 ### 1. Automatic first shot
 
@@ -38,6 +38,8 @@ Tapping *Give us feedback* captures the app frame **as it was when the control w
 - **Capture mode stays on until the reporter leaves it.** One tap of *Capture* takes one shot and returns to the app, still in capture mode, so the reporter can navigate and shoot repeatedly — several screens in a row, or several shots of the same screen (mid-scroll, a menu open, an error state). Each capture confirms itself briefly and shows a running count ("3 of 10"); the count is the only thing that ends the run, and it says so when the cap is reached.
 - Reopening the dialog (or *Back to feedback*) restores the message, the category, the scope and every shot exactly as they were.
 - While in capture mode, make the state obvious — the control is labelled, and a dismissible hint says the draft is being kept.
+
+
 
 ### 3. Capture the dialog itself, or not
 
@@ -63,12 +65,16 @@ In the dialog: a horizontally scrollable thumbnail strip holding every shot, ord
 - Capture is best-effort: if `RenderRepaintBoundary.toImage` fails (notably on web renderers where it can throw), show a plain message, drop that shot, and let the feedback be submitted without it. **Never block submitting feedback because a screenshot failed.**
 - Submitting with no shots stays valid and must not get slower.
 
+
+
 ### 7. Transport and storage
 
 - Accept `multipart/form-data` on the existing `POST /api/v1/feedback` (multer, memory storage, file-count and size limits, MIME sniffed from content rather than extension — PNG, JPEG and WebP only). Keep the current JSON body working unchanged so older builds keep submitting.
 - Persist blobs through `createStorageService()` under `feedback/<feedback_id>/<sequence>-<uuid>.<ext>`; never write them into the database row, and never serve them from a public path.
 - New Prisma model `feedback_screenshot`: `id`, `feedback_id` (FK, cascade), `sequence`, `storage_key`, `content_type`, `byte_size`, `width`, `height`, `caption`, `route_path`, `route_name`, `screen_title`, `client_context_json`, `captured_at`, `created_at`. One migration covers this, `feedback.scope` and `feedback_scope_screen`, with a note under `backend/docs/migrations/` (pattern: `20260914120000_feedback.md`).
 - Saving is resilient, not all-or-nothing: if a blob write fails, the feedback text still saves and the response says which shots were dropped.
+
+
 
 ### 8. Deleting feedback deletes its screenshots
 
@@ -79,24 +85,30 @@ Deleting feedback — a single record, a selection, or "all matching" through *C
 - `GET /api/v1/feedback/:human_friendly_id/screenshots` (metadata) and `GET /api/v1/feedback/:human_friendly_id/screenshots/:screenshot_id` (streamed bytes), both platform owner/admin only, both audited. No signed public URLs.
 - `FeedbackRecordsDialog` shows a shot count and the scope per row, and opens a viewer for the images, so the download is not the only way to see a screenshot.
 
+
+
 ### 10. Download returns an archive
 
-*Download feedback* returns **`HOSSPI-FEEDBACK-DDMMYYYY-HHmmss.zip`**, not a bare workbook, holding:
+*Download feedback* returns `HOSSPI-FEEDBACK-DDMMYYYY-HHmmss.zip`, not a bare workbook, holding:
 
-| Path | Contents |
-| :--- | :--- |
-| `HOSSPI-FEEDBACK-DDMMYYYY-HHmmss.xlsx` | The workbook, same stamp as the archive. |
-| `  └ Feedback` | Today's sheet, plus `Applies To`, `Screens` and `Screenshots` (count) columns. |
-| `  └ Screenshots` | One row per image: `Feedback ID` (`FBK0000011`, `FBK0000011-2`, …), captured time, screen, route, caption, file name. |
-| `  └ Export Details` | The filters used, record and image counts, and the admin's time zone. |
-| `screenshots/FBK0000011.jpg` | Full-size images, `-2`, `-3` … for further shots of the same record. |
-| `feedback-prompts-generator.md` | [`backend/src/lib/feedback/feedback-prompts-generator.md`](../backend/src/lib/feedback/feedback-prompts-generator.md), shipped verbatim. |
+
+| Path                                   | Contents                                                                                                                                 |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `HOSSPI-FEEDBACK-DDMMYYYY-HHmmss.xlsx` | The workbook, same stamp as the archive.                                                                                                 |
+| `└ Feedback`                           | Today's sheet, plus `Applies To`, `Screens` and `Screenshots` (count) columns.                                                           |
+| `└ Screenshots`                        | One row per image: `Feedback ID` (`FBK0000011`, `FBK0000011-2`, …), captured time, screen, route, caption, file name.                    |
+| `└ Export Details`                     | The filters used, record and image counts, and the admin's time zone.                                                                    |
+| `screenshots/FBK0000011.jpg`           | Full-size images, `-2`, `-3` … for further shots of the same record.                                                                     |
+| `feedback-prompts-generator.md`        | `[backend/src/lib/feedback/feedback-prompts-generator.md](../backend/src/lib/feedback/feedback-prompts-generator.md)`, shipped verbatim. |
+
 
 - The generator file already exists in this repository — ship it as it is, do not rewrite it at export time. Confirm the deploy packaging copies non-JS files under `backend/src/lib/` (`deploy/`), and load it with a path resolved from the module, not the working directory.
 - Both `GET` and `POST /api/v1/feedback/export` return the archive, with `Content-Type: application/zip` and the `.zip` file name; the workbook is no longer returned on its own. Stream it rather than buffering every image, and keep the existing filters, row selection and time-zone handling exactly as they are.
 - The frontend saves `.zip` bytes through the existing save path; check `appListTableSaveExportFile` handles the extension and MIME on web, Android and desktop.
 - Exports with no screenshots still produce an archive — workbook plus generator, no `screenshots/` folder.
 - Adding a ZIP library to the backend is a dependency decision (`.cursor` dependency rules): prefer `archiver` for streaming; say so in the PR.
+
+
 
 ## Implementation constraints
 
@@ -106,6 +118,8 @@ Deleting feedback — a single record, a selection, or "all matching" through *C
 - **Frontend:** shared components only — `AppDialog`, `AppButton`, `AppSearchBar`, `AppLoadingIndicator` with a message, `AppImageCropDialog` (`frontend/.cursor/components.mdc`, `design-system.mdc`). Every new label, tooltip, hint and error localized in `app_en.arb` (`localization_i18n.mdc`); capture, crop and the screen picker must work with touch, mouse and keyboard (`multi_platform_input.mdc`, `accessibility.mdc`). No new dependency without checking `dependencies.mdc`.
 - **Performance:** encode off the UI thread where the platform allows; downscale before upload; never hold more than the capped shots in memory; stream the archive.
 
+
+
 ## Verification
 
 - **Backend** (`backend/src/tests/modules/feedback/`, `backend/src/tests/lib/feedback/`): multipart submit stores rows, scope screens and blobs; JSON submit still works; oversized, too many, and non-image uploads are rejected; anonymous caps enforced; screenshot fetch is 403 for non-admins; `applies_to` and `applies_to_route` filters narrow list, summary, export and delete identically; deleting feedback (by id and all-matching) removes every blob and child row; the archive contains the workbook, the images named as specified, and the generator file byte-for-byte.
@@ -113,8 +127,11 @@ Deleting feedback — a single record, a selection, or "all matching" through *C
 - **Run:** `cd backend && npm run prisma:migrate && npm run lint && node scripts/run-jest.js src/tests/modules/feedback src/tests/lib/feedback && npm run openapi:validate`; `cd frontend && flutter gen-l10n && flutter analyze && flutter test test/features/feedback/`.
 - **Manual:** on web and Android — raise feedback from an OPD encounter, confirm the automatic shot; set the scope to two picked screens; capture two more screens, one with the dialog included; submit; download and confirm the archive holds the workbook with `Applies To` and `Screens` filled in, exactly those images, and the generator; clear that record and confirm the images are gone from storage.
 
+
+
 ## Decisions to confirm before building
 
 1. **Retention.** Screenshots live and die with the feedback row; no separate retention window is assumed.
 2. **Caps.** 10 shots signed in, 3 signed out, 2 MB each, 12 MB per submission. Raise them if 10 proves tight in use — it is one constant per side.
 3. **ZIP library.** `archiver` is assumed for streaming; `jszip` is the buffered alternative.
+
