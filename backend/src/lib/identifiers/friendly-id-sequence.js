@@ -56,6 +56,12 @@ const MODEL_PREFIX_OVERRIDES = Object.freeze({
   // Would otherwise derive PAT and collide with `patient`.
   patient_deletion_batch: 'PDB',
   patient_deletion_batch_item: 'PDI',
+  // Would otherwise all derive PHA and collide with `pharmacy_order`.
+  pharmacy_location: 'PLO',
+  pharmacy_location_user: 'PLU',
+  pharmacy_location_price: 'PLP',
+  pharmacy_stock_order: 'PSO',
+  pharmacy_stock_order_item: 'PSI',
 });
 
 /**

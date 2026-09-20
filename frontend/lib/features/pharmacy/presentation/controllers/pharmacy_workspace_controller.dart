@@ -923,6 +923,10 @@ final class PharmacyWorkspaceController
             showLoading: current.storageLayout.rooms.isEmpty,
           ),
         );
+      case PharmacyCatalogTab.stockOrders:
+        // Owned by pharmacyLocationControllerProvider, which loads itself and
+        // refreshes on pharmacy realtime events.
+        break;
     }
   }
 

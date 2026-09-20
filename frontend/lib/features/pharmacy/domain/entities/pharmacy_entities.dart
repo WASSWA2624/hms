@@ -166,7 +166,19 @@ extension PharmacyOrderFilterX on PharmacyOrderFilter {
   }
 }
 
-enum PharmacyCatalogTab { drugs, formulary, inventory, storageLayout, shelves }
+enum PharmacyCatalogTab {
+  drugs,
+  formulary,
+  inventory,
+  storageLayout,
+  shelves,
+
+  /// Cross-pharmacy availability and the stock orders between pharmacies.
+  ///
+  /// Appended last on purpose: the catalog panel indexes its tab views by
+  /// [PharmacyCatalogTab.index], so inserting earlier would shift them.
+  stockOrders,
+}
 
 enum PharmacyInventoryFilter {
   lowStock,

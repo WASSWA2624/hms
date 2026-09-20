@@ -28,6 +28,7 @@ import 'package:hosspi_hms/features/pharmacy/presentation/widgets/pharmacy_catal
 import 'package:hosspi_hms/features/pharmacy/presentation/widgets/pharmacy_print_history_options_section.dart';
 import 'package:hosspi_hms/features/pharmacy/presentation/widgets/pharmacy_print_options_section.dart';
 import 'package:hosspi_hms/features/pharmacy/presentation/widgets/pharmacy_scope_navigation.dart';
+import 'package:hosspi_hms/features/pharmacy/presentation/widgets/pharmacy_procurement_guard.dart';
 import 'package:hosspi_hms/features/pharmacy/presentation/widgets/pharmacy_suppliers_panel.dart';
 import 'package:hosspi_hms/features/pharmacy/presentation/widgets/pharmacy_walk_in_order_dialog.dart';
 import 'package:hosspi_hms/features/pharmacy/presentation/widgets/pharmacy_workspace_print_helpers.dart';
@@ -526,10 +527,14 @@ class _PharmacyWorkspaceContentState
             else
               Expanded(
                 child: effectiveSection.isSuppliersSection
-                    ? PharmacySuppliersCatalogTab(
-                        state: state,
-                        writeRequirement: pharmacyCatalogWriteRequirement,
-                        fillHeight: true,
+                    // Suppliers are a procurement record, so they belong to the
+                    // pharmacy that buys from them.
+                    ? PharmacyProcurementGuard(
+                        child: PharmacySuppliersCatalogTab(
+                          state: state,
+                          writeRequirement: pharmacyCatalogWriteRequirement,
+                          fillHeight: true,
+                        ),
                       )
                     : effectiveSection.opensCatalogPanel
                     ? PharmacyCatalogPanel(state: state, fillHeight: true)

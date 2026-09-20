@@ -124,6 +124,14 @@ enum HmsApiResource {
     'pharmacy-order-items',
     HmsApiEndpointGroup.diagnosticsPharmacyBilling,
   ),
+  pharmacyLocations(
+    'pharmacy-locations',
+    HmsApiEndpointGroup.diagnosticsPharmacyBilling,
+  ),
+  pharmacyStockOrders(
+    'pharmacy-stock-orders',
+    HmsApiEndpointGroup.diagnosticsPharmacyBilling,
+  ),
   radiologyProcedures(
     'radiology-procedures',
     HmsApiEndpointGroup.diagnosticsPharmacyBilling,

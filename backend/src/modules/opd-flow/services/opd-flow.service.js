@@ -13,6 +13,7 @@ const { createAuditLog } = require('@lib/audit');
 const { HttpError } = require('@lib/errors');
 const { emitToUser, emitToUsers, OPD_EVENTS, NOTIFICATION_EVENTS } = require('@lib/websocket');
 const { ROLES, normalizeRoleName } = require('@config/roles');
+const { resolvePharmacyOrderRouting } = require('@lib/pharmacy/pharmacy-order-routing');
 const clinicalAlertThresholdService = require('@services/clinical-alert-threshold/clinical-alert-threshold.service');
 const { LAB_PANEL_WITH_RELATIONS_INCLUDE } = require('@services/lab-workspace/lab.shared');
 const { STANDARD_LAB_PANELS, STANDARD_LAB_TESTS } = require('@services/lab-order/lab-order.service');
@@ -5076,10 +5077,22 @@ const doctorReview = async (id, data, context = {}) => {
         });
       }
 
+      // A prescription written during a hospital consultation belongs to the
+      // pharmacy that fills hospital prescriptions, not to whichever pharmacy
+      // the prescriber happens to be near.
+      const pharmacyRouting = await resolvePharmacyOrderRouting(tx, {
+        explicitOrigin: 'HOSPITAL',
+        encounterId: encounter.id,
+        facilityId: encounter.facility_id || null,
+        tenantId: encounter.tenant_id || null
+      });
+
       pharmacyOrder = await tx.pharmacy_order.create({
         data: {
           encounter_id: encounter.id,
           patient_id: encounter.patient_id,
+          origin: pharmacyRouting.origin,
+          pharmacy_location_id: pharmacyRouting.pharmacy_location_id,
           status: 'ORDERED',
           ordered_at: new Date()
         }

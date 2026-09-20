@@ -30447,4 +30447,244 @@ class AppLocalizationsEn extends AppLocalizations {
   String feedbackFacetValueCaption(String value, String records) {
     return '$value · $records';
   }
+
+  @override
+  String get pharmacyLocationSwitcherLabel => 'Pharmacy';
+
+  @override
+  String get pharmacyLocationSwitcherTooltip => 'Switch pharmacy';
+
+  @override
+  String get pharmacyLocationKindMain => 'Main Pharmacy';
+
+  @override
+  String get pharmacyLocationKindHospital => 'Hospital Pharmacy';
+
+  @override
+  String get pharmacyLocationKindBranch => 'Branch Pharmacy';
+
+  @override
+  String get pharmacyLocationKindTheatre => 'Theatre Pharmacy';
+
+  @override
+  String get pharmacyLocationKindWard => 'Ward Pharmacy';
+
+  @override
+  String get pharmacyLocationKindOther => 'Pharmacy';
+
+  @override
+  String get pharmacyLocationAccessManage => 'Manage';
+
+  @override
+  String get pharmacyLocationAccessDispense => 'Dispense';
+
+  @override
+  String get pharmacyLocationAccessView => 'View only';
+
+  @override
+  String get pharmacyLocationNoneTitle => 'No pharmacy configured';
+
+  @override
+  String get pharmacyLocationNoneBody =>
+      'Ask an administrator to set up a Main Pharmacy and a Hospital Pharmacy for this facility.';
+
+  @override
+  String get pharmacyLocationReadOnlyBadge => 'Read only';
+
+  @override
+  String pharmacyLocationSuppliedByLabel(String name) {
+    return 'Supplied by $name';
+  }
+
+  @override
+  String get pharmacyAvailabilityTitle => 'Stock and supplier availability';
+
+  @override
+  String get pharmacyAvailabilityBody =>
+      'Your pharmacy stock beside what the supplying pharmacy has available. Order what you are short of.';
+
+  @override
+  String get pharmacyAvailabilityMedicineColumn => 'Medicine';
+
+  @override
+  String get pharmacyAvailabilityMineColumn => 'My stock';
+
+  @override
+  String pharmacyAvailabilitySupplierColumn(String name) {
+    return '$name available';
+  }
+
+  @override
+  String get pharmacyAvailabilityReorderColumn => 'Reorder level';
+
+  @override
+  String get pharmacyAvailabilityEmptyTitle => 'No stock yet';
+
+  @override
+  String get pharmacyAvailabilityEmptyBody =>
+      'This pharmacy is not holding any stock. Order from the supplying pharmacy to get started.';
+
+  @override
+  String get pharmacyAvailabilityBelowReorderFilter => 'Below reorder level';
+
+  @override
+  String get pharmacyAvailabilityOrderAction => 'Order';
+
+  @override
+  String get pharmacyAvailabilityNoSupplierLabel => 'No supplying pharmacy';
+
+  @override
+  String get pharmacyStockOrdersTitle => 'Stock orders';
+
+  @override
+  String get pharmacyStockOrdersInboxTab => 'To supply';
+
+  @override
+  String get pharmacyStockOrdersOutboxTab => 'My requests';
+
+  @override
+  String get pharmacyStockOrdersEmptyTitle => 'No stock orders';
+
+  @override
+  String get pharmacyStockOrdersEmptyBody =>
+      'Stock orders you raise or are asked to fill appear here.';
+
+  @override
+  String get pharmacyStockOrderReferenceColumn => 'Order';
+
+  @override
+  String get pharmacyStockOrderCounterpartyColumn => 'Pharmacy';
+
+  @override
+  String get pharmacyStockOrderLinesColumn => 'Lines';
+
+  @override
+  String get pharmacyStockOrderQuantityColumn => 'Quantity';
+
+  @override
+  String get pharmacyStockOrderStatusColumn => 'Status';
+
+  @override
+  String get pharmacyStockOrderNextActionColumn => 'Next action';
+
+  @override
+  String get pharmacyStockOrderStatusDraft => 'Draft';
+
+  @override
+  String get pharmacyStockOrderStatusSubmitted => 'Awaiting review';
+
+  @override
+  String get pharmacyStockOrderStatusUnderReview => 'Under review';
+
+  @override
+  String get pharmacyStockOrderStatusApproved => 'Approved';
+
+  @override
+  String get pharmacyStockOrderStatusPartiallyApproved => 'Partly approved';
+
+  @override
+  String get pharmacyStockOrderStatusRejected => 'Rejected';
+
+  @override
+  String get pharmacyStockOrderStatusIssued => 'Issued';
+
+  @override
+  String get pharmacyStockOrderStatusPartiallyReceived => 'Partly received';
+
+  @override
+  String get pharmacyStockOrderStatusReceived => 'Received';
+
+  @override
+  String get pharmacyStockOrderStatusCancelled => 'Cancelled';
+
+  @override
+  String get pharmacyStockOrderSubmitAction => 'Submit';
+
+  @override
+  String get pharmacyStockOrderReviewAction => 'Review';
+
+  @override
+  String get pharmacyStockOrderApproveAction => 'Approve';
+
+  @override
+  String get pharmacyStockOrderRejectAction => 'Reject';
+
+  @override
+  String get pharmacyStockOrderIssueAction => 'Issue stock';
+
+  @override
+  String get pharmacyStockOrderReceiveAction => 'Receive stock';
+
+  @override
+  String get pharmacyStockOrderCancelAction => 'Cancel order';
+
+  @override
+  String get pharmacyStockOrderCreateAction => 'Order stock';
+
+  @override
+  String pharmacyStockOrderInTransitLabel(int count) {
+    return '$count in transit';
+  }
+
+  @override
+  String get pharmacyStockOrderRequestedLabel => 'Requested';
+
+  @override
+  String get pharmacyStockOrderApprovedLabel => 'Approved';
+
+  @override
+  String get pharmacyStockOrderIssuedLabel => 'Issued';
+
+  @override
+  String get pharmacyStockOrderReceivedLabel => 'Received';
+
+  @override
+  String get pharmacyStockOrderSupplyPriceLabel => 'Supply price';
+
+  @override
+  String get pharmacyStockOrderSupplyTotalLabel => 'Supply total';
+
+  @override
+  String get pharmacyStockOrderNoStockChangeNotice =>
+      'Creating or approving an order does not move stock. Stock moves when it is issued and received.';
+
+  @override
+  String get pharmacyStockOrderReviewNotesLabel => 'Review notes';
+
+  @override
+  String get pharmacyStockOrderNotesLabel => 'Notes';
+
+  @override
+  String get pharmacyLocationPricesTitle => 'Pharmacy prices';
+
+  @override
+  String get pharmacyLocationSellPriceLabel => 'Selling price';
+
+  @override
+  String get pharmacyLocationWalkInPriceLabel => 'Walk-in price';
+
+  @override
+  String get pharmacyLocationSupplyPriceLabel => 'Hospital supply price';
+
+  @override
+  String get pharmacyLocationAcquisitionCostLabel => 'Acquisition cost';
+
+  @override
+  String get pharmacyLocationPriceIndependenceNotice =>
+      'Each pharmacy sets its own price. Changing the walk-in price does not change the hospital supply price.';
+
+  @override
+  String get pharmacyLocationPriceUnsetLabel => 'Not set';
+
+  @override
+  String get pharmacyCatalogTabStockOrders => 'Stock orders';
+
+  @override
+  String pharmacyProcurementRestrictedTitle(String name) {
+    return 'Procurement is handled by $name';
+  }
+
+  @override
+  String get pharmacyProcurementRestrictedBody =>
+      'Suppliers, purchase orders, goods receiving, batches, expiry and costs belong to the procurement pharmacy. Switch to it to manage them.';
 }

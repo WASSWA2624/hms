@@ -39065,5 +39065,325 @@
         "type": "String"
       }
     }
+  },
+  "pharmacyLocationSwitcherLabel": "Pharmacy",
+  "@pharmacyLocationSwitcherLabel": {
+    "description": "Label for the control that picks which pharmacy the user is working in."
+  },
+  "pharmacyLocationSwitcherTooltip": "Switch pharmacy",
+  "@pharmacyLocationSwitcherTooltip": {
+    "description": "Tooltip on the pharmacy switcher."
+  },
+  "pharmacyLocationKindMain": "Main Pharmacy",
+  "@pharmacyLocationKindMain": {
+    "description": "Procurement and wholesale pharmacy."
+  },
+  "pharmacyLocationKindHospital": "Hospital Pharmacy",
+  "@pharmacyLocationKindHospital": {
+    "description": "Pharmacy that dispenses hospital prescriptions."
+  },
+  "pharmacyLocationKindBranch": "Branch Pharmacy",
+  "@pharmacyLocationKindBranch": {
+    "description": "A branch dispensing point."
+  },
+  "pharmacyLocationKindTheatre": "Theatre Pharmacy",
+  "@pharmacyLocationKindTheatre": {
+    "description": "A theatre dispensing point."
+  },
+  "pharmacyLocationKindWard": "Ward Pharmacy",
+  "@pharmacyLocationKindWard": {
+    "description": "A ward dispensing point."
+  },
+  "pharmacyLocationKindOther": "Pharmacy",
+  "@pharmacyLocationKindOther": {
+    "description": "A dispensing point with no specific kind."
+  },
+  "pharmacyLocationAccessManage": "Manage",
+  "@pharmacyLocationAccessManage": {
+    "description": "The user can change this pharmacy stock and prices."
+  },
+  "pharmacyLocationAccessDispense": "Dispense",
+  "@pharmacyLocationAccessDispense": {
+    "description": "The user can dispense from this pharmacy."
+  },
+  "pharmacyLocationAccessView": "View only",
+  "@pharmacyLocationAccessView": {
+    "description": "The user can only read this pharmacy."
+  },
+  "pharmacyLocationNoneTitle": "No pharmacy configured",
+  "@pharmacyLocationNoneTitle": {
+    "description": "Empty state when a facility has no pharmacy locations."
+  },
+  "pharmacyLocationNoneBody": "Ask an administrator to set up a Main Pharmacy and a Hospital Pharmacy for this facility.",
+  "@pharmacyLocationNoneBody": {
+    "description": "Body of the no-pharmacy empty state."
+  },
+  "pharmacyLocationReadOnlyBadge": "Read only",
+  "@pharmacyLocationReadOnlyBadge": {
+    "description": "Badge on a pharmacy the user can only look at."
+  },
+  "pharmacyLocationSuppliedByLabel": "Supplied by {name}",
+  "@pharmacyLocationSuppliedByLabel": {
+    "description": "Says which pharmacy this one orders stock from.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "pharmacyAvailabilityTitle": "Stock and supplier availability",
+  "@pharmacyAvailabilityTitle": {
+    "description": "Title of the cross-pharmacy stock view."
+  },
+  "pharmacyAvailabilityBody": "Your pharmacy stock beside what the supplying pharmacy has available. Order what you are short of.",
+  "@pharmacyAvailabilityBody": {
+    "description": "Body of the cross-pharmacy stock view."
+  },
+  "pharmacyAvailabilityMedicineColumn": "Medicine",
+  "@pharmacyAvailabilityMedicineColumn": {
+    "description": "Column: the item."
+  },
+  "pharmacyAvailabilityMineColumn": "My stock",
+  "@pharmacyAvailabilityMineColumn": {
+    "description": "Column: the acting pharmacy own balance."
+  },
+  "pharmacyAvailabilitySupplierColumn": "{name} available",
+  "@pharmacyAvailabilitySupplierColumn": {
+    "description": "Column: quantity the supplying pharmacy holds.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "pharmacyAvailabilityReorderColumn": "Reorder level",
+  "@pharmacyAvailabilityReorderColumn": {
+    "description": "Column: reorder threshold."
+  },
+  "pharmacyAvailabilityEmptyTitle": "No stock yet",
+  "@pharmacyAvailabilityEmptyTitle": {
+    "description": "Empty state for the availability table."
+  },
+  "pharmacyAvailabilityEmptyBody": "This pharmacy is not holding any stock. Order from the supplying pharmacy to get started.",
+  "@pharmacyAvailabilityEmptyBody": {
+    "description": "Body of the availability empty state."
+  },
+  "pharmacyAvailabilityBelowReorderFilter": "Below reorder level",
+  "@pharmacyAvailabilityBelowReorderFilter": {
+    "description": "Filter toggle for low rows."
+  },
+  "pharmacyAvailabilityOrderAction": "Order",
+  "@pharmacyAvailabilityOrderAction": {
+    "description": "Action that adds a row to a stock order."
+  },
+  "pharmacyAvailabilityNoSupplierLabel": "No supplying pharmacy",
+  "@pharmacyAvailabilityNoSupplierLabel": {
+    "description": "Shown when a pharmacy has no supplier configured."
+  },
+  "pharmacyStockOrdersTitle": "Stock orders",
+  "@pharmacyStockOrdersTitle": {
+    "description": "Title of the stock order panel."
+  },
+  "pharmacyStockOrdersInboxTab": "To supply",
+  "@pharmacyStockOrdersInboxTab": {
+    "description": "Tab: requests this pharmacy must fill."
+  },
+  "pharmacyStockOrdersOutboxTab": "My requests",
+  "@pharmacyStockOrdersOutboxTab": {
+    "description": "Tab: requests this pharmacy raised."
+  },
+  "pharmacyStockOrdersEmptyTitle": "No stock orders",
+  "@pharmacyStockOrdersEmptyTitle": {
+    "description": "Empty state for stock orders."
+  },
+  "pharmacyStockOrdersEmptyBody": "Stock orders you raise or are asked to fill appear here.",
+  "@pharmacyStockOrdersEmptyBody": {
+    "description": "Body of the stock order empty state."
+  },
+  "pharmacyStockOrderReferenceColumn": "Order",
+  "@pharmacyStockOrderReferenceColumn": {
+    "description": "Column: the order reference."
+  },
+  "pharmacyStockOrderCounterpartyColumn": "Pharmacy",
+  "@pharmacyStockOrderCounterpartyColumn": {
+    "description": "Column: the other pharmacy on the order."
+  },
+  "pharmacyStockOrderLinesColumn": "Lines",
+  "@pharmacyStockOrderLinesColumn": {
+    "description": "Column: number of medicines requested."
+  },
+  "pharmacyStockOrderQuantityColumn": "Quantity",
+  "@pharmacyStockOrderQuantityColumn": {
+    "description": "Column: requested quantity."
+  },
+  "pharmacyStockOrderStatusColumn": "Status",
+  "@pharmacyStockOrderStatusColumn": {
+    "description": "Column: workflow status."
+  },
+  "pharmacyStockOrderNextActionColumn": "Next action",
+  "@pharmacyStockOrderNextActionColumn": {
+    "description": "Column: what this pharmacy must do now."
+  },
+  "pharmacyStockOrderStatusDraft": "Draft",
+  "@pharmacyStockOrderStatusDraft": {
+    "description": "Stock order status."
+  },
+  "pharmacyStockOrderStatusSubmitted": "Awaiting review",
+  "@pharmacyStockOrderStatusSubmitted": {
+    "description": "Stock order status."
+  },
+  "pharmacyStockOrderStatusUnderReview": "Under review",
+  "@pharmacyStockOrderStatusUnderReview": {
+    "description": "Stock order status."
+  },
+  "pharmacyStockOrderStatusApproved": "Approved",
+  "@pharmacyStockOrderStatusApproved": {
+    "description": "Stock order status."
+  },
+  "pharmacyStockOrderStatusPartiallyApproved": "Partly approved",
+  "@pharmacyStockOrderStatusPartiallyApproved": {
+    "description": "Stock order status."
+  },
+  "pharmacyStockOrderStatusRejected": "Rejected",
+  "@pharmacyStockOrderStatusRejected": {
+    "description": "Stock order status."
+  },
+  "pharmacyStockOrderStatusIssued": "Issued",
+  "@pharmacyStockOrderStatusIssued": {
+    "description": "Stock order status."
+  },
+  "pharmacyStockOrderStatusPartiallyReceived": "Partly received",
+  "@pharmacyStockOrderStatusPartiallyReceived": {
+    "description": "Stock order status."
+  },
+  "pharmacyStockOrderStatusReceived": "Received",
+  "@pharmacyStockOrderStatusReceived": {
+    "description": "Stock order status."
+  },
+  "pharmacyStockOrderStatusCancelled": "Cancelled",
+  "@pharmacyStockOrderStatusCancelled": {
+    "description": "Stock order status."
+  },
+  "pharmacyStockOrderSubmitAction": "Submit",
+  "@pharmacyStockOrderSubmitAction": {
+    "description": "Sends a draft order for review."
+  },
+  "pharmacyStockOrderReviewAction": "Review",
+  "@pharmacyStockOrderReviewAction": {
+    "description": "Opens the approve / reject dialog."
+  },
+  "pharmacyStockOrderApproveAction": "Approve",
+  "@pharmacyStockOrderApproveAction": {
+    "description": "Approves a stock order."
+  },
+  "pharmacyStockOrderRejectAction": "Reject",
+  "@pharmacyStockOrderRejectAction": {
+    "description": "Rejects a stock order."
+  },
+  "pharmacyStockOrderIssueAction": "Issue stock",
+  "@pharmacyStockOrderIssueAction": {
+    "description": "Releases stock from the supplying pharmacy."
+  },
+  "pharmacyStockOrderReceiveAction": "Receive stock",
+  "@pharmacyStockOrderReceiveAction": {
+    "description": "Books a delivery into the requesting pharmacy."
+  },
+  "pharmacyStockOrderCancelAction": "Cancel order",
+  "@pharmacyStockOrderCancelAction": {
+    "description": "Cancels an order that has not moved stock."
+  },
+  "pharmacyStockOrderCreateAction": "Order stock",
+  "@pharmacyStockOrderCreateAction": {
+    "description": "Raises a new stock order."
+  },
+  "pharmacyStockOrderInTransitLabel": "{count} in transit",
+  "@pharmacyStockOrderInTransitLabel": {
+    "description": "How many units are issued but not yet received.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "pharmacyStockOrderRequestedLabel": "Requested",
+  "@pharmacyStockOrderRequestedLabel": {
+    "description": "Label for the requested quantity."
+  },
+  "pharmacyStockOrderApprovedLabel": "Approved",
+  "@pharmacyStockOrderApprovedLabel": {
+    "description": "Label for the approved quantity."
+  },
+  "pharmacyStockOrderIssuedLabel": "Issued",
+  "@pharmacyStockOrderIssuedLabel": {
+    "description": "Label for the issued quantity."
+  },
+  "pharmacyStockOrderReceivedLabel": "Received",
+  "@pharmacyStockOrderReceivedLabel": {
+    "description": "Label for the received quantity."
+  },
+  "pharmacyStockOrderSupplyPriceLabel": "Supply price",
+  "@pharmacyStockOrderSupplyPriceLabel": {
+    "description": "Price the supplying pharmacy charges."
+  },
+  "pharmacyStockOrderSupplyTotalLabel": "Supply total",
+  "@pharmacyStockOrderSupplyTotalLabel": {
+    "description": "Total at the supply price."
+  },
+  "pharmacyStockOrderNoStockChangeNotice": "Creating or approving an order does not move stock. Stock moves when it is issued and received.",
+  "@pharmacyStockOrderNoStockChangeNotice": {
+    "description": "Explains that the order is paperwork only."
+  },
+  "pharmacyStockOrderReviewNotesLabel": "Review notes",
+  "@pharmacyStockOrderReviewNotesLabel": {
+    "description": "Free text on a review decision."
+  },
+  "pharmacyStockOrderNotesLabel": "Notes",
+  "@pharmacyStockOrderNotesLabel": {
+    "description": "Free text on the order."
+  },
+  "pharmacyLocationPricesTitle": "Pharmacy prices",
+  "@pharmacyLocationPricesTitle": {
+    "description": "Title of the per-pharmacy price panel."
+  },
+  "pharmacyLocationSellPriceLabel": "Selling price",
+  "@pharmacyLocationSellPriceLabel": {
+    "description": "Price this pharmacy charges its own customers."
+  },
+  "pharmacyLocationWalkInPriceLabel": "Walk-in price",
+  "@pharmacyLocationWalkInPriceLabel": {
+    "description": "Main Pharmacy price to non-hospital clients."
+  },
+  "pharmacyLocationSupplyPriceLabel": "Hospital supply price",
+  "@pharmacyLocationSupplyPriceLabel": {
+    "description": "Price charged when supplying another pharmacy."
+  },
+  "pharmacyLocationAcquisitionCostLabel": "Acquisition cost",
+  "@pharmacyLocationAcquisitionCostLabel": {
+    "description": "What this pharmacy paid for the stock."
+  },
+  "pharmacyLocationPriceIndependenceNotice": "Each pharmacy sets its own price. Changing the walk-in price does not change the hospital supply price.",
+  "@pharmacyLocationPriceIndependenceNotice": {
+    "description": "Explains that the price contexts are independent."
+  },
+  "pharmacyLocationPriceUnsetLabel": "Not set",
+  "@pharmacyLocationPriceUnsetLabel": {
+    "description": "Shown when a pharmacy has not configured its own price."
+  },
+  "pharmacyCatalogTabStockOrders": "Stock orders",
+  "@pharmacyCatalogTabStockOrders": {
+    "description": "Catalog tab: cross-pharmacy availability and stock orders."
+  },
+  "pharmacyProcurementRestrictedTitle": "Procurement is handled by {name}",
+  "@pharmacyProcurementRestrictedTitle": {
+    "description": "Shown when the selected pharmacy does not run procurement.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "pharmacyProcurementRestrictedBody": "Suppliers, purchase orders, goods receiving, batches, expiry and costs belong to the procurement pharmacy. Switch to it to manage them.",
+  "@pharmacyProcurementRestrictedBody": {
+    "description": "Explains why procurement surfaces are unavailable here."
   }
 }

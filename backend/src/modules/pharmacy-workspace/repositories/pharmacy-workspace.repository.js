@@ -383,12 +383,30 @@ const txCreateInventoryItem = async (tx, data) => tx.inventory_item.create({ dat
 
 const txCreateDrugInventoryMap = async (tx, data) => tx.drug_inventory_map.create({ data });
 
-const txFindDrugBatchByDrugAndNumber = async (tx, drugId, batchNumber) =>
+/**
+ * Find a batch of a drug, within one pharmacy when a location is given.
+ *
+ * Batch numbers repeat across pharmacies, so an unscoped lookup would let the
+ * Hospital Pharmacy write into a Main Pharmacy batch row.
+ *
+ * @param {Object} tx - Prisma transaction
+ * @param {string} drugId - Catalog drug
+ * @param {string} batchNumber - Batch number
+ * @param {string|null} [pharmacyLocationId] - Pharmacy holding the batch
+ * @returns {Promise<Object|null>} Batch row or null
+ */
+const txFindDrugBatchByDrugAndNumber = async (
+  tx,
+  drugId,
+  batchNumber,
+  pharmacyLocationId = null
+) =>
   tx.drug_batch.findFirst({
     where: {
       deleted_at: null,
       drug_id: drugId,
-      batch_number: batchNumber}});
+      batch_number: batchNumber,
+      ...(pharmacyLocationId ? { pharmacy_location_id: pharmacyLocationId } : {})}});
 
 const txCreateDrugBatch = async (tx, data) => tx.drug_batch.create({ data });
 

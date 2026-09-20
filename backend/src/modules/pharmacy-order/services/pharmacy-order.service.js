@@ -28,6 +28,8 @@ const {
   reverseClinicalRequestBilling,
   extractStoredClinicalBilling,
   buildPharmacyOrderBillingFromRequest} = require('@lib/billing/clinical-request-billing');
+const {
+  resolvePharmacyOrderRouting} = require('@lib/pharmacy/pharmacy-order-routing');
 
 const ORDER_SCOPE_INCLUDE = PHARMACY_ORDER_WITH_RELATIONS_INCLUDE;
 
@@ -305,6 +307,25 @@ const createPharmacyOrder = async (data, userId, ipAddress, user = {}) => {
       payload.items = {
         create: await normalizeOrderItemPayloads(items, scope)};
     }
+
+    // Route the prescription before it is written: an order raised against an
+    // encounter is hospital work and goes to the pharmacy that fills hospital
+    // prescriptions; one raised without an encounter is a counter sale and goes
+    // to a pharmacy that handles walk-ins. Dispensing later checks this against
+    // the pharmacy the user is standing in.
+    const routingPatient = payload.patient_id
+      ? await prisma.patient.findFirst({
+          where: { id: payload.patient_id, deleted_at: null },
+          select: { id: true, tenant_id: true, facility_id: true }})
+      : null;
+    const routing = await resolvePharmacyOrderRouting(prisma, {
+      explicitOrigin: data.origin,
+      explicitLocationId: data.pharmacy_location_id,
+      encounterId: payload.encounter_id,
+      facilityId: routingPatient?.facility_id || scope.facility_id || null,
+      tenantId: routingPatient?.tenant_id || scope.tenant_id || null});
+    payload.origin = routing.origin;
+    payload.pharmacy_location_id = routing.pharmacy_location_id;
 
     const pharmacyOrder = await pharmacyOrderRepository.create(payload, ORDER_SCOPE_INCLUDE);
 

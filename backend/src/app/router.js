@@ -217,6 +217,8 @@ apiV1Router.use('/lab-results', lazyRoutes('../modules/lab-result/routes/lab-res
 apiV1Router.use('/lab-qc-logs', lazyRoutes('../modules/lab-qc-log/routes/lab-qc-log.routes'));
 apiV1Router.use('/lab', lazyRoutes('../modules/lab-workspace/routes/lab-workspace.routes'));
 apiV1Router.use('/radiology', lazyRoutes('../modules/radiology-workspace/routes/radiology-workspace.routes'));
+apiV1Router.use('/pharmacy-locations', lazyRoutes('../modules/pharmacy-location/routes/pharmacy-location.routes'));
+apiV1Router.use('/pharmacy-stock-orders', lazyRoutes('../modules/pharmacy-stock-order/routes/pharmacy-stock-order.routes'));
 apiV1Router.use('/pharmacy', lazyRoutes('../modules/pharmacy-workspace/routes/pharmacy-workspace.routes'));
 apiV1Router.use('/imaging-studies', lazyRoutes('../modules/imaging-study/routes/imaging-study.routes'));
 apiV1Router.use('/imaging-assets', lazyRoutes('../modules/imaging-asset/routes/imaging-asset.routes'));

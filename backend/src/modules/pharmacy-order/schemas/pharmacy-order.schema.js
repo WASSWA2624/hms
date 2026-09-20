@@ -131,6 +131,11 @@ const createPharmacyOrderSchema = z.object({
   encounter_id: uuidOrFriendlyIdentifierSchema.optional().nullable(),
   patient_id: uuidOrFriendlyIdentifierSchema.optional().nullable(),
   ordered_at: z.string().datetime().optional(),
+  // Routing. Left out, origin follows the encounter (hospital consultation ->
+  // HOSPITAL, counter sale -> WALK_IN) and the pharmacy is the one configured
+  // for that origin in the facility.
+  origin: z.enum(['HOSPITAL', 'WALK_IN']).optional(),
+  pharmacy_location_id: uuidOrFriendlyIdentifierSchema.optional().nullable(),
   items: z.array(pharmacyOrderItemSchema).min(1),
   billing: clinicalRequestBillingSchema.optional().nullable()});
 

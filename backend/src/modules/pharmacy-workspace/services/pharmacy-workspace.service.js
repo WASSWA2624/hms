@@ -21,6 +21,16 @@ const {
 } = require('@lib/billing/pricing-permissions');
 const { ROLES } = require('@config/roles');
 const {
+  ACCESS_LEVELS,
+  findPharmacyLocation,
+  findDefaultLocationByKind,
+  resolveDispensingLocationForOrigin,
+  loadUserLocationGrants,
+  assertLocationAccess,
+  assertProcurementAccess,
+  hasTenantWideAccess} = require('@lib/pharmacy/pharmacy-location-access');
+const { assertOrderDispensableAt } = require('@lib/pharmacy/pharmacy-order-routing');
+const {
   PHARMACY_ORDER_WITH_RELATIONS_INCLUDE,
   INVENTORY_STOCK_WITH_RELATIONS_INCLUDE,
   INVENTORY_ITEM_PUBLIC_SELECT,
@@ -391,7 +401,8 @@ const upsertDrugBatchForReceipt = async (
     expiryAlertLeadDays = null,
     quantityDelta = 0,
     storageRoomId = null,
-    storageShelfId = null}
+    storageShelfId = null,
+    pharmacyLocationId = null}
 ) => {
   const resolvedBatchNumber = String(batchNumber || '').trim() || 'UNLABELED';
   if (!drugId) return null;
@@ -409,7 +420,8 @@ const upsertDrugBatchForReceipt = async (
   let batch = await pharmacyWorkspaceRepository.txFindDrugBatchByDrugAndNumber(
     tx,
     drugId,
-    resolvedBatchNumber
+    resolvedBatchNumber,
+    pharmacyLocationId
   );
 
   if (batch) {
@@ -436,7 +448,8 @@ const upsertDrugBatchForReceipt = async (
     expiry_alert_lead_days: expiryAlertLeadDays,
     quantity: Math.max(delta, 0),
     storage_room_id: storageRoomId,
-    storage_shelf_id: storageShelfId});
+    storage_shelf_id: storageShelfId,
+    pharmacy_location_id: pharmacyLocationId});
 };
 
 const buildDrugStockInclude = (scope = {}) => ({
@@ -485,6 +498,64 @@ const resolveScopedFacilityId = async (identifier, scope, allowNull = false) =>
       ...buildTenantScopeWhere(scope)},
     errorKey: 'errors.facility.not_found',
     allowNull});
+
+/**
+ * The pharmacy the caller is acting in.
+ *
+ * Resolution order: an explicit id on the request, then the pharmacy the order
+ * itself belongs to, then the single pharmacy the user holds a grant on. A
+ * facility with no pharmacy locations configured resolves to null and keeps the
+ * pre-location behaviour.
+ *
+ * @param {Object} client - Prisma client or transaction
+ * @param {Object} params
+ * @param {string} [params.explicitLocationId] - Location stated on the request
+ * @param {Object} [params.order] - Order being acted on
+ * @param {Object} params.scope - Resolved tenant/facility scope
+ * @param {Object} params.user - Request user context
+ * @returns {Promise<Object|null>} Pharmacy location row, or null when unset
+ */
+const resolveActingPharmacyLocation = async (
+  client,
+  { explicitLocationId = null, order = null, scope = {}, user = {} }
+) => {
+  const tenantId = scope?.can_manage_all_tenants ? null : scope?.tenant_id || null;
+
+  if (explicitLocationId) {
+    const explicit = await findPharmacyLocation(client, explicitLocationId, { tenantId });
+    if (!explicit) {
+      throw new HttpError('errors.pharmacy_location.not_found', 404, [
+        { field: 'pharmacy_location_id' }]);
+    }
+    return explicit;
+  }
+
+  // The user's own pharmacy comes before the order's, so someone standing in
+  // the wrong pharmacy gets "this prescription belongs elsewhere" rather than a
+  // bare access-denied on a pharmacy they never asked for.
+  if (!hasTenantWideAccess(user)) {
+    const grants = await loadUserLocationGrants(client, { userId: user?.id, tenantId });
+    if (grants.size === 1) {
+      const [locationId] = Array.from(grants.keys());
+      return findPharmacyLocation(client, locationId, { tenantId });
+    }
+  }
+
+  if (order?.pharmacy_location_id) {
+    return findPharmacyLocation(client, order.pharmacy_location_id, { tenantId });
+  }
+
+  // Several grants, or none: fall back to the facility's prescription pharmacy
+  // so a tenant admin or a multi-pharmacy user still lands somewhere defined.
+  if (scope?.facility_id) {
+    return resolveDispensingLocationForOrigin(client, {
+      facilityId: scope.facility_id,
+      origin: order?.origin || 'HOSPITAL',
+      tenantId});
+  }
+
+  return null;
+};
 
 const ensureScopedOrderRecord = (orderRecord, scope) => {
   if (!orderRecord || !matchesOrderScope(orderRecord, scope)) {
@@ -922,6 +993,22 @@ const finalizePendingDispenseBatch = async ({
     true
   );
 
+  // Dispense out of the pharmacy that owns the prescription, and refuse the
+  // attempt outright when the user is standing in a different one. Without
+  // this, a hospital prescription could be filled from Main Pharmacy stock.
+  const dispensingLocation = await resolveActingPharmacyLocation(tx, {
+    explicitLocationId: payload.pharmacy_location_id,
+    order,
+    scope,
+    user: scope?.user || {}});
+  assertOrderDispensableAt({ order, dispensingLocation });
+  if (dispensingLocation) {
+    await assertLocationAccess(tx, {
+      location: dispensingLocation,
+      user: scope?.user || {},
+      level: ACCESS_LEVELS.DISPENSE});
+  }
+
   const attestedAt = toDateOrNull(payload.attested_at, new Date());
   const stockRecords = [];
 
@@ -947,15 +1034,25 @@ const finalizePendingDispenseBatch = async ({
       inventoryMap.deduction_factor
     );
 
-    const stockRecord = await pharmacyWorkspaceRepository.txFindStockByInventoryItemAndFacility(
-      tx,
-      inventoryMap.inventory_item_id,
-      resolvedFacilityId,
-      INVENTORY_STOCK_WITH_RELATIONS_INCLUDE
-    );
+    // Location-scoped balance first: Main and Hospital pharmacies hold separate
+    // rows for the same item, so the facility-wide lookup would be ambiguous.
+    const stockRecord = dispensingLocation
+      ? await tx.inventory_stock.findFirst({
+          where: {
+            deleted_at: null,
+            inventory_item_id: inventoryMap.inventory_item_id,
+            pharmacy_location_id: dispensingLocation.id},
+          include: INVENTORY_STOCK_WITH_RELATIONS_INCLUDE})
+      : await pharmacyWorkspaceRepository.txFindStockByInventoryItemAndFacility(
+          tx,
+          inventoryMap.inventory_item_id,
+          resolvedFacilityId,
+          INVENTORY_STOCK_WITH_RELATIONS_INCLUDE
+        );
     if (!stockRecord) {
       throw new HttpError('errors.pharmacy_workspace.stock.not_found', 404, [
-        { inventory_item_id: inventoryMap.inventory_item_id }]);
+        { inventory_item_id: inventoryMap.inventory_item_id,
+          pharmacy_location_id: dispensingLocation?.id || null }]);
     }
     const stock = ensureScopedInventoryStockRecord(stockRecord, scope);
 
@@ -971,6 +1068,7 @@ const finalizePendingDispenseBatch = async ({
     await pharmacyWorkspaceRepository.txCreateStockMovement(tx, {
       inventory_item_id: inventoryMap.inventory_item_id,
       facility_id: resolvedFacilityId,
+      pharmacy_location_id: dispensingLocation?.id || null,
       movement_type: 'OUTBOUND',
       reason: 'DISPENSE',
       quantity: stockDelta,
@@ -1451,6 +1549,12 @@ const buildInventoryStockWhere = async (filters = {}, scope, options = {}) => {
     where.facility_id = await resolveScopedFacilityId(filters.facility_id, scope);
   } else if (scope?.facility_id && !scope?.can_manage_all_tenants) {
     where.facility_id = scope.facility_id;
+  }
+
+  // Balances belong to one pharmacy. Without a location filter a Main + Hospital
+  // facility would list the same item twice and appear to hold both balances.
+  if (options.pharmacyLocationId) {
+    where.pharmacy_location_id = options.pharmacyLocationId;
   }
 
   if (filters.inventory_item_id) {
@@ -2520,9 +2624,24 @@ const getInventoryStock = async (filters, page, limit, sortBy, order, user = {})
     const orderBy = sortBy ? { [sortBy]: order } : { updated_at: 'desc' };
     const expiringWithinDays = Number(filters.expiring_within_days || EXPIRING_SOON_DAYS);
 
+    // A pharmacy user sees their own pharmacy's balances. Reading another
+    // pharmacy's stock goes through the availability endpoint, which returns
+    // quantities only.
+    const actingLocation = await resolveActingPharmacyLocation(prisma, {
+      explicitLocationId: filters.pharmacy_location_id,
+      scope,
+      user});
+    if (actingLocation) {
+      await assertLocationAccess(prisma, {
+        location: actingLocation,
+        user,
+        level: ACCESS_LEVELS.VIEW});
+    }
+    const locationOptions = { pharmacyLocationId: actingLocation?.id || null };
+
     const [where, summaryWhere] = await Promise.all([
-      buildInventoryStockWhere(filters, scope, { includeSearch: true }),
-      buildInventoryStockWhere(filters, scope, { includeSearch: false })]);
+      buildInventoryStockWhere(filters, scope, { includeSearch: true, ...locationOptions }),
+      buildInventoryStockWhere(filters, scope, { includeSearch: false, ...locationOptions })]);
 
     const facilityId =
       scope.facility_id ||
@@ -2598,18 +2717,52 @@ const adjustInventoryStock = async (payload = {}, userId, _userRole, ipAddress, 
       payload.reorder_level !== undefined ? Number(payload.reorder_level) : undefined;
     const storageAssignment = await resolveStorageAssignment(payload, scope, facilityId);
 
+    // Adjusting a balance means adjusting one pharmacy's balance, and needs a
+    // MANAGE grant on it. Batch, expiry and cost metadata are procurement
+    // records, so those additionally require the procurement pharmacy - which
+    // is what keeps Hospital Pharmacy users out of Main Pharmacy batches.
+    const actingLocation = await resolveActingPharmacyLocation(prisma, {
+      explicitLocationId: payload.pharmacy_location_id,
+      scope,
+      user});
+    const touchesProcurementRecords = Boolean(
+      String(payload.batch_number || '').trim() ||
+        payload.manufactured_at ||
+        payload.expiry_date ||
+        payload.expiry_alert_lead_days != null ||
+        payload.unit_cost !== undefined
+    );
+    if (actingLocation) {
+      if (touchesProcurementRecords) {
+        await assertProcurementAccess(prisma, { location: actingLocation, user });
+      } else {
+        await assertLocationAccess(prisma, {
+          location: actingLocation,
+          user,
+          level: ACCESS_LEVELS.MANAGE});
+      }
+    }
+
     const mutation = await pharmacyWorkspaceRepository.withTransaction(async (tx) => {
-      let stock = await pharmacyWorkspaceRepository.txFindStockByInventoryItemAndFacility(
-        tx,
-        inventoryItemId,
-        facilityId,
-        INVENTORY_STOCK_WITH_RELATIONS_INCLUDE
-      );
+      let stock = actingLocation
+        ? await tx.inventory_stock.findFirst({
+            where: {
+              deleted_at: null,
+              inventory_item_id: inventoryItemId,
+              pharmacy_location_id: actingLocation.id},
+            include: INVENTORY_STOCK_WITH_RELATIONS_INCLUDE})
+        : await pharmacyWorkspaceRepository.txFindStockByInventoryItemAndFacility(
+            tx,
+            inventoryItemId,
+            facilityId,
+            INVENTORY_STOCK_WITH_RELATIONS_INCLUDE
+          );
 
       if (!stock) {
         stock = await pharmacyWorkspaceRepository.txCreateInventoryStock(tx, {
           inventory_item_id: inventoryItemId,
           facility_id: facilityId,
+          pharmacy_location_id: actingLocation?.id || null,
           quantity: 0,
           reorder_level: reorderLevel !== undefined ? reorderLevel : 0});
       } else {
@@ -2640,6 +2793,7 @@ const adjustInventoryStock = async (payload = {}, userId, _userRole, ipAddress, 
         movement = await pharmacyWorkspaceRepository.txCreateStockMovement(tx, {
           inventory_item_id: inventoryItemId,
           facility_id: facilityId,
+          pharmacy_location_id: actingLocation?.id || null,
           movement_type: 'ADJUSTMENT',
           reason: payload.reason || 'OTHER',
           quantity: Math.abs(quantityDelta),
@@ -2687,16 +2841,24 @@ const adjustInventoryStock = async (payload = {}, userId, _userRole, ipAddress, 
             expiryAlertLeadDays,
             quantityDelta: quantityDelta > 0 ? quantityDelta : 0,
             storageRoomId: storageAssignment.storageRoomId,
-            storageShelfId: storageAssignment.storageShelfId});
+            storageShelfId: storageAssignment.storageShelfId,
+            pharmacyLocationId: actingLocation?.id || null});
         }
       }
 
-      const refreshedStock = await pharmacyWorkspaceRepository.txFindStockByInventoryItemAndFacility(
-        tx,
-        inventoryItemId,
-        facilityId,
-        INVENTORY_STOCK_WITH_RELATIONS_INCLUDE
-      );
+      const refreshedStock = actingLocation
+        ? await tx.inventory_stock.findFirst({
+            where: {
+              deleted_at: null,
+              inventory_item_id: inventoryItemId,
+              pharmacy_location_id: actingLocation.id},
+            include: INVENTORY_STOCK_WITH_RELATIONS_INCLUDE})
+        : await pharmacyWorkspaceRepository.txFindStockByInventoryItemAndFacility(
+            tx,
+            inventoryItemId,
+            facilityId,
+            INVENTORY_STOCK_WITH_RELATIONS_INCLUDE
+          );
 
       return {
         stock: refreshedStock

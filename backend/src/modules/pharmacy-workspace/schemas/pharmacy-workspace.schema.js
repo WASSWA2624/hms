@@ -75,6 +75,8 @@ const prepareDispenseSchema = z.object({
   items: z.array(prepareDispenseLineSchema).min(1).optional()});
 
 const attestDispenseSchema = z.object({
+  // Pharmacy dispensing. Must match the pharmacy the prescription was routed to.
+  pharmacy_location_id: uuidOrFriendlyIdentifierSchema.optional().nullable(),
   dispense_batch_ref: z.string().trim().min(3).max(64),
   facility_id: uuidOrFriendlyIdentifierSchema.optional().nullable(),
   statement: z.string().trim().max(65535).optional().nullable(),
@@ -106,6 +108,10 @@ const returnPharmacyOrderSchema = z.object({
 
 const getInventoryStockQuerySchema = listQuerySchema.extend({
   facility_id: uuidOrFriendlyIdentifierSchema.optional(),
+  // Balances belong to one pharmacy. Left out, the caller's own pharmacy is
+  // used; reading another pharmacy's stock goes through
+  // GET /pharmacy-locations/:id/availability, which returns quantities only.
+  pharmacy_location_id: uuidOrFriendlyIdentifierSchema.optional(),
   inventory_item_id: uuidOrFriendlyIdentifierSchema.optional(),
   low_stock_only: z.coerce.boolean().optional(),
   stock_status: stockStatusSchema.optional(),
@@ -119,6 +125,9 @@ const adjustInventorySchema = z
   .object({
     inventory_item_id: uuidOrFriendlyIdentifierSchema,
     facility_id: uuidOrFriendlyIdentifierSchema.optional().nullable(),
+    // Pharmacy whose balance is adjusted. Batch/expiry metadata additionally
+    // requires this to be the procurement pharmacy.
+    pharmacy_location_id: uuidOrFriendlyIdentifierSchema.optional().nullable(),
     quantity_delta: z.coerce.number().int().optional().default(0),
     reorder_level: z.coerce.number().int().min(0).optional(),
     reason: stockReasonSchema.optional(),

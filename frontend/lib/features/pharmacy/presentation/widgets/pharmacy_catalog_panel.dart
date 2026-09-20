@@ -17,6 +17,7 @@ import 'package:hosspi_hms/features/pharmacy/domain/entities/pharmacy_entities.d
 import 'package:hosspi_hms/features/pharmacy/presentation/controllers/pharmacy_workspace_controller.dart';
 import 'package:hosspi_hms/features/pharmacy/presentation/pharmacy_access.dart';
 import 'package:hosspi_hms/features/pharmacy/presentation/widgets/pharmacy_catalog_tabs.dart';
+import 'package:hosspi_hms/features/pharmacy/presentation/widgets/pharmacy_stock_orders_panel.dart';
 import 'package:hosspi_hms/features/pharmacy/presentation/widgets/pharmacy_drug_details_dialog.dart';
 import 'package:hosspi_hms/features/pharmacy/presentation/widgets/pharmacy_drug_edit_dialog.dart';
 import 'package:hosspi_hms/features/pharmacy/presentation/widgets/pharmacy_drug_import_dialog.dart';
@@ -106,6 +107,17 @@ class _PharmacyCatalogPanelState extends ConsumerState<PharmacyCatalogPanel> {
         writeRequirement: pharmacyCatalogWriteRequirement,
         fillHeight: widget.fillHeight,
       ),
+      // Scoped to the selected pharmacy rather than the facility, so Main and
+      // Hospital stock never appear as one balance.
+      //
+      // Built only while selected. IndexedStack builds every child eagerly, and
+      // this one owns its own async load, so mounting it behind the other tabs
+      // would leave a progress indicator animating in a hidden branch and stop
+      // the catalog from ever settling.
+      if (tab == PharmacyCatalogTab.stockOrders)
+        const SingleChildScrollView(child: PharmacyStockOrdersPanel())
+      else
+        const SizedBox.shrink(),
     ];
     final Widget tabContent = IndexedStack(
       index: tab.index,

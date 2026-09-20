@@ -55260,6 +55260,456 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{value} · {records}'**
   String feedbackFacetValueCaption(String value, String records);
+
+  /// Label for the control that picks which pharmacy the user is working in.
+  ///
+  /// In en, this message translates to:
+  /// **'Pharmacy'**
+  String get pharmacyLocationSwitcherLabel;
+
+  /// Tooltip on the pharmacy switcher.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch pharmacy'**
+  String get pharmacyLocationSwitcherTooltip;
+
+  /// Procurement and wholesale pharmacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Main Pharmacy'**
+  String get pharmacyLocationKindMain;
+
+  /// Pharmacy that dispenses hospital prescriptions.
+  ///
+  /// In en, this message translates to:
+  /// **'Hospital Pharmacy'**
+  String get pharmacyLocationKindHospital;
+
+  /// A branch dispensing point.
+  ///
+  /// In en, this message translates to:
+  /// **'Branch Pharmacy'**
+  String get pharmacyLocationKindBranch;
+
+  /// A theatre dispensing point.
+  ///
+  /// In en, this message translates to:
+  /// **'Theatre Pharmacy'**
+  String get pharmacyLocationKindTheatre;
+
+  /// A ward dispensing point.
+  ///
+  /// In en, this message translates to:
+  /// **'Ward Pharmacy'**
+  String get pharmacyLocationKindWard;
+
+  /// A dispensing point with no specific kind.
+  ///
+  /// In en, this message translates to:
+  /// **'Pharmacy'**
+  String get pharmacyLocationKindOther;
+
+  /// The user can change this pharmacy stock and prices.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage'**
+  String get pharmacyLocationAccessManage;
+
+  /// The user can dispense from this pharmacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Dispense'**
+  String get pharmacyLocationAccessDispense;
+
+  /// The user can only read this pharmacy.
+  ///
+  /// In en, this message translates to:
+  /// **'View only'**
+  String get pharmacyLocationAccessView;
+
+  /// Empty state when a facility has no pharmacy locations.
+  ///
+  /// In en, this message translates to:
+  /// **'No pharmacy configured'**
+  String get pharmacyLocationNoneTitle;
+
+  /// Body of the no-pharmacy empty state.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask an administrator to set up a Main Pharmacy and a Hospital Pharmacy for this facility.'**
+  String get pharmacyLocationNoneBody;
+
+  /// Badge on a pharmacy the user can only look at.
+  ///
+  /// In en, this message translates to:
+  /// **'Read only'**
+  String get pharmacyLocationReadOnlyBadge;
+
+  /// Says which pharmacy this one orders stock from.
+  ///
+  /// In en, this message translates to:
+  /// **'Supplied by {name}'**
+  String pharmacyLocationSuppliedByLabel(String name);
+
+  /// Title of the cross-pharmacy stock view.
+  ///
+  /// In en, this message translates to:
+  /// **'Stock and supplier availability'**
+  String get pharmacyAvailabilityTitle;
+
+  /// Body of the cross-pharmacy stock view.
+  ///
+  /// In en, this message translates to:
+  /// **'Your pharmacy stock beside what the supplying pharmacy has available. Order what you are short of.'**
+  String get pharmacyAvailabilityBody;
+
+  /// Column: the item.
+  ///
+  /// In en, this message translates to:
+  /// **'Medicine'**
+  String get pharmacyAvailabilityMedicineColumn;
+
+  /// Column: the acting pharmacy own balance.
+  ///
+  /// In en, this message translates to:
+  /// **'My stock'**
+  String get pharmacyAvailabilityMineColumn;
+
+  /// Column: quantity the supplying pharmacy holds.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} available'**
+  String pharmacyAvailabilitySupplierColumn(String name);
+
+  /// Column: reorder threshold.
+  ///
+  /// In en, this message translates to:
+  /// **'Reorder level'**
+  String get pharmacyAvailabilityReorderColumn;
+
+  /// Empty state for the availability table.
+  ///
+  /// In en, this message translates to:
+  /// **'No stock yet'**
+  String get pharmacyAvailabilityEmptyTitle;
+
+  /// Body of the availability empty state.
+  ///
+  /// In en, this message translates to:
+  /// **'This pharmacy is not holding any stock. Order from the supplying pharmacy to get started.'**
+  String get pharmacyAvailabilityEmptyBody;
+
+  /// Filter toggle for low rows.
+  ///
+  /// In en, this message translates to:
+  /// **'Below reorder level'**
+  String get pharmacyAvailabilityBelowReorderFilter;
+
+  /// Action that adds a row to a stock order.
+  ///
+  /// In en, this message translates to:
+  /// **'Order'**
+  String get pharmacyAvailabilityOrderAction;
+
+  /// Shown when a pharmacy has no supplier configured.
+  ///
+  /// In en, this message translates to:
+  /// **'No supplying pharmacy'**
+  String get pharmacyAvailabilityNoSupplierLabel;
+
+  /// Title of the stock order panel.
+  ///
+  /// In en, this message translates to:
+  /// **'Stock orders'**
+  String get pharmacyStockOrdersTitle;
+
+  /// Tab: requests this pharmacy must fill.
+  ///
+  /// In en, this message translates to:
+  /// **'To supply'**
+  String get pharmacyStockOrdersInboxTab;
+
+  /// Tab: requests this pharmacy raised.
+  ///
+  /// In en, this message translates to:
+  /// **'My requests'**
+  String get pharmacyStockOrdersOutboxTab;
+
+  /// Empty state for stock orders.
+  ///
+  /// In en, this message translates to:
+  /// **'No stock orders'**
+  String get pharmacyStockOrdersEmptyTitle;
+
+  /// Body of the stock order empty state.
+  ///
+  /// In en, this message translates to:
+  /// **'Stock orders you raise or are asked to fill appear here.'**
+  String get pharmacyStockOrdersEmptyBody;
+
+  /// Column: the order reference.
+  ///
+  /// In en, this message translates to:
+  /// **'Order'**
+  String get pharmacyStockOrderReferenceColumn;
+
+  /// Column: the other pharmacy on the order.
+  ///
+  /// In en, this message translates to:
+  /// **'Pharmacy'**
+  String get pharmacyStockOrderCounterpartyColumn;
+
+  /// Column: number of medicines requested.
+  ///
+  /// In en, this message translates to:
+  /// **'Lines'**
+  String get pharmacyStockOrderLinesColumn;
+
+  /// Column: requested quantity.
+  ///
+  /// In en, this message translates to:
+  /// **'Quantity'**
+  String get pharmacyStockOrderQuantityColumn;
+
+  /// Column: workflow status.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get pharmacyStockOrderStatusColumn;
+
+  /// Column: what this pharmacy must do now.
+  ///
+  /// In en, this message translates to:
+  /// **'Next action'**
+  String get pharmacyStockOrderNextActionColumn;
+
+  /// Stock order status.
+  ///
+  /// In en, this message translates to:
+  /// **'Draft'**
+  String get pharmacyStockOrderStatusDraft;
+
+  /// Stock order status.
+  ///
+  /// In en, this message translates to:
+  /// **'Awaiting review'**
+  String get pharmacyStockOrderStatusSubmitted;
+
+  /// Stock order status.
+  ///
+  /// In en, this message translates to:
+  /// **'Under review'**
+  String get pharmacyStockOrderStatusUnderReview;
+
+  /// Stock order status.
+  ///
+  /// In en, this message translates to:
+  /// **'Approved'**
+  String get pharmacyStockOrderStatusApproved;
+
+  /// Stock order status.
+  ///
+  /// In en, this message translates to:
+  /// **'Partly approved'**
+  String get pharmacyStockOrderStatusPartiallyApproved;
+
+  /// Stock order status.
+  ///
+  /// In en, this message translates to:
+  /// **'Rejected'**
+  String get pharmacyStockOrderStatusRejected;
+
+  /// Stock order status.
+  ///
+  /// In en, this message translates to:
+  /// **'Issued'**
+  String get pharmacyStockOrderStatusIssued;
+
+  /// Stock order status.
+  ///
+  /// In en, this message translates to:
+  /// **'Partly received'**
+  String get pharmacyStockOrderStatusPartiallyReceived;
+
+  /// Stock order status.
+  ///
+  /// In en, this message translates to:
+  /// **'Received'**
+  String get pharmacyStockOrderStatusReceived;
+
+  /// Stock order status.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancelled'**
+  String get pharmacyStockOrderStatusCancelled;
+
+  /// Sends a draft order for review.
+  ///
+  /// In en, this message translates to:
+  /// **'Submit'**
+  String get pharmacyStockOrderSubmitAction;
+
+  /// Opens the approve / reject dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Review'**
+  String get pharmacyStockOrderReviewAction;
+
+  /// Approves a stock order.
+  ///
+  /// In en, this message translates to:
+  /// **'Approve'**
+  String get pharmacyStockOrderApproveAction;
+
+  /// Rejects a stock order.
+  ///
+  /// In en, this message translates to:
+  /// **'Reject'**
+  String get pharmacyStockOrderRejectAction;
+
+  /// Releases stock from the supplying pharmacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Issue stock'**
+  String get pharmacyStockOrderIssueAction;
+
+  /// Books a delivery into the requesting pharmacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Receive stock'**
+  String get pharmacyStockOrderReceiveAction;
+
+  /// Cancels an order that has not moved stock.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel order'**
+  String get pharmacyStockOrderCancelAction;
+
+  /// Raises a new stock order.
+  ///
+  /// In en, this message translates to:
+  /// **'Order stock'**
+  String get pharmacyStockOrderCreateAction;
+
+  /// How many units are issued but not yet received.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} in transit'**
+  String pharmacyStockOrderInTransitLabel(int count);
+
+  /// Label for the requested quantity.
+  ///
+  /// In en, this message translates to:
+  /// **'Requested'**
+  String get pharmacyStockOrderRequestedLabel;
+
+  /// Label for the approved quantity.
+  ///
+  /// In en, this message translates to:
+  /// **'Approved'**
+  String get pharmacyStockOrderApprovedLabel;
+
+  /// Label for the issued quantity.
+  ///
+  /// In en, this message translates to:
+  /// **'Issued'**
+  String get pharmacyStockOrderIssuedLabel;
+
+  /// Label for the received quantity.
+  ///
+  /// In en, this message translates to:
+  /// **'Received'**
+  String get pharmacyStockOrderReceivedLabel;
+
+  /// Price the supplying pharmacy charges.
+  ///
+  /// In en, this message translates to:
+  /// **'Supply price'**
+  String get pharmacyStockOrderSupplyPriceLabel;
+
+  /// Total at the supply price.
+  ///
+  /// In en, this message translates to:
+  /// **'Supply total'**
+  String get pharmacyStockOrderSupplyTotalLabel;
+
+  /// Explains that the order is paperwork only.
+  ///
+  /// In en, this message translates to:
+  /// **'Creating or approving an order does not move stock. Stock moves when it is issued and received.'**
+  String get pharmacyStockOrderNoStockChangeNotice;
+
+  /// Free text on a review decision.
+  ///
+  /// In en, this message translates to:
+  /// **'Review notes'**
+  String get pharmacyStockOrderReviewNotesLabel;
+
+  /// Free text on the order.
+  ///
+  /// In en, this message translates to:
+  /// **'Notes'**
+  String get pharmacyStockOrderNotesLabel;
+
+  /// Title of the per-pharmacy price panel.
+  ///
+  /// In en, this message translates to:
+  /// **'Pharmacy prices'**
+  String get pharmacyLocationPricesTitle;
+
+  /// Price this pharmacy charges its own customers.
+  ///
+  /// In en, this message translates to:
+  /// **'Selling price'**
+  String get pharmacyLocationSellPriceLabel;
+
+  /// Main Pharmacy price to non-hospital clients.
+  ///
+  /// In en, this message translates to:
+  /// **'Walk-in price'**
+  String get pharmacyLocationWalkInPriceLabel;
+
+  /// Price charged when supplying another pharmacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Hospital supply price'**
+  String get pharmacyLocationSupplyPriceLabel;
+
+  /// What this pharmacy paid for the stock.
+  ///
+  /// In en, this message translates to:
+  /// **'Acquisition cost'**
+  String get pharmacyLocationAcquisitionCostLabel;
+
+  /// Explains that the price contexts are independent.
+  ///
+  /// In en, this message translates to:
+  /// **'Each pharmacy sets its own price. Changing the walk-in price does not change the hospital supply price.'**
+  String get pharmacyLocationPriceIndependenceNotice;
+
+  /// Shown when a pharmacy has not configured its own price.
+  ///
+  /// In en, this message translates to:
+  /// **'Not set'**
+  String get pharmacyLocationPriceUnsetLabel;
+
+  /// Catalog tab: cross-pharmacy availability and stock orders.
+  ///
+  /// In en, this message translates to:
+  /// **'Stock orders'**
+  String get pharmacyCatalogTabStockOrders;
+
+  /// Shown when the selected pharmacy does not run procurement.
+  ///
+  /// In en, this message translates to:
+  /// **'Procurement is handled by {name}'**
+  String pharmacyProcurementRestrictedTitle(String name);
+
+  /// Explains why procurement surfaces are unavailable here.
+  ///
+  /// In en, this message translates to:
+  /// **'Suppliers, purchase orders, goods receiving, batches, expiry and costs belong to the procurement pharmacy. Switch to it to manage them.'**
+  String get pharmacyProcurementRestrictedBody;
 }
 
 class _AppLocalizationsDelegate

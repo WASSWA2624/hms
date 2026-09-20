@@ -272,6 +272,10 @@ class _PharmacyWalkInOrderDialogState
     final Map<String, Object?> payload = mergeClinicalRequestBilling(
       <String, Object?>{
         'ordered_at': DateTime.now().toUtc().toIso8601String(),
+        // Stated rather than inferred: a counter sale to a registered patient
+        // has no encounter, but it is still walk-in work and must be filled by
+        // a pharmacy that handles walk-ins, not the hospital pharmacy.
+        'origin': 'WALK_IN',
         'items': items,
         'patient_id': ?patientId,
       },
