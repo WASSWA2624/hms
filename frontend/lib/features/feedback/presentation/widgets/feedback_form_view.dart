@@ -42,7 +42,10 @@ final class FeedbackSubmitOutcome {
 /// Whether the form is busy, so the surface holding it can disable its
 /// footer without owning the work.
 final class FeedbackFormStatus {
-  const FeedbackFormStatus({this.isSubmitting = false, this.isCapturing = false});
+  const FeedbackFormStatus({
+    this.isSubmitting = false,
+    this.isCapturing = false,
+  });
 
   final bool isSubmitting;
   final bool isCapturing;
@@ -102,7 +105,12 @@ List<Widget> buildFeedbackFormActions({
 /// else. Everything typed, picked and captured lives in
 /// [feedbackDraftProvider], so the form can close and come back untouched.
 class FeedbackFormView extends ConsumerStatefulWidget {
-  const FeedbackFormView({required this.onFinished, super.key});
+  const FeedbackFormView({
+    required this.onFinished,
+    this.dialogContext,
+    this.router,
+    super.key,
+  });
 
   static const Key captureThisScreenKey = ValueKey<String>(
     'feedback-capture-this-screen',
@@ -123,6 +131,14 @@ class FeedbackFormView extends ConsumerStatefulWidget {
   /// more screens. The surface around the form decides what to do with it.
   final ValueChanged<FeedbackSubmitOutcome> onFinished;
 
+  /// Context with the app's navigator for modal helpers opened from a dock
+  /// that sits outside the router child.
+  final BuildContext? dialogContext;
+
+  /// Router used for capture metadata when the form itself is outside the
+  /// router child.
+  final GoRouter? router;
+
   @override
   ConsumerState<FeedbackFormView> createState() => FeedbackFormViewState();
 }
@@ -138,6 +154,16 @@ class FeedbackFormViewState extends ConsumerState<FeedbackFormView> {
   FeedbackDraft get _draft => ref.read(feedbackDraftProvider)!;
 
   bool get _busy => _isSubmitting || _isCapturing;
+
+  BuildContext get _dialogContext {
+    final BuildContext? dialogContext = widget.dialogContext;
+    if (dialogContext != null && dialogContext.mounted) {
+      return dialogContext;
+    }
+    return context;
+  }
+
+  GoRouter get _router => widget.router ?? GoRouter.of(context);
 
   @override
   void initState() {
@@ -183,9 +209,9 @@ class FeedbackFormViewState extends ConsumerState<FeedbackFormView> {
         // Two short answers the reporter can give at a glance, side by side
         // where there is room for them.
         AppResponsiveFieldRow.two(
-          // Side by side wherever the surface is wide enough for two fields;
-          // the docked panel is narrower than this and stacks them.
-          breakpoint: 520,
+          // Side by side on desktop and in the docked panel; compact phones
+          // still stack them.
+          breakpoint: 440,
           left: AppSelectField<FeedbackCategory>(
             key: FeedbackFormView.categoryFieldKey,
             labelText: l10n.feedbackCategoryLabel,
@@ -243,21 +269,19 @@ class FeedbackFormViewState extends ConsumerState<FeedbackFormView> {
           textInputAction: TextInputAction.newline,
           textCapitalization: TextCapitalization.sentences,
           onChanged: (String value) => _saveEntry(message: value),
-          validator: AppValidators.compose<String>(
-            <FormFieldValidator<String>>[
-              AppValidators.requiredText(l10n.feedbackMessageRequired),
-              AppValidators.minLength(
-                feedbackMessageMinLength,
-                l10n.feedbackMessageTooShort(feedbackMessageMinLength),
-                trim: true,
-              ),
-              AppValidators.maxLength(
-                feedbackMessageMaxLength,
-                l10n.feedbackMessageTooLong(feedbackMessageMaxLength),
-                trim: true,
-              ),
-            ],
-          ),
+          validator: AppValidators.compose<String>(<FormFieldValidator<String>>[
+            AppValidators.requiredText(l10n.feedbackMessageRequired),
+            AppValidators.minLength(
+              feedbackMessageMinLength,
+              l10n.feedbackMessageTooShort(feedbackMessageMinLength),
+              trim: true,
+            ),
+            AppValidators.maxLength(
+              feedbackMessageMaxLength,
+              l10n.feedbackMessageTooLong(feedbackMessageMaxLength),
+              trim: true,
+            ),
+          ]),
         ),
         _screenshotsField(l10n, draft, theme),
       ],
@@ -470,11 +494,12 @@ class FeedbackFormViewState extends ConsumerState<FeedbackFormView> {
   }
 
   Future<void> _pickScreens() async {
-    final AppLocalizations l10n = context.l10n;
+    final BuildContext dialogContext = _dialogContext;
+    final AppLocalizations l10n = dialogContext.l10n;
     final FeedbackDraft draft = _draft;
     final List<FeedbackScreenReference>? picked =
         await showFeedbackScreenPickerDialog(
-          context: context,
+          context: dialogContext,
           choices: reachableFeedbackScreens(
             l10n: l10n,
             policy: ref.read(appAccessPolicyProvider),
@@ -490,14 +515,15 @@ class FeedbackFormViewState extends ConsumerState<FeedbackFormView> {
   }
 
   Future<void> _captureThisScreen() async {
-    final AppLocalizations l10n = context.l10n;
+    final BuildContext dialogContext = _dialogContext;
+    final AppLocalizations l10n = dialogContext.l10n;
     _saveEntry();
     _setBusy(isCapturing: true);
     try {
       final FeedbackScreenshot? screenshot =
           await ref.read(feedbackScreenCapturerProvider)(
             ref: ref,
-            router: GoRouter.of(context),
+            router: _router,
             l10n: l10n,
             hideForm: !_draft.includeDialogInShot,
           );
@@ -505,7 +531,7 @@ class FeedbackFormViewState extends ConsumerState<FeedbackFormView> {
         return;
       }
       if (screenshot == null) {
-        showAppNoticeSnackBar(context, l10n.feedbackCaptureFailedMessage);
+        showAppNoticeSnackBar(dialogContext, l10n.feedbackCaptureFailedMessage);
         return;
       }
       final FeedbackDraftController draft = ref.read(
@@ -514,13 +540,13 @@ class FeedbackFormViewState extends ConsumerState<FeedbackFormView> {
       final int limit = feedbackScreenshotLimit(signedIn: _draft.signedIn);
       if (!draft.addScreenshot(screenshot)) {
         showAppNoticeSnackBar(
-          context,
+          dialogContext,
           l10n.feedbackCaptureLimitReachedMessage(limit),
         );
         return;
       }
       showAppSuccessSnackBar(
-        context,
+        dialogContext,
         l10n.feedbackCaptureCapturedMessage(_draft.screenshots.length, limit),
       );
     } finally {
@@ -541,8 +567,9 @@ class FeedbackFormViewState extends ConsumerState<FeedbackFormView> {
 
   Future<void> _cropScreenshot(int index) async {
     final FeedbackScreenshot screenshot = _draft.screenshots[index];
+    final BuildContext dialogContext = _dialogContext;
     final Uint8List? cropped = await showAppImageCropDialog(
-      context: context,
+      context: dialogContext,
       imageBytes: screenshot.bytes,
     );
     if (cropped == null || !mounted) {

@@ -6,8 +6,8 @@ import 'package:hosspi_hms/core/responsive/app_breakpoints.dart';
 /// Where the feedback form sits on screen.
 enum FeedbackPresentation {
   /// Beside the app, as an opaque panel pinned to the trailing edge. The app
-  /// keeps its own layout and stays usable, so a reporter can look at what
-  /// they are reporting while they write about it.
+  /// gets the remaining width and stays usable, so a reporter can look at
+  /// what they are reporting while they write about it.
   docked,
 
   /// Centred over the app, for narrow windows and for reporters who want the
@@ -20,9 +20,9 @@ enum FeedbackPresentation {
 const double feedbackDockMinWidth = AppBreakpoints.lg;
 
 /// The panel's width for a window of [windowWidth]: wide enough for the form,
-/// never more than about a third of the screen.
+/// but never so wide that it leaves the app feeling hidden.
 double feedbackDockWidth(double windowWidth) {
-  return math.max(320, math.min(440, windowWidth * 0.34));
+  return math.max(480, math.min(640, windowWidth * 0.34));
 }
 
 /// Whether the panel fits beside the app in a window of [windowWidth].
@@ -38,7 +38,8 @@ final feedbackPresentationProvider =
       FeedbackPresentationController.new,
     );
 
-final class FeedbackPresentationController extends Notifier<FeedbackPresentation> {
+final class FeedbackPresentationController
+    extends Notifier<FeedbackPresentation> {
   @override
   FeedbackPresentation build() => FeedbackPresentation.docked;
 

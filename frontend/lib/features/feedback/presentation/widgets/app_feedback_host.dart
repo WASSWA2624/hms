@@ -173,12 +173,6 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
   // next one opens.
   GlobalKey? _openMenuKey;
 
-  // The docked panel, held in the router's overlay rather than in this
-  // widget's own stack: there it sits inside the app's capture boundary, so
-  // a shot can include it, and inside the navigator, so the pickers and
-  // crop dialogs it opens have somewhere to go.
-  OverlayEntry? _dockEntry;
-
   // Layout facts from the last build, used to keep a dragged control on screen.
   Size _viewSize = Size.zero;
   EdgeInsets _safePadding = EdgeInsets.zero;
@@ -188,12 +182,6 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
 
   BuildContext? get _navigatorContext =>
       widget.router.routerDelegate.navigatorKey.currentContext;
-
-  @override
-  void dispose() {
-    _removeDockPanel();
-    super.dispose();
-  }
 
   @override
   void initState() {
@@ -225,9 +213,6 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     final bool canManage = canManageFeedback(
       ref.watch(appAccessPolicyProvider),
     );
-    // The panel follows the draft: open when the form is open, docked and
-    // there is room beside the app for it.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _syncDockPanel());
 
     // Moving the form between beside the app and over it carries the report
     // with it: the draft never notices which surface is showing it.
@@ -241,10 +226,11 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
       }
       if (next == FeedbackPresentation.dialog) {
         unawaited(_showFeedbackFormDialog());
-        return;
       }
-      _syncDockPanel();
     });
+    final FeedbackPresentation presentation = ref.watch(
+      feedbackPresentationProvider,
+    );
     final Offset? savedPosition = ref.watch(feedbackLauncherPositionProvider);
     final ThemeData theme = Theme.of(context);
     final TextDirection textDirection = Directionality.of(context);
@@ -279,6 +265,14 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     // another picture to it.
     final FeedbackDraft? draft = ref.watch(feedbackDraftProvider);
     final bool isCapturing = draft?.isCapturing ?? false;
+    final bool showsDockedForm = _showsDockedForm(
+      draft: draft,
+      presentation: presentation,
+      windowWidth: viewSize.width,
+    );
+    final double dockWidth = showsDockedForm
+        ? feedbackDockWidth(viewSize.width)
+        : 0;
 
     final Widget launcher = isCapturing
         ? KeyedSubtree(
@@ -330,7 +324,7 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     // The capture bar is far wider than the control it replaces, so it takes
     // the default corner rather than wherever the control was dragged, where
     // it could hang off the edge of the screen.
-    final Widget? launcherSlot = _isDialogOpen || _isDockOpen
+    final Widget? launcherSlot = _isDialogOpen || showsDockedForm
         ? null
         : position == null || isCapturing
         ? Positioned.directional(
@@ -358,9 +352,17 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     return Stack(
       fit: StackFit.expand,
       children: <Widget>[
-        // Everything the app paints, and only that, so a screenshot taken
-        // from this boundary never carries the feedback control with it.
-        RepaintBoundary(key: _appBoundaryKey, child: widget.child),
+        // Everything the app and docked form paint, and only that, so a
+        // screenshot taken from this boundary never carries the feedback
+        // control with it.
+        RepaintBoundary(
+          key: _appBoundaryKey,
+          child: _FeedbackWorkspaceFrame(
+            dockWidth: dockWidth,
+            dockPanel: showsDockedForm ? _buildDockPanel() : null,
+            child: widget.child,
+          ),
+        ),
         // Over an HTML platform view, such as the print preview iframe, the
         // browser hands pointer input to the view and Flutter never sees it.
         // While a feedback menu or dialog is open, or the control is being
@@ -381,69 +383,44 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     );
   }
 
-  /// Whether the form should be beside the app rather than over it: the
-  /// reporter's choice, and only where the window has room for both.
-  bool get _showsDockedForm {
-    final FeedbackDraft? draft = ref.read(feedbackDraftProvider);
+  /// Whether the form should be beside the app rather than over it.
+  bool _showsDockedForm({
+    required FeedbackDraft? draft,
+    required FeedbackPresentation presentation,
+    required double windowWidth,
+  }) {
     return draft != null &&
         draft.isFormOpen &&
-        ref.read(feedbackPresentationProvider) == FeedbackPresentation.docked &&
-        feedbackCanDock(_viewSize.width);
+        presentation == FeedbackPresentation.docked &&
+        feedbackCanDock(windowWidth);
   }
 
-  bool get _isDockOpen => _dockEntry != null;
-
-  /// Puts the panel in the router's overlay, takes it out, or rebuilds it.
-  void _syncDockPanel() {
-    if (!mounted) {
-      return;
-    }
-    final OverlayState? overlay = widget
-        .router
-        .routerDelegate
-        .navigatorKey
-        .currentState
-        ?.overlay;
-    final bool shouldShow = overlay != null && _showsDockedForm;
-
-    if (!shouldShow) {
-      if (_dockEntry != null) {
-        _removeDockPanel();
-        setState(() {});
-      }
-      return;
-    }
-    if (_dockEntry == null) {
-      _dockEntry = OverlayEntry(builder: _buildDockPanel);
-      overlay.insert(_dockEntry!);
-      setState(() {});
-      return;
-    }
-    _dockEntry!.markNeedsBuild();
+  Widget _buildDockPanel() {
+    return Overlay(
+      initialEntries: <OverlayEntry>[
+        OverlayEntry(
+          builder: (_) => FeedbackDockPanel(
+            dialogContext: _navigatorContext,
+            router: widget.router,
+            onFinished: (FeedbackSubmitOutcome outcome) {
+              unawaited(_handleFeedbackOutcome(outcome));
+            },
+            onClose: () {
+              ref.read(feedbackDraftProvider.notifier).closeForm();
+            },
+          ),
+        ),
+      ],
+    );
   }
 
-  void _removeDockPanel() {
-    _dockEntry?.remove();
-    _dockEntry = null;
-  }
-
-  Widget _buildDockPanel(BuildContext overlayContext) {
-    return Positioned.directional(
-      textDirection: Directionality.of(overlayContext),
-      top: 0,
-      bottom: 0,
-      end: 0,
-      width: feedbackDockWidth(MediaQuery.sizeOf(overlayContext).width),
-      child: FeedbackDockPanel(
-        onFinished: (FeedbackSubmitOutcome outcome) {
-          _syncDockPanel();
-          unawaited(_handleFeedbackOutcome(outcome));
-        },
-        onClose: () {
-          ref.read(feedbackDraftProvider.notifier).closeForm();
-          _syncDockPanel();
-        },
-      ),
+  /// Current presentation state, used from async flows after they have updated
+  /// the draft and before the next build has run.
+  bool _showsDockedFormNow() {
+    return _showsDockedForm(
+      draft: ref.read(feedbackDraftProvider),
+      presentation: ref.read(feedbackPresentationProvider),
+      windowWidth: _viewSize.width,
     );
   }
 
@@ -485,8 +462,7 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     }
 
     final Rect bounds =
-        host.globalToLocal(launcher.localToGlobal(Offset.zero)) &
-        launcher.size;
+        host.globalToLocal(launcher.localToGlobal(Offset.zero)) & launcher.size;
     // Track the icon, not a label that hides while dragging.
     final Offset origin = Offset(
       _labelOpensLeftward ? bounds.right - _iconOnlySize.width : bounds.left,
@@ -691,8 +667,7 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
 
     // Beside the app by default, where the window has room: the reporter
     // keeps looking at what they are reporting while they write about it.
-    if (_showsDockedForm) {
-      _syncDockPanel();
+    if (_showsDockedFormNow()) {
       return;
     }
     await _showFeedbackFormDialog();
@@ -717,10 +692,9 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
       return;
     }
     // Closed without a decision: the draft waits, untouched, for the next
-    // time the control is tapped. Unless the reporter asked for it beside
-    // the app instead, in which case the panel takes over from here.
+    // time the control is tapped. If the reporter asked for it beside the
+    // app, the host rebuild shows the docked panel from the same draft.
     if (outcome == null) {
-      _syncDockPanel();
       return;
     }
     await _handleFeedbackOutcome(outcome);
@@ -834,7 +808,6 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     );
     if (confirmed ?? false) {
       ref.read(feedbackDraftProvider.notifier).reset();
-      _syncDockPanel();
     }
   }
 
@@ -921,6 +894,57 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     showAppSuccessSnackBar(
       navigatorContext,
       navigatorContext.l10n.feedbackDeletedMessage(deletedCount),
+    );
+  }
+}
+
+class _FeedbackWorkspaceFrame extends StatelessWidget {
+  const _FeedbackWorkspaceFrame({
+    required this.child,
+    required this.dockWidth,
+    this.dockPanel,
+  });
+
+  final Widget child;
+  final double dockWidth;
+  final Widget? dockPanel;
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget? panel = dockPanel;
+    final TextDirection textDirection = Directionality.of(context);
+    return Row(
+      textDirection: textDirection,
+      children: <Widget>[
+        Expanded(child: _FeedbackAppViewport(child: child)),
+        if (panel != null) SizedBox(width: dockWidth, child: panel),
+      ],
+    );
+  }
+}
+
+class _FeedbackAppViewport extends StatelessWidget {
+  const _FeedbackAppViewport({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final MediaQueryData media = MediaQuery.of(context);
+        final double width = constraints.hasBoundedWidth
+            ? constraints.maxWidth
+            : media.size.width;
+        final double height = constraints.hasBoundedHeight
+            ? constraints.maxHeight
+            : media.size.height;
+
+        return MediaQuery(
+          data: media.copyWith(size: Size(width, height)),
+          child: child,
+        );
+      },
     );
   }
 }

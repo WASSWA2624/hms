@@ -83,6 +83,7 @@ final class _FakeScreenCapturer {
     };
   }
 }
+
 typedef _MenuLayout = ({String name, Size size, Offset? moveTo});
 
 final class _FakeFeedbackRepository implements FeedbackRepository {
@@ -248,9 +249,8 @@ Future<GoRouter> _pumpHost(
           (capturer ?? _FakeScreenCapturer()).capture,
         ),
         appConnectivityStatusProvider.overrideWith(
-          (Ref ref) => Stream<AppConnectivityStatus>.value(
-            AppConnectivityStatus.online,
-          ),
+          (Ref ref) =>
+              Stream<AppConnectivityStatus>.value(AppConnectivityStatus.online),
         ),
       ],
       child: MaterialApp.router(
@@ -429,43 +429,47 @@ void main() {
     },
   );
 
-  testWidgets('stays on top of other modal dialogs and opens feedback over them', (
-    WidgetTester tester,
-  ) async {
-    final GoRouter router = await _pumpHost(
-      tester,
-      session: const SessionState.unauthenticated(),
-      repository: _FakeFeedbackRepository(),
-    );
+  testWidgets(
+    'stays on top of other modal dialogs and opens feedback over them',
+    (WidgetTester tester) async {
+      final GoRouter router = await _pumpHost(
+        tester,
+        session: const SessionState.unauthenticated(),
+        repository: _FakeFeedbackRepository(),
+      );
 
-    unawaited(
-      showDialog<void>(
-        context: router.routerDelegate.navigatorKey.currentContext!,
-        builder: (_) => const Dialog.fullscreen(
-          child: Center(child: Text('Register new patient')),
+      unawaited(
+        showDialog<void>(
+          context: router.routerDelegate.navigatorKey.currentContext!,
+          builder: (_) => const Dialog.fullscreen(
+            child: Center(child: Text('Register new patient')),
+          ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('Register new patient'), findsOneWidget);
-    expect(_launcher.hitTestable(), findsOneWidget);
+      expect(find.text('Register new patient'), findsOneWidget);
+      expect(_launcher.hitTestable(), findsOneWidget);
 
-    await _openLauncher(tester);
+      await _openLauncher(tester);
 
-    expect(_dockPanel, findsOneWidget);
-    expect(find.text('Register new patient'), findsOneWidget);
-    // The control hides behind its own form, and comes back when it closes.
-    expect(_launcher, findsNothing);
+      expect(_dockPanel, findsOneWidget);
+      expect(find.text('Register new patient'), findsOneWidget);
+      // The control hides behind its own form, and comes back when it closes.
+      expect(_launcher, findsNothing);
 
-    await tester.tap(
-      find.descendant(of: _dockPanel, matching: find.widgetWithText(AppButton, 'Close')),
-    );
-    await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: _dockPanel,
+          matching: find.widgetWithText(AppButton, 'Close'),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    expect(_dockPanel, findsNothing);
-    expect(_launcher.hitTestable(), findsOneWidget);
-  });
+      expect(_dockPanel, findsNothing);
+      expect(_launcher.hitTestable(), findsOneWidget);
+    },
+  );
 
   for (final String role in <String>['PLATFORM_OWNER', 'PLATFORM_ADMIN']) {
     testWidgets('$role gets give, download, and clear feedback', (
@@ -1062,7 +1066,7 @@ void main() {
     expect(find.text('Never mind'), findsNothing);
   });
 
-  testWidgets('the app keeps its own layout while the panel is beside it', (
+  testWidgets('the panel pushes the app into the remaining desktop space', (
     WidgetTester tester,
   ) async {
     await _pumpHost(
@@ -1070,23 +1074,30 @@ void main() {
       session: const SessionState.unauthenticated(),
       repository: _FakeFeedbackRepository(),
     );
-    final Size appBefore = tester.getSize(find.text('Patients page'));
     final Rect pageBefore = tester.getRect(find.byType(MaterialApp));
+    final Rect labelBefore = tester.getRect(find.text('Patients page'));
 
     await _openLauncher(tester);
 
     expect(_dockPanel, findsOneWidget);
-    // The panel is laid over the app, never squeezing it: the screen being
-    // reported on still looks exactly as it did.
-    expect(tester.getSize(find.text('Patients page')), appBefore);
-    expect(tester.getRect(find.byType(MaterialApp)), pageBefore);
-
-    // And it sits on the trailing edge, beside the app rather than over its
-    // middle.
     final Rect panel = tester.getRect(_dockPanel);
+    final Rect labelAfter = tester.getRect(find.text('Patients page'));
+    final double dockWidth = feedbackDockWidth(pageBefore.width);
+
+    // The panel owns a real trailing column rather than floating over the app.
     expect(panel.right, moreOrLessEquals(pageBefore.right, epsilon: 1));
     expect(panel.height, moreOrLessEquals(pageBefore.height, epsilon: 1));
-    expect(panel.width, lessThan(pageBefore.width / 2));
+    expect(panel.width, moreOrLessEquals(dockWidth, epsilon: 1));
+    expect(
+      panel.left,
+      moreOrLessEquals(pageBefore.right - dockWidth, epsilon: 1),
+    );
+
+    // The route lays out in the visible app area to the left of the panel.
+    expect(labelAfter.size, labelBefore.size);
+    expect(labelAfter.right, lessThan(panel.left));
+    expect(labelAfter.center.dx, lessThan(labelBefore.center.dx));
+    expect(labelAfter.center.dx, moreOrLessEquals(panel.left / 2, epsilon: 1));
   });
 
   testWidgets('the app stays usable while the form is beside it', (
@@ -1110,32 +1121,33 @@ void main() {
     expect(find.text('Watch this screen'), findsOneWidget);
   });
 
-  testWidgets('the reporter can move the form between beside and over the app', (
-    WidgetTester tester,
-  ) async {
-    await _pumpHost(
-      tester,
-      session: const SessionState.unauthenticated(),
-      repository: _FakeFeedbackRepository(),
-    );
+  testWidgets(
+    'the reporter can move the form between beside and over the app',
+    (WidgetTester tester) async {
+      await _pumpHost(
+        tester,
+        session: const SessionState.unauthenticated(),
+        repository: _FakeFeedbackRepository(),
+      );
 
-    await _openLauncher(tester);
-    await tester.enterText(_messageField, 'Either way works');
+      await _openLauncher(tester);
+      await tester.enterText(_messageField, 'Either way works');
 
-    await tester.tap(find.byKey(FeedbackDockPanel.undockKey));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(FeedbackDockPanel.undockKey));
+      await tester.pumpAndSettle();
 
-    // The window takes over, with the draft untouched.
-    expect(_dockPanel, findsNothing);
-    expect(find.byType(FeedbackSubmitDialog), findsOneWidget);
-    expect(find.text('Either way works'), findsOneWidget);
+      // The window takes over, with the draft untouched.
+      expect(_dockPanel, findsNothing);
+      expect(find.byType(FeedbackSubmitDialog), findsOneWidget);
+      expect(find.text('Either way works'), findsOneWidget);
 
-    await _tapVisible(tester, find.byKey(FeedbackSubmitDialog.dockKey));
+      await _tapVisible(tester, find.byKey(FeedbackSubmitDialog.dockKey));
 
-    expect(find.byType(FeedbackSubmitDialog), findsNothing);
-    expect(_dockPanel, findsOneWidget);
-    expect(find.text('Either way works'), findsOneWidget);
-  });
+      expect(find.byType(FeedbackSubmitDialog), findsNothing);
+      expect(_dockPanel, findsOneWidget);
+      expect(find.text('Either way works'), findsOneWidget);
+    },
+  );
 
   testWidgets('a narrow window gets the form as a window, not a panel', (
     WidgetTester tester,
