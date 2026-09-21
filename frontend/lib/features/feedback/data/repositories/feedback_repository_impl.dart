@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -36,15 +37,55 @@ final class FeedbackRepositoryImpl implements FeedbackRepository {
     // The public client sends no session, so feedback from a sign-in screen
     // can never trigger a token refresh or a logout.
     final ApiClient client = signedIn ? _apiClient : _publicApiClient;
+    final Map<String, Object?> payload = feedbackSubmissionPayload(submission);
 
     return client.post<FeedbackReceipt>(
       ApiEndpoints.collection(HmsApiResource.feedback),
-      data: feedbackSubmissionPayload(submission),
+      // Pictures travel as multipart, with the same JSON body in `payload`;
+      // feedback without them stays a plain JSON request.
+      data: submission.screenshots.isEmpty
+          ? payload
+          : feedbackSubmissionFormData(payload, submission.screenshots),
       decoder: (Object? data) =>
           ApiResponseEnvelope.decodeData<FeedbackReceipt>(
             data,
             decoder: _decodeReceipt,
           ),
+    );
+  }
+
+  @override
+  Future<Result<List<FeedbackStoredScreenshot>>> fetchFeedbackScreenshots({
+    required String referenceId,
+  }) {
+    return _apiClient.get<List<FeedbackStoredScreenshot>>(
+      ApiEndpoints.apiV1(<String>[
+        HmsApiResource.feedback.path,
+        referenceId,
+        'screenshots',
+      ]),
+      decoder: (Object? data) =>
+          ApiResponseEnvelope.decodeData<List<FeedbackStoredScreenshot>>(
+            data,
+            decoder: _decodeStoredScreenshots,
+          ),
+    );
+  }
+
+  @override
+  Future<Result<Uint8List>> fetchFeedbackScreenshotImage({
+    required String referenceId,
+    required String screenshotId,
+  }) {
+    return _apiClient.get<Uint8List>(
+      ApiEndpoints.apiV1(<String>[
+        HmsApiResource.feedback.path,
+        referenceId,
+        'screenshots',
+        screenshotId,
+      ]),
+      options: Options(responseType: ResponseType.bytes),
+      decoder: _decodeBytes,
     );
   }
 
@@ -187,8 +228,94 @@ Map<String, Object?> feedbackSubmissionPayload(FeedbackSubmission submission) {
   return <String, Object?>{
     'category': submission.category.apiValue,
     'message': submission.message.trim(),
+    'scope': submission.scope.apiValue,
+    if (submission.scope == FeedbackScope.screens)
+      'scope_screens': <Map<String, Object?>>[
+        for (final FeedbackScreenReference screen in submission.screens)
+          if (screen.isAddressable)
+            <String, Object?>{
+              if (screen.routeName != null)
+                'route_name': _capText(screen.routeName, 120),
+              if (screen.routePath != null)
+                'route_path': _capText(screen.routePath, 512),
+              if (screen.screenTitle != null)
+                'screen_title': _capText(screen.screenTitle, 255),
+            },
+      ],
+    if (submission.screenshots.isNotEmpty)
+      'screenshots': <Map<String, Object?>>[
+        for (final FeedbackScreenshot screenshot in submission.screenshots)
+          <String, Object?>{
+            if (screenshot.width != null) 'width': screenshot.width,
+            if (screenshot.height != null) 'height': screenshot.height,
+            if (_capText(screenshot.caption, 255) case final String caption)
+              'caption': caption,
+            if (_capText(screenshot.screen.routeName, 120)
+                case final String routeName)
+              'route_name': routeName,
+            if (_capText(screenshot.screen.routePath, 512)
+                case final String routePath)
+              'route_path': routePath,
+            if (_capText(screenshot.screen.screenTitle, 255)
+                case final String screenTitle)
+              'screen_title': screenTitle,
+            if (_screenshotContextPayload(screenshot.context)
+                case final Map<String, Object?> context)
+              'client_context': context,
+            'captured_at': screenshot.capturedAt.toUtc().toIso8601String(),
+          },
+      ],
     'context': contextPayload,
   };
+}
+
+/// The window one shot was taken in, or null when the app could not read it.
+Map<String, Object?>? _screenshotContextPayload(
+  FeedbackScreenshotContext? context,
+) {
+  if (context == null || context.isEmpty) {
+    return null;
+  }
+  return <String, Object?>{
+    if (context.viewportWidth != null) 'viewport_width': context.viewportWidth,
+    if (context.viewportHeight != null)
+      'viewport_height': context.viewportHeight,
+    if (context.devicePixelRatio != null)
+      'device_pixel_ratio': context.devicePixelRatio,
+    if (_capText(context.orientation, 16) case final String orientation)
+      'orientation': orientation,
+    if (_capText(context.themeMode, 16) case final String themeMode)
+      'theme_mode': themeMode,
+    if (_capText(context.breakpoint, 16) case final String breakpoint)
+      'breakpoint': breakpoint,
+  };
+}
+
+/// The multipart form for a submission with pictures.
+///
+/// The whole JSON body rides in `payload`, so the API validates one shape
+/// however the request arrived, and the files follow in capture order: the
+/// server pairs each with its metadata by position.
+FormData feedbackSubmissionFormData(
+  Map<String, Object?> payload,
+  List<FeedbackScreenshot> screenshots,
+) {
+  final FormData formData = FormData();
+  formData.fields.add(MapEntry<String, String>('payload', jsonEncode(payload)));
+  for (int index = 0; index < screenshots.length; index += 1) {
+    final FeedbackScreenshot screenshot = screenshots[index];
+    formData.files.add(
+      MapEntry<String, MultipartFile>(
+        'screenshots',
+        MultipartFile.fromBytes(
+          screenshot.bytes,
+          filename: 'screenshot-${index + 1}.jpg',
+          contentType: DioMediaType.parse(screenshot.contentType),
+        ),
+      ),
+    );
+  }
+  return formData;
 }
 
 /// Filters as a JSON body, for exporting and for `DELETE /api/v1/feedback`
@@ -258,6 +385,43 @@ FeedbackReceipt _decodeReceipt(Object? data) {
     referenceId: _readText(json['human_friendly_id']) ?? _readText(json['id']),
     submitterType: FeedbackSubmitterType.fromApiValue(json['submitter_type']),
     submittedAt: _readDate(json['submitted_at']),
+    screenshotCount: _readInt(json['screenshot_count']),
+    screenshotsDropped: _readInt(json['screenshots_dropped']),
+  );
+}
+
+List<FeedbackStoredScreenshot> _decodeStoredScreenshots(Object? data) {
+  final Map<String, Object?> json = _asJsonMap(data);
+  final Object? rows = json['items'];
+  if (rows is! List) {
+    return const <FeedbackStoredScreenshot>[];
+  }
+  return <FeedbackStoredScreenshot>[
+    for (final Object? row in rows)
+      if (row is Map) _decodeStoredScreenshot(_asJsonMap(row)),
+  ];
+}
+
+FeedbackStoredScreenshot _decodeStoredScreenshot(Map<String, Object?> json) {
+  return FeedbackStoredScreenshot(
+    id: _readText(json['id']) ?? '',
+    sequence: _readInt(json['sequence']),
+    contentType: _readText(json['content_type']) ?? 'image/jpeg',
+    byteSize: _readInt(json['byte_size']),
+    fileName: _readText(json['file_name']) ?? '',
+    width: _readOptionalInt(json['width']),
+    height: _readOptionalInt(json['height']),
+    caption: _readText(json['caption']),
+    screen: _decodeScreen(json),
+    capturedAt: _readDate(json['captured_at'])?.toLocal(),
+  );
+}
+
+FeedbackScreenReference _decodeScreen(Map<String, Object?> json) {
+  return FeedbackScreenReference(
+    routeName: _readText(json['route_name']),
+    routePath: _readText(json['route_path']),
+    screenTitle: _readText(json['screen_title']),
   );
 }
 
@@ -283,12 +447,22 @@ AppPage<FeedbackRecord> _decodeRecordPage(
 }
 
 FeedbackRecord _decodeRecord(Map<String, Object?> json) {
+  final Object? scopeScreens = json['scope_screens'];
+
   return FeedbackRecord(
     referenceId:
         _readText(json['human_friendly_id']) ?? _readText(json['id']) ?? '',
     category: FeedbackCategory.fromApiValue(json['category']),
     submitterType: FeedbackSubmitterType.fromApiValue(json['submitter_type']),
     messagePreview: _readText(json['message_preview']) ?? '',
+    scope: FeedbackScope.fromApiValue(json['scope']),
+    scopeScreens: scopeScreens is! List
+        ? const <FeedbackScreenReference>[]
+        : <FeedbackScreenReference>[
+            for (final Object? row in scopeScreens)
+              if (row is Map) _decodeScreen(_asJsonMap(row)),
+          ],
+    screenshotCount: _readInt(json['screenshot_count']),
     submittedAt: _readDate(json['submitted_at'])?.toLocal(),
     userEmail: _readText(json['user_email']),
     userName: _readText(json['user_name']),
@@ -342,6 +516,7 @@ FeedbackDeleteResult _decodeDeleteResult(Object? data) {
   return FeedbackDeleteResult(
     deletedCount: _readInt(json['deleted_count']),
     deletedAt: _readDate(json['deleted_at']),
+    deletedScreenshotCount: _readInt(json['deleted_screenshot_count']),
   );
 }
 
@@ -352,7 +527,7 @@ Uint8List _decodeBytes(Object? data) {
   if (data is List) {
     return Uint8List.fromList(data.whereType<int>().toList(growable: false));
   }
-  throw const FormatException('Expected spreadsheet bytes.');
+  throw const FormatException('Expected file bytes.');
 }
 
 Map<String, Object?> _asJsonMap(Object? data) {
@@ -370,6 +545,13 @@ Map<String, Object?> _asJsonMap(Object? data) {
 String? _readText(Object? value) {
   final String text = value?.toString().trim() ?? '';
   return text.isEmpty ? null : text;
+}
+
+int? _readOptionalInt(Object? value) {
+  if (value is num) {
+    return value.toInt();
+  }
+  return int.tryParse(value?.toString() ?? '');
 }
 
 int _readInt(Object? value) {

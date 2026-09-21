@@ -22,11 +22,27 @@ const {
   truncateFeedbackText
 } = require('@lib/feedback/feedback-context');
 const {
-  FEEDBACK_EXPORT_MIME_TYPE,
   buildFeedbackExportFileName,
+  listFeedbackExportScreenshots,
   renderFeedbackWorkbook,
   resolveExportClock
 } = require('@lib/feedback/feedback-export');
+const {
+  FEEDBACK_ARCHIVE_MIME_TYPE,
+  buildFeedbackArchiveFileName,
+  streamFeedbackArchive
+} = require('@lib/feedback/feedback-archive');
+const {
+  FEEDBACK_SCREENSHOTS_MAX_TOTAL_BYTES,
+  buildFeedbackScreenshotFileName,
+  maxFeedbackScreenshotsFor,
+  prepareFeedbackScreenshots
+} = require('@lib/feedback/feedback-screenshots');
+const {
+  deleteFeedbackScreenshotObjects,
+  readFeedbackScreenshot,
+  storeFeedbackScreenshots
+} = require('@lib/storage/feedback-screenshot-storage');
 
 const FEEDBACK_LIST_DEFAULT_LIMIT = 20;
 const FEEDBACK_MESSAGE_PREVIEW_LENGTH = 280;
@@ -263,23 +279,104 @@ const resolveSubmitterSnapshot = async (tokenUser) => {
 };
 
 /**
+ * The screens a reporter picked, deduplicated and capped to what the schema
+ * allows, and only for a report that says it applies to picked screens.
+ */
+const resolveScopeScreens = (data = {}) => {
+  if (data.scope !== 'SCREENS') {
+    return [];
+  }
+  const seen = new Set();
+  return (Array.isArray(data.scope_screens) ? data.scope_screens : []).reduce(
+    (screens, screen) => {
+      const routeName = truncateFeedbackText(screen?.route_name, 120);
+      const routePath = sanitizeFeedbackLocation(screen?.route_path, 512);
+      const key = `${routeName || ''}|${routePath || ''}`;
+      if (seen.has(key) || (!routeName && !routePath)) {
+        return screens;
+      }
+      seen.add(key);
+      screens.push({
+        route_name: routeName,
+        route_path: routePath,
+        screen_title: truncateFeedbackText(screen?.screen_title, 255)
+      });
+      return screens;
+    },
+    []
+  );
+};
+
+/**
+ * Check the images of a submission before anything is stored.
+ *
+ * Too many, too large, or not an image at all is a bad request, not a silent
+ * drop: the reporter can fix it while they still have the draft in front of
+ * them.
+ *
+ * @param {Object[]} files - Multer memory-storage files
+ * @param {Object[]} metadata - Per-shot metadata, in the order of the files
+ * @param {boolean} authenticated - Whether a session identified the submitter
+ * @returns {Object[]} Accepted screenshots, ready to store
+ */
+const validateSubmittedScreenshots = (files, metadata, authenticated) => {
+  if (files.length === 0) {
+    return [];
+  }
+
+  const limit = maxFeedbackScreenshotsFor({ authenticated });
+  if (files.length > limit) {
+    throw new HttpError('errors.validation.invalid', 400, [
+      { field: 'screenshots', max: limit }
+    ]);
+  }
+
+  const { accepted, rejected } = prepareFeedbackScreenshots({ files, metadata });
+  if (rejected.length > 0) {
+    throw new HttpError('errors.validation.invalid', 400, [
+      { field: 'screenshots', rejected: rejected.map((entry) => entry.index) }
+    ]);
+  }
+
+  const totalBytes = accepted.reduce((sum, screenshot) => sum + screenshot.byte_size, 0);
+  if (totalBytes > FEEDBACK_SCREENSHOTS_MAX_TOTAL_BYTES) {
+    throw new HttpError('errors.validation.invalid', 400, [
+      { field: 'screenshots', max_total_bytes: FEEDBACK_SCREENSHOTS_MAX_TOTAL_BYTES }
+    ]);
+  }
+
+  return accepted;
+};
+
+/**
  * Record feedback from any screen.
  *
  * Signed-in submitters get a live identity, tenant, facility, subscription, and
  * access snapshot; anyone else is recorded as anonymous with page and
  * technical context only.
  *
- * @param {Object} data - Validated body: category, message, context
- * @param {Object} context - Request context from the controller
+ * Screenshots ride along as multipart files. They are validated before the
+ * feedback is written and stored after it, so an image that the provider
+ * rejects costs the reporter that image and never their words.
+ *
+ * @param {Object} data - Validated body: category, message, scope, context
+ * @param {Object} context - Request context from the controller, with `files`
  * @returns {Promise<Object>} Receipt
  */
 const submitFeedback = async (data = {}, context = {}) => {
   const clientContext = data.context && typeof data.context === 'object' ? data.context : {};
   const submitter = await resolveSubmitterSnapshot(context.user);
+  const screenshots = validateSubmittedScreenshots(
+    Array.isArray(context.files) ? context.files : [],
+    Array.isArray(data.screenshots) ? data.screenshots : [],
+    submitter.submitter_type === 'AUTHENTICATED'
+  );
+  const scopeScreens = resolveScopeScreens(data);
 
   const record = await feedbackRepository.createFeedback({
     category: data.category || 'GENERAL',
     message: String(data.message || '').trim(),
+    scope: data.scope || 'SCREEN',
     ...submitter,
     route_path: sanitizeFeedbackLocation(clientContext.route_path, 512),
     route_name: truncateFeedbackText(clientContext.route_name, 120),
@@ -298,8 +395,28 @@ const submitFeedback = async (data = {}, context = {}) => {
     user_agent: truncateFeedbackText(context.user_agent, 512),
     ip_address: truncateFeedbackText(context.ip_address, 45),
     client_context_json: buildFeedbackClientContextJson(clientContext),
-    client_submitted_at: parseOptionalDate(clientContext.client_submitted_at)
+    client_submitted_at: parseOptionalDate(clientContext.client_submitted_at),
+    scope_screens: scopeScreens
   });
+
+  const { stored } = await storeFeedbackScreenshots({
+    feedbackId: record.id,
+    screenshots
+  });
+  let recordedScreenshots = 0;
+  if (stored.length > 0) {
+    try {
+      recordedScreenshots = await feedbackRepository.createFeedbackScreenshots(record.id, stored);
+    } catch (error) {
+      // The images are stored but unrecorded; nothing can reach them, so take
+      // them back out rather than leave objects no row points at.
+      logger.error('Feedback screenshots could not be recorded', {
+        feedback_id: record.id,
+        error: error?.message
+      });
+      await deleteFeedbackScreenshotObjects(stored.map((image) => image.storage_key));
+    }
+  }
 
   // audit_log is tenant-scoped, so an anonymous row is its own evidence.
   if (record.tenant_id) {
@@ -313,7 +430,9 @@ const submitFeedback = async (data = {}, context = {}) => {
         after: {
           human_friendly_id: record.human_friendly_id,
           category: record.category,
-          submitter_type: record.submitter_type
+          submitter_type: record.submitter_type,
+          scope: record.scope,
+          screenshot_count: recordedScreenshots
         }
       },
       ip_address: context.ip_address
@@ -323,8 +442,14 @@ const submitFeedback = async (data = {}, context = {}) => {
   return {
     human_friendly_id: record.human_friendly_id,
     category: record.category,
+    scope: record.scope,
     submitter_type: record.submitter_type,
-    submitted_at: record.submitted_at
+    submitted_at: record.submitted_at,
+    screenshot_count: recordedScreenshots,
+    // What the reporter sent that did not make it — a provider that refused
+    // the image, or a row that could not be written — so the app can say so
+    // instead of pretending every shot arrived.
+    screenshots_dropped: Math.max(0, screenshots.length - recordedScreenshots)
   };
 };
 
@@ -360,6 +485,15 @@ const toFeedbackListItem = (row) => ({
   human_friendly_id: row.human_friendly_id,
   submitted_at: row.submitted_at,
   category: row.category,
+  scope: row.scope,
+  // The screens a "selected screens" report named, so a reviewer sees what it
+  // covers without opening the record.
+  scope_screens: (row.scope_screens || []).map((screen) => ({
+    route_name: screen.route_name,
+    route_path: screen.route_path,
+    screen_title: screen.screen_title
+  })),
+  screenshot_count: row._count?.screenshots || 0,
   submitter_type: row.submitter_type,
   message_preview: truncateFeedbackText(row.message, FEEDBACK_MESSAGE_PREVIEW_LENGTH),
   user_email: row.user_email || null,
@@ -441,11 +575,16 @@ const getFeedbackFacets = async (filters = {}, context = {}) => {
 };
 
 /**
- * Build the feedback workbook for download.
+ * Build the download archive: the workbook, the screenshots it describes, and
+ * the prompts generator that turns the lot into implementation prompts.
+ *
+ * The archive is returned as a stream. Each image is read from storage only
+ * as it is appended, so a download of every record never holds every image in
+ * memory at once.
  *
  * @param {Object} query - Filters plus utc_offset_minutes and optional human_friendly_ids
  * @param {Object} context - Request context (timezone header, user)
- * @returns {Promise<Object>} buffer, file_name, mime_type, record_count
+ * @returns {Promise<Object>} stream, file_name, mime_type, record_count, image_count
  */
 const exportFeedback = async (query = {}, context = {}) => {
   ensureFeedbackAdmin(context);
@@ -462,12 +601,19 @@ const exportFeedback = async (query = {}, context = {}) => {
   });
   const generatedAt = new Date();
   const clock = resolveExportClock({ timeZone: context.timezone, utcOffsetMinutes });
-  const buffer = await renderFeedbackWorkbook({
+  const workbookBuffer = await renderFeedbackWorkbook({
     rows,
     clock,
     generatedAt,
     generatedBy: truncateFeedbackText(context.user?.email, 255),
     filters
+  });
+  const screenshots = listFeedbackExportScreenshots(rows);
+  const stream = streamFeedbackArchive({
+    workbookFileName: buildFeedbackExportFileName(generatedAt, clock),
+    workbookBuffer,
+    screenshots,
+    readScreenshot: (storageKey) => readFeedbackScreenshot(storageKey)
   });
 
   createAuditLog({
@@ -479,6 +625,7 @@ const exportFeedback = async (query = {}, context = {}) => {
     diff: {
       after: {
         record_count: rows.length,
+        image_count: screenshots.length,
         human_friendly_ids: humanFriendlyIds
           ? humanFriendlyIds.slice(0, FEEDBACK_AUDIT_ID_SAMPLE)
           : null,
@@ -489,10 +636,107 @@ const exportFeedback = async (query = {}, context = {}) => {
   }).catch(() => {});
 
   return {
+    stream,
+    file_name: buildFeedbackArchiveFileName(generatedAt, clock),
+    mime_type: FEEDBACK_ARCHIVE_MIME_TYPE,
+    record_count: rows.length,
+    image_count: screenshots.length
+  };
+};
+
+/**
+ * The screenshots of one record, for review in the app.
+ *
+ * Metadata only: the images themselves are fetched one at a time through
+ * `getFeedbackScreenshotImage`, which is what keeps them off any public path.
+ *
+ * @param {string} humanFriendlyId - Public feedback id
+ * @param {Object} context - Request context
+ * @returns {Promise<{ human_friendly_id: string, items: Object[] }>}
+ */
+const listFeedbackScreenshots = async (humanFriendlyId, context = {}) => {
+  ensureFeedbackAdmin(context);
+
+  const record = await feedbackRepository.findFeedbackWithScreenshots(humanFriendlyId);
+  if (!record) {
+    throw new HttpError('errors.resource.not_found', 404);
+  }
+
+  return {
+    human_friendly_id: record.human_friendly_id,
+    items: record.screenshots.map((screenshot, index) => ({
+      id: screenshot.id,
+      sequence: screenshot.sequence || index + 1,
+      content_type: screenshot.content_type,
+      byte_size: screenshot.byte_size,
+      width: screenshot.width,
+      height: screenshot.height,
+      caption: screenshot.caption,
+      route_path: screenshot.route_path,
+      route_name: screenshot.route_name,
+      screen_title: screenshot.screen_title,
+      // The window the shot was taken in: orientation, theme and size as
+      // they were then, which the feedback's own context may not match.
+      client_context: screenshot.client_context_json || null,
+      captured_at: screenshot.captured_at,
+      file_name: buildFeedbackScreenshotFileName({
+        referenceId: record.human_friendly_id,
+        position: index + 1,
+        contentType: screenshot.content_type
+      })
+    }))
+  };
+};
+
+/**
+ * One screenshot's bytes, for a platform owner or admin to look at.
+ *
+ * Every read is audited: these images can show patient data.
+ *
+ * @param {string} humanFriendlyId - Public feedback id
+ * @param {string} screenshotId
+ * @param {Object} context - Request context
+ * @returns {Promise<{ buffer: Buffer, mime_type: string, file_name: string }>}
+ */
+const getFeedbackScreenshotImage = async (humanFriendlyId, screenshotId, context = {}) => {
+  ensureFeedbackAdmin(context);
+
+  const screenshot = await feedbackRepository.findFeedbackScreenshot(
+    humanFriendlyId,
+    screenshotId
+  );
+  if (!screenshot) {
+    throw new HttpError('errors.resource.not_found', 404);
+  }
+
+  const buffer = await readFeedbackScreenshot(screenshot.storage_key);
+  if (!buffer) {
+    throw new HttpError('errors.resource.not_found', 404);
+  }
+
+  createAuditLog({
+    user_id: context.user_id,
+    tenant_id: context.tenant_id,
+    action: 'VIEW',
+    entity: 'feedback_screenshot',
+    entity_id: screenshot.id,
+    diff: {
+      after: {
+        human_friendly_id: String(humanFriendlyId || '').trim().toUpperCase(),
+        sequence: screenshot.sequence
+      }
+    },
+    ip_address: context.ip_address
+  }).catch(() => {});
+
+  return {
     buffer,
-    file_name: buildFeedbackExportFileName(generatedAt, clock),
-    mime_type: FEEDBACK_EXPORT_MIME_TYPE,
-    record_count: rows.length
+    mime_type: screenshot.content_type,
+    file_name: buildFeedbackScreenshotFileName({
+      referenceId: String(humanFriendlyId || '').trim().toUpperCase(),
+      position: screenshot.sequence || 1,
+      contentType: screenshot.content_type
+    })
   };
 };
 
@@ -515,9 +759,21 @@ const deleteFeedback = async (body = {}, context = {}) => {
 
   const filters = deletesAllMatching ? body.filters || {} : null;
   const deletedAt = new Date();
-  const deletedCount = await feedbackRepository.deleteFeedbackPermanently(
-    deletesAllMatching ? { filters } : { humanFriendlyIds }
-  );
+  const { count: deletedCount, storage_keys: storageKeys } =
+    await feedbackRepository.deleteFeedbackPermanently(
+      deletesAllMatching ? { filters } : { humanFriendlyIds }
+    );
+  // The rows are gone and nothing points at their images any more, so the
+  // images go too. A key that is already absent counts as deleted, which
+  // makes a repeat of this call safe.
+  const { deleted: deletedImages, failed: failedImages } =
+    await deleteFeedbackScreenshotObjects(storageKeys);
+  if (failedImages.length > 0) {
+    logger.error('Feedback images outlived their records', {
+      count: failedImages.length,
+      storage_keys: failedImages.slice(0, FEEDBACK_AUDIT_ID_SAMPLE)
+    });
+  }
 
   createAuditLog({
     user_id: context.user_id,
@@ -531,11 +787,14 @@ const deleteFeedback = async (body = {}, context = {}) => {
           ? null
           : humanFriendlyIds.slice(0, FEEDBACK_AUDIT_ID_SAMPLE),
         filters,
-        matched: deletedCount
+        matched: deletedCount,
+        images: storageKeys.length
       },
       after: {
         deleted_permanently: true,
-        deleted_at: deletedAt.toISOString()
+        deleted_at: deletedAt.toISOString(),
+        deleted_images: deletedImages,
+        orphaned_images: failedImages.length
       }
     },
     ip_address: context.ip_address
@@ -543,7 +802,10 @@ const deleteFeedback = async (body = {}, context = {}) => {
 
   return {
     deleted_count: deletedCount,
-    deleted_at: deletedAt
+    deleted_at: deletedAt,
+    // Records, not files: the admin picked records, and that is what the app
+    // reports back.
+    deleted_screenshot_count: deletedImages
   };
 };
 
@@ -551,8 +813,10 @@ module.exports = {
   deleteFeedback,
   exportFeedback,
   getFeedbackFacets,
+  getFeedbackScreenshotImage,
   getFeedbackSummary,
   listFeedback,
+  listFeedbackScreenshots,
   submitCsatFeedback,
   submitFeedback,
   submitNpsFeedback

@@ -55710,6 +55710,294 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Suppliers, purchase orders, goods receiving, batches, expiry and costs belong to the procurement pharmacy. Switch to it to manage them.'**
   String get pharmacyProcurementRestrictedBody;
+
+  /// Label of the field where a reporter says what their feedback covers.
+  ///
+  /// In en, this message translates to:
+  /// **'What does this apply to?'**
+  String get feedbackScopeLabel;
+
+  /// Feedback scope: only the screen the form was opened from.
+  ///
+  /// In en, this message translates to:
+  /// **'This screen'**
+  String get feedbackScopeThisScreen;
+
+  /// Supporting copy for the This screen feedback scope.
+  ///
+  /// In en, this message translates to:
+  /// **'Only the screen you opened this form from.'**
+  String get feedbackScopeThisScreenDescription;
+
+  /// Feedback scope: not confined to one screen.
+  ///
+  /// In en, this message translates to:
+  /// **'The whole app'**
+  String get feedbackScopeWholeApp;
+
+  /// Supporting copy for the whole app feedback scope.
+  ///
+  /// In en, this message translates to:
+  /// **'Something that is not limited to one screen.'**
+  String get feedbackScopeWholeAppDescription;
+
+  /// Feedback scope: the screens the reporter picks.
+  ///
+  /// In en, this message translates to:
+  /// **'Selected screens'**
+  String get feedbackScopeSelectedScreens;
+
+  /// Supporting copy for the selected screens feedback scope.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick every screen this is about.'**
+  String get feedbackScopeSelectedScreensDescription;
+
+  /// Label above the screens picked for a selected-screens report.
+  ///
+  /// In en, this message translates to:
+  /// **'Screens'**
+  String get feedbackScreensLabel;
+
+  /// Action that opens the screen picker in the feedback form.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose screens'**
+  String get feedbackChooseScreensAction;
+
+  /// Validation message when selected screens is chosen but no screen is picked.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick at least one screen.'**
+  String get feedbackScreensRequiredMessage;
+
+  /// Screen reader label for removing a picked screen from a report.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove {screen}'**
+  String feedbackScreenRemoveLabel(String screen);
+
+  /// Title of the dialog that picks the screens feedback applies to.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose screens'**
+  String get feedbackScreenPickerTitle;
+
+  /// Search field label in the feedback screen picker.
+  ///
+  /// In en, this message translates to:
+  /// **'Search screens'**
+  String get feedbackScreenPickerSearchLabel;
+
+  /// Shown when a search in the feedback screen picker matches nothing.
+  ///
+  /// In en, this message translates to:
+  /// **'No screens match your search.'**
+  String get feedbackScreenPickerEmptyMessage;
+
+  /// Running count of screens picked in the feedback screen picker.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{Nothing picked} =1{1 screen picked} other{{count} screens picked}}'**
+  String feedbackScreenPickerSelectedLabel(int count);
+
+  /// Name of the sign-in screen in the feedback screen picker.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in'**
+  String get feedbackScreenSignInLabel;
+
+  /// Name of the registration screen in the feedback screen picker.
+  ///
+  /// In en, this message translates to:
+  /// **'Create account'**
+  String get feedbackScreenRegisterLabel;
+
+  /// Label above the screenshots attached to feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'Screenshots'**
+  String get feedbackScreenshotsLabel;
+
+  /// How many screenshots are attached out of how many are allowed.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} of {max}'**
+  String feedbackScreenshotsCountLabel(int count, int max);
+
+  /// Notice in the feedback form warning that screenshots may contain patient data.
+  ///
+  /// In en, this message translates to:
+  /// **'Screenshots can show patient data. Crop out anything that should not be sent.'**
+  String get feedbackScreenshotsPatientDataNotice;
+
+  /// Action that attaches a picture of the screen behind the feedback form.
+  ///
+  /// In en, this message translates to:
+  /// **'Capture this screen'**
+  String get feedbackCaptureThisScreenAction;
+
+  /// Action that puts the feedback form aside so the reporter can capture other screens.
+  ///
+  /// In en, this message translates to:
+  /// **'Capture another screen'**
+  String get feedbackCaptureAnotherScreenAction;
+
+  /// Toggle deciding whether a capture shows the feedback form itself.
+  ///
+  /// In en, this message translates to:
+  /// **'Include this form in the picture'**
+  String get feedbackCaptureIncludeFormLabel;
+
+  /// Hint shown while the reporter walks the app capturing screens.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to a screen and tap Capture. Your feedback is kept.'**
+  String get feedbackCaptureModeHint;
+
+  /// Action that takes a picture of the current screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Capture'**
+  String get feedbackCaptureAction;
+
+  /// Action that reopens the feedback form with everything intact.
+  ///
+  /// In en, this message translates to:
+  /// **'Back to feedback'**
+  String get feedbackCaptureBackAction;
+
+  /// Action that throws away the feedback draft and its screenshots.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard feedback'**
+  String get feedbackCaptureDiscardAction;
+
+  /// Label on the floating control while the reporter is capturing screens.
+  ///
+  /// In en, this message translates to:
+  /// **'Capturing'**
+  String get feedbackCaptureModeLabel;
+
+  /// Screen reader label for the capture control.
+  ///
+  /// In en, this message translates to:
+  /// **'Capture this screen for your feedback'**
+  String get feedbackCaptureSemanticLabel;
+
+  /// Confirmation after a screenshot is captured, with the running count.
+  ///
+  /// In en, this message translates to:
+  /// **'Captured {count} of {max}.'**
+  String feedbackCaptureCapturedMessage(int count, int max);
+
+  /// Shown when the reporter tries to capture past the limit.
+  ///
+  /// In en, this message translates to:
+  /// **'{max, plural, =1{You can attach 1 screenshot.} other{You can attach {max} screenshots.}}'**
+  String feedbackCaptureLimitReachedMessage(int max);
+
+  /// Shown when a screenshot cannot be taken on this device or renderer.
+  ///
+  /// In en, this message translates to:
+  /// **'That screen could not be captured. You can still send your feedback.'**
+  String get feedbackCaptureFailedMessage;
+
+  /// Title of the full-size preview of one attached screenshot.
+  ///
+  /// In en, this message translates to:
+  /// **'Screenshot {position}'**
+  String feedbackScreenshotPreviewTitle(int position);
+
+  /// Screen reader label for removing an attached screenshot.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove screenshot {position}'**
+  String feedbackScreenshotRemoveLabel(int position);
+
+  /// Action that crops an attached screenshot before it is sent.
+  ///
+  /// In en, this message translates to:
+  /// **'Crop'**
+  String get feedbackScreenshotCropAction;
+
+  /// Label of the optional note on an attached screenshot.
+  ///
+  /// In en, this message translates to:
+  /// **'Caption'**
+  String get feedbackScreenshotCaptionLabel;
+
+  /// Hint for the caption on an attached screenshot.
+  ///
+  /// In en, this message translates to:
+  /// **'What should we look at?'**
+  String get feedbackScreenshotCaptionHint;
+
+  /// Shown after submitting when some screenshots could not be stored.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 screenshot could not be attached.} other{{count} screenshots could not be attached.}}'**
+  String feedbackScreenshotsDroppedMessage(int count);
+
+  /// Title of the confirmation before throwing away a feedback draft.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard this feedback?'**
+  String get feedbackDiscardDraftTitle;
+
+  /// Body of the confirmation before throwing away a feedback draft.
+  ///
+  /// In en, this message translates to:
+  /// **'Your message and every screenshot you captured will be lost.'**
+  String get feedbackDiscardDraftBody;
+
+  /// Column showing what a stored feedback record applies to.
+  ///
+  /// In en, this message translates to:
+  /// **'Applies to'**
+  String get feedbackAppliesToColumnLabel;
+
+  /// Column showing how many screenshots a stored feedback record carries.
+  ///
+  /// In en, this message translates to:
+  /// **'Screenshots'**
+  String get feedbackScreenshotsColumnLabel;
+
+  /// Action that opens the screenshots of a stored feedback record.
+  ///
+  /// In en, this message translates to:
+  /// **'View screenshots'**
+  String get feedbackViewScreenshotsAction;
+
+  /// Title of the dialog showing the screenshots of one feedback record.
+  ///
+  /// In en, this message translates to:
+  /// **'Screenshots for {reference}'**
+  String feedbackScreenshotsDialogTitle(String reference);
+
+  /// Shown when a feedback record carries no screenshots.
+  ///
+  /// In en, this message translates to:
+  /// **'This feedback has no screenshots.'**
+  String get feedbackScreenshotsEmptyMessage;
+
+  /// Shown when a stored screenshot cannot be fetched for review.
+  ///
+  /// In en, this message translates to:
+  /// **'That screenshot could not be loaded.'**
+  String get feedbackScreenshotLoadErrorMessage;
+
+  /// Filter grouping feedback by what it applies to.
+  ///
+  /// In en, this message translates to:
+  /// **'Applies to'**
+  String get feedbackFilterAppliesToLabel;
+
+  /// Filter grouping feedback by the screens it applies to.
+  ///
+  /// In en, this message translates to:
+  /// **'Applies to screen'**
+  String get feedbackFilterAppliesToRouteLabel;
 }
 
 class _AppLocalizationsDelegate

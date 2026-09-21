@@ -127,6 +127,23 @@ final class _FakeFeedbackRepository implements FeedbackRepository {
   }
 
   @override
+  Future<Result<List<FeedbackStoredScreenshot>>> fetchFeedbackScreenshots({
+    required String referenceId,
+  }) async {
+    return const Result<List<FeedbackStoredScreenshot>>.success(
+      <FeedbackStoredScreenshot>[],
+    );
+  }
+
+  @override
+  Future<Result<Uint8List>> fetchFeedbackScreenshotImage({
+    required String referenceId,
+    required String screenshotId,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<Result<FeedbackDeleteResult>> deleteMatchingFeedback({
     required FeedbackFilters filters,
   }) async {

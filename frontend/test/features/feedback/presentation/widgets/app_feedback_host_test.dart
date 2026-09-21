@@ -18,6 +18,8 @@ import 'package:hosspi_hms/core/security/session_tokens.dart';
 import 'package:hosspi_hms/features/feedback/data/repositories/feedback_repository_impl.dart';
 import 'package:hosspi_hms/features/feedback/domain/entities/feedback_entities.dart';
 import 'package:hosspi_hms/features/feedback/domain/repositories/feedback_repository.dart';
+import 'package:hosspi_hms/features/feedback/presentation/controllers/feedback_draft_controller.dart';
+import 'package:hosspi_hms/features/feedback/presentation/feedback_capture_session.dart';
 import 'package:hosspi_hms/features/feedback/presentation/widgets/app_feedback_host.dart';
 import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_delete_dialog.dart';
 import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_download_dialog.dart';
@@ -30,6 +32,55 @@ import 'package:hosspi_hms/shared/data/app_pagination.dart';
 import '../../../../helpers/test_harness.dart';
 
 typedef _SavedFile = ({Uint8List bytes, String fileName});
+
+/// A 1x1 PNG, enough for `Image.memory` to paint a thumbnail.
+final Uint8List _pngBytes = Uint8List.fromList(<int>[
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, //
+  0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+  0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+  0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
+  0x89, 0x00, 0x00, 0x00, 0x0a, 0x49, 0x44, 0x41,
+  0x54, 0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00,
+  0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00,
+  0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae,
+  0x42, 0x60, 0x82,
+]);
+
+/// Stands in for the render-to-image capture, which a widget test cannot
+/// drive: it records every request and hands back a canned picture of
+/// whatever screen the router is on.
+final class _FakeScreenCapturer {
+  _FakeScreenCapturer({this.succeeds = true});
+
+  bool succeeds;
+  final List<({String? routeName, bool hideForm})> calls =
+      <({String? routeName, bool hideForm})>[];
+
+  FeedbackScreenCapturer get capture {
+    return ({
+      required WidgetRef ref,
+      required GoRouter router,
+      required AppLocalizations l10n,
+      bool hideForm = false,
+    }) async {
+      final String? routeName = router.state.topRoute?.name;
+      calls.add((routeName: routeName, hideForm: hideForm));
+      if (!succeeds) {
+        return null;
+      }
+      return FeedbackScreenshot(
+        bytes: _pngBytes,
+        contentType: 'image/png',
+        screen: FeedbackScreenReference(
+          routeName: routeName,
+          routePath: '/${routeName ?? 'unknown'}',
+          screenTitle: routeName,
+        ),
+        capturedAt: DateTime(2026, 9, 20, 10, 30),
+      );
+    };
+  }
+}
 typedef _MenuLayout = ({String name, Size size, Offset? moveTo});
 
 final class _FakeFeedbackRepository implements FeedbackRepository {
@@ -113,6 +164,23 @@ final class _FakeFeedbackRepository implements FeedbackRepository {
   }
 
   @override
+  Future<Result<List<FeedbackStoredScreenshot>>> fetchFeedbackScreenshots({
+    required String referenceId,
+  }) async {
+    return const Result<List<FeedbackStoredScreenshot>>.success(
+      <FeedbackStoredScreenshot>[],
+    );
+  }
+
+  @override
+  Future<Result<Uint8List>> fetchFeedbackScreenshotImage({
+    required String referenceId,
+    required String screenshotId,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<Result<FeedbackDeleteResult>> deleteMatchingFeedback({
     required FeedbackFilters filters,
   }) async {
@@ -144,6 +212,7 @@ Future<GoRouter> _pumpHost(
   required _FakeFeedbackRepository repository,
   Size size = const Size(1280, 900),
   List<_SavedFile>? savedFiles,
+  _FakeScreenCapturer? capturer,
 }) async {
   setTestViewport(tester, size);
   final GoRouter router = GoRouter(
@@ -173,6 +242,9 @@ Future<GoRouter> _pumpHost(
         ),
         initialSessionStateProvider.overrideWithValue(session),
         feedbackRepositoryProvider.overrideWithValue(repository),
+        feedbackScreenCapturerProvider.overrideWithValue(
+          (capturer ?? _FakeScreenCapturer()).capture,
+        ),
         appConnectivityStatusProvider.overrideWith(
           (Ref ref) => Stream<AppConnectivityStatus>.value(
             AppConnectivityStatus.online,
@@ -208,6 +280,18 @@ Finder get _messageField => find.descendant(
   of: find.byType(FeedbackSubmitDialog),
   matching: find.byType(TextFormField),
 );
+
+Finder _typeOption(String label) =>
+    find.widgetWithText(AppCheckboxField, label);
+
+/// Scrolls a control of the form into view before tapping it: the form is
+/// taller than a phone screen once it carries screenshots.
+Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
+  await tester.ensureVisible(finder);
+  await tester.pumpAndSettle();
+  await tester.tap(finder);
+  await tester.pumpAndSettle();
+}
 
 Future<void> _openLauncher(WidgetTester tester) async {
   await tester.tap(_launcher);
@@ -624,7 +708,7 @@ void main() {
     expect(rect.top, greaterThanOrEqualTo(0));
   });
 
-  testWidgets('download saves the picked records as a named workbook', (
+  testWidgets('download saves the picked records as a named archive', (
     WidgetTester tester,
   ) async {
     final _FakeFeedbackRepository repository = _FakeFeedbackRepository();
@@ -660,7 +744,7 @@ void main() {
     expect(saved.bytes, repository.exportBytes);
     expect(
       saved.fileName,
-      matches(RegExp(r'^HOSSPI-FEEDBACK-\d{8}-\d{6}\.xlsx$')),
+      matches(RegExp(r'^HOSSPI-FEEDBACK-\d{8}-\d{6}\.zip$')),
     );
     expect(find.text('Feedback downloaded.'), findsOneWidget);
   });
@@ -814,5 +898,158 @@ void main() {
       repository.submissions.single.submission.context.deviceType,
       FeedbackDeviceType.mobile,
     );
+  });
+
+  testWidgets(
+    'attaches a picture of the screen the control was tapped on, without the '
+    'control itself',
+    (WidgetTester tester) async {
+      final _FakeFeedbackRepository repository = _FakeFeedbackRepository();
+      final _FakeScreenCapturer capturer = _FakeScreenCapturer();
+      await _pumpHost(
+        tester,
+        session: const SessionState.unauthenticated(),
+        repository: repository,
+        capturer: capturer,
+      );
+
+      await _openLauncher(tester);
+
+      // Taken before the form opened, of the screen behind it.
+      expect(capturer.calls, hasLength(1));
+      expect(capturer.calls.single.routeName, 'patients');
+      expect(find.text('1 of 3'), findsOneWidget);
+
+      await tester.enterText(_messageField, 'The save button does nothing');
+      await tester.tap(find.widgetWithText(AppButton, 'Send feedback'));
+      await tester.pumpAndSettle();
+
+      final FeedbackSubmission sent = repository.submissions.single.submission;
+      expect(sent.screenshots, hasLength(1));
+      expect(sent.screenshots.single.screen.routeName, 'patients');
+    },
+  );
+
+  testWidgets('sends the feedback when the screen cannot be captured', (
+    WidgetTester tester,
+  ) async {
+    final _FakeFeedbackRepository repository = _FakeFeedbackRepository();
+    await _pumpHost(
+      tester,
+      session: const SessionState.unauthenticated(),
+      repository: repository,
+      capturer: _FakeScreenCapturer(succeeds: false),
+    );
+
+    await _openLauncher(tester);
+    await tester.enterText(_messageField, 'No pictures on this device');
+    await tester.tap(find.widgetWithText(AppButton, 'Send feedback'));
+    await tester.pumpAndSettle();
+
+    // A screenshot is never worth the reporter's words.
+    expect(repository.submissions.single.submission.screenshots, isEmpty);
+    expect(
+      find.text('Thank you. Your feedback was sent (reference FBK0000001).'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'keeps capturing screen after screen until the reporter goes back',
+    (WidgetTester tester) async {
+      final _FakeFeedbackRepository repository = _FakeFeedbackRepository();
+      final _FakeScreenCapturer capturer = _FakeScreenCapturer();
+      final GoRouter router = await _pumpHost(
+        tester,
+        session: const SessionState.unauthenticated(),
+        repository: repository,
+        capturer: capturer,
+      );
+
+      await _openLauncher(tester);
+      await tester.enterText(_messageField, 'Both screens are wrong');
+      await tester.tap(_typeOption('Problem'));
+      await tester.pump();
+      await _tapVisible(
+        tester,
+        find.byKey(FeedbackSubmitDialog.captureAnotherScreenKey),
+      );
+
+      // The control has become the capture bar; the form is put aside.
+      expect(find.byType(FeedbackSubmitDialog), findsNothing);
+      expect(find.byKey(AppFeedbackHost.captureBarKey), findsOneWidget);
+      expect(find.text('Capturing · 1 of 3'), findsOneWidget);
+
+      // Walk to another screen and take two shots of it.
+      router.goNamed('billing');
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(AppButton, 'Capture'));
+      await tester.pumpAndSettle();
+      expect(find.text('Capturing · 2 of 3'), findsOneWidget);
+      await tester.tap(find.widgetWithText(AppButton, 'Capture'));
+      await tester.pumpAndSettle();
+      expect(find.text('Capturing · 3 of 3'), findsOneWidget);
+
+      // The cap is reached: capture is offered but refused.
+      final AppButton captureButton = tester.widget<AppButton>(
+        find.widgetWithText(AppButton, 'Capture'),
+      );
+      expect(captureButton.onPressed, isNull);
+
+      await tester.tap(find.widgetWithText(AppButton, 'Back to feedback'));
+      await tester.pumpAndSettle();
+
+      // Everything typed and captured came back with the form.
+      expect(find.byType(FeedbackSubmitDialog), findsOneWidget);
+      expect(find.text('Both screens are wrong'), findsOneWidget);
+      expect(find.text('3 of 3'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(AppButton, 'Send feedback'));
+      await tester.pumpAndSettle();
+
+      final FeedbackSubmission sent = repository.submissions.single.submission;
+      expect(sent.category, FeedbackCategory.problem);
+      expect(
+        sent.screenshots
+            .map((FeedbackScreenshot shot) => shot.screen.routeName)
+            .toList(),
+        <String>['patients', 'billing', 'billing'],
+      );
+      // Capturing another screen says the feedback is about it too.
+      expect(sent.scope, FeedbackScope.screens);
+      expect(
+        sent.screens.map((FeedbackScreenReference screen) => screen.routeName),
+        containsAll(<String>['patients', 'billing']),
+      );
+    },
+  );
+
+  testWidgets('discarding a draft throws away its screenshots too', (
+    WidgetTester tester,
+  ) async {
+    final _FakeFeedbackRepository repository = _FakeFeedbackRepository();
+    await _pumpHost(
+      tester,
+      session: const SessionState.unauthenticated(),
+      repository: repository,
+    );
+
+    await _openLauncher(tester);
+    await tester.enterText(_messageField, 'Never mind');
+    await _tapVisible(
+      tester,
+      find.byKey(FeedbackSubmitDialog.captureAnotherScreenKey),
+    );
+    await tester.tap(find.widgetWithText(AppButton, 'Discard feedback'));
+    await tester.pumpAndSettle();
+    // Once on the capture bar, once in the confirmation it opens.
+    await tester.tap(find.widgetWithText(AppButton, 'Discard feedback').last);
+    await tester.pumpAndSettle();
+
+    // The control is itself again, and the next report starts blank.
+    expect(find.byKey(AppFeedbackHost.captureBarKey), findsNothing);
+    expect(_launcher, findsOneWidget);
+    await _openLauncher(tester);
+    expect(find.text('Never mind'), findsNothing);
   });
 }

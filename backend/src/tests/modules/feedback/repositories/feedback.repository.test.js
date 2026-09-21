@@ -12,6 +12,14 @@ jest.mock('@prisma/client', () => ({
     findFirst: jest.fn(),
     findMany: jest.fn(),
     groupBy: jest.fn()
+  },
+  feedback_scope_screen: {
+    groupBy: jest.fn()
+  },
+  feedback_screenshot: {
+    createMany: jest.fn(),
+    findFirst: jest.fn(),
+    findMany: jest.fn()
   }
 }));
 
@@ -31,6 +39,8 @@ const conditionsOf = (where) => (where.AND ? where.AND : [where]);
 describe('feedback repository', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    prisma.feedback_scope_screen.groupBy.mockResolvedValue([]);
+    prisma.feedback_screenshot.findMany.mockResolvedValue([]);
   });
 
   describe('buildActiveFeedbackWhere', () => {
@@ -47,11 +57,19 @@ describe('feedback repository', () => {
       ['app_environment', ['production'], { app_environment: { in: ['production'] } }],
       ['app_version', ['1.4.0+12'], { app_version: { in: ['1.4.0+12'] } }],
       ['locale', ['en'], { locale: { in: ['en'] } }],
-      ['platform', ['web'], { client_platform: { in: ['web'] } }]
+      ['platform', ['web'], { client_platform: { in: ['web'] } }],
+      ['applies_to', ['APP'], { scope: { in: ['APP'] } }]
     ])('filters %s on its indexed column', (key, values, condition) => {
       expect(conditionsOf(buildActiveFeedbackWhere({ [key]: values }))).toEqual([
         { deleted_at: null },
         condition
+      ]);
+    });
+
+    it('matches a report that applies to any of the named screens', () => {
+      expect(conditionsOf(buildActiveFeedbackWhere({ applies_to_route: ['hr', 'opd'] }))).toEqual([
+        { deleted_at: null },
+        { scope_screens: { some: { route_name: { in: ['hr', 'opd'] } } } }
       ]);
     });
 
@@ -118,11 +136,38 @@ describe('feedback repository', () => {
       const exportWhere = prisma.feedback.findMany.mock.calls[1][0].where;
       await deleteFeedbackPermanently({ filters });
       const deleteWhere = prisma.feedback.deleteMany.mock.calls[0][0].where;
+      // The images of the records being deleted are looked up under the very
+      // same clause, so nothing is missed and nothing else is taken.
+      expect(prisma.feedback_screenshot.findMany).toHaveBeenCalledWith({
+        where: { feedback: expected },
+        select: { storage_key: true }
+      });
 
       expect(listWhere).toEqual(expected);
       expect(summaryWhere).toEqual(expected);
       expect(exportWhere).toEqual(expected);
       expect(deleteWhere).toEqual(expected);
+    });
+
+    it('hands back the storage keys of every deleted record so no image is orphaned', async () => {
+      prisma.feedback_screenshot.findMany.mockResolvedValue([
+        { storage_key: 'fbshot-aaaa1111-1-abcd.jpg' },
+        { storage_key: 'fbshot-aaaa1111-2-efgh.jpg' },
+        { storage_key: '   ' }
+      ]);
+      prisma.feedback.deleteMany.mockResolvedValue({ count: 1 });
+
+      const result = await deleteFeedbackPermanently({ humanFriendlyIds: ['FBK0000011'] });
+
+      expect(result).toEqual({
+        count: 1,
+        storage_keys: ['fbshot-aaaa1111-1-abcd.jpg', 'fbshot-aaaa1111-2-efgh.jpg']
+      });
+      // Keys are read before the rows go: the cascade takes the metadata with
+      // them, and an object no row points at can never be found again.
+      expect(prisma.feedback_screenshot.findMany.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.feedback.deleteMany.mock.invocationCallOrder[0]
+      );
     });
   });
 
@@ -143,6 +188,10 @@ describe('feedback repository', () => {
 
     beforeEach(() => {
       prisma.feedback.count.mockResolvedValue(3);
+      prisma.feedback_scope_screen.groupBy.mockResolvedValue([
+        { route_name: 'pharmacy', _count: { _all: 2 } },
+        { route_name: null, _count: { _all: 5 } }
+      ]);
       prisma.feedback.groupBy.mockImplementation(async ({ by }) => {
         if (by[0] === 'tenant_human_friendly_id') {
           return [
@@ -186,6 +235,8 @@ describe('feedback repository', () => {
       ]);
       expect(result.facets.orientation).toEqual([{ value: 'portrait', count: 1 }]);
       expect(result.facets.platform).toEqual([]);
+      // Screens a report applies to are counted on their own table.
+      expect(result.facets.applies_to_route).toEqual([{ value: 'pharmacy', count: 2 }]);
     });
 
     it('counts each dimension under every active filter except its own', async () => {

@@ -29,7 +29,8 @@ abstract interface class FeedbackRepository {
     required FeedbackFilters filters,
   });
 
-  /// Stored feedback as `.xlsx` bytes, with dates on [utcOffsetMinutes].
+  /// Stored feedback as `.zip` bytes — the workbook, the screenshots it
+  /// describes, and the prompts generator — with dates on [utcOffsetMinutes].
   ///
   /// With [referenceIds] only those records are exported; without them every
   /// record matching [filters]. Platform owners and platform admins only.
@@ -37,6 +38,19 @@ abstract interface class FeedbackRepository {
     required int utcOffsetMinutes,
     Set<String> referenceIds,
     FeedbackFilters filters,
+  });
+
+  /// The screenshots attached to one record, oldest first, without their
+  /// bytes. Platform owners and platform admins only.
+  Future<Result<List<FeedbackStoredScreenshot>>> fetchFeedbackScreenshots({
+    required String referenceId,
+  });
+
+  /// One stored screenshot's bytes, for review in the app. Never cached and
+  /// never public. Platform owners and platform admins only.
+  Future<Result<Uint8List>> fetchFeedbackScreenshotImage({
+    required String referenceId,
+    required String screenshotId,
   });
 
   /// Permanently deletes the feedback with these [referenceIds].

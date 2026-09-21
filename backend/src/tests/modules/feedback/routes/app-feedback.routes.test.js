@@ -13,8 +13,10 @@ jest.mock('@controllers/feedback/feedback.controller', () => ({
   deleteFeedback: function deleteFeedback() {},
   exportFeedback: function exportFeedback() {},
   getFeedbackFacets: function getFeedbackFacets() {},
+  getFeedbackScreenshot: function getFeedbackScreenshot() {},
   getFeedbackSummary: function getFeedbackSummary() {},
   listFeedback: function listFeedback() {},
+  listFeedbackScreenshots: function listFeedbackScreenshots() {},
   submitFeedback: function submitFeedback() {}
 }));
 
@@ -46,6 +48,8 @@ describe('app-feedback.routes contract', () => {
     expect(getRouteSignatures(subject)).toEqual([
       'DELETE /',
       'GET /',
+      'GET /:human_friendly_id/screenshots',
+      'GET /:human_friendly_id/screenshots/:screenshot_id',
       'GET /export',
       'GET /facets',
       'GET /summary',
@@ -63,12 +67,29 @@ describe('app-feedback.routes contract', () => {
     expect(rateLimitCalls).toEqual([[rateLimitConfig.endpoints.feedback]]);
   });
 
+  it('accepts screenshots on submission, after optional authentication', () => {
+    const chain = routeChain('post', '/');
+
+    // Images are parsed once the request is identified, and always before
+    // validation, so one schema sees the JSON body either way.
+    expect(chain).toEqual([
+      'rateLimit',
+      'authenticateOptional',
+      'acceptFeedbackSubmission',
+      // The validation middleware is anonymous.
+      '<anonymous>',
+      'submitFeedback'
+    ]);
+  });
+
   it.each([
     ['get', '/', 'listFeedback'],
     ['get', '/summary', 'getFeedbackSummary'],
     ['get', '/facets', 'getFeedbackFacets'],
     ['get', '/export', 'exportFeedback'],
     ['post', '/export', 'exportFeedback'],
+    ['get', '/:human_friendly_id/screenshots', 'listFeedbackScreenshots'],
+    ['get', '/:human_friendly_id/screenshots/:screenshot_id', 'getFeedbackScreenshot'],
     ['delete', '/', 'deleteFeedback']
   ])('requires live platform roles for %s %s', (method, path, handler) => {
     const chain = routeChain(method, path);
@@ -78,7 +99,7 @@ describe('app-feedback.routes contract', () => {
   });
 
   it('authorizes management for platform owners and platform admins only', () => {
-    expect(authorizeCalls).toHaveLength(6);
+    expect(authorizeCalls).toHaveLength(8);
     authorizeCalls.forEach((call) => {
       expect(call).toEqual([['PLATFORM_OWNER', 'PLATFORM_ADMIN']]);
     });

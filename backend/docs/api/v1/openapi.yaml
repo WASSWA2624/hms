@@ -20695,6 +20695,10 @@ paths:
       description: |-
         Records "Give us feedback" from any screen, signed in or not. A valid bearer token attaches the submitter's account, tenant, facility, subscription, roles, and permissions, resolved server-side; without one the feedback is stored as anonymous. Route and page URL context is scrubbed of credentials before storage. Rate limited per client.
 
+        `scope` says what the report applies to: the screen it was raised from, the whole app, or the screens named in `scope_screens`.
+
+        Screenshots travel as `multipart/form-data`: the JSON body above goes in a `payload` field and the images in `screenshots`. The JSON form keeps working unchanged. Images can show patient data, so they are stored encrypted, never served from a public path, and deleted with their feedback.
+
         Offline policy: `no-store`.
       operationId: post_api_v1_feedback
       security:
@@ -20724,6 +20728,75 @@ paths:
                   type: string
                   minLength: 3
                   maxLength: 5000
+                scope:
+                  type: string
+                  description: What the feedback applies to. `SCREENS` requires `scope_screens`.
+                  enum:
+                    - SCREEN
+                    - APP
+                    - SCREENS
+                  default: SCREEN
+                scope_screens:
+                  type: array
+                  description: 'Screens the reporter picked, in the order they picked them. Only for `scope: SCREENS`; each entry needs a route name or a route path.'
+                  maxItems: 40
+                  items:
+                    type: object
+                    properties:
+                      route_name:
+                        type: string
+                        maxLength: 120
+                      route_path:
+                        type: string
+                        maxLength: 512
+                      screen_title:
+                        type: string
+                        maxLength: 255
+                screenshots:
+                  type: array
+                  description: One entry per uploaded image, matched to the multipart files by position. Ignored when the request carries no files.
+                  maxItems: 10
+                  items:
+                    type: object
+                    properties:
+                      width:
+                        type: integer
+                      height:
+                        type: integer
+                      caption:
+                        type: string
+                        maxLength: 255
+                      route_path:
+                        type: string
+                        maxLength: 512
+                      route_name:
+                        type: string
+                        maxLength: 120
+                      screen_title:
+                        type: string
+                        maxLength: 255
+                      client_context:
+                        type: object
+                        description: The window the shot was taken in, which can differ from the feedback's own context.
+                        properties:
+                          viewport_width:
+                            type: number
+                          viewport_height:
+                            type: number
+                          device_pixel_ratio:
+                            type: number
+                          orientation:
+                            type: string
+                            maxLength: 16
+                          theme_mode:
+                            type: string
+                            maxLength: 16
+                          breakpoint:
+                            type: string
+                            maxLength: 16
+                      captured_at:
+                        type: string
+                        format: date-time
                 context:
                   type: object
                   description: Screen and device context captured by the client. Identity is never read from here.
@@ -20802,9 +20875,25 @@ paths:
                     client_submitted_at:
                       type: string
                       format: date-time
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - payload
+              properties:
+                payload:
+                  type: string
+                  description: The JSON body above, as a string. Sent this way when the feedback carries screenshots.
+                screenshots:
+                  type: array
+                  description: PNG, JPEG or WebP images, at most 10 (3 when anonymous), 2 MB each and 12 MB in total. The type is decided by the file's own bytes, not its name. Order matches `screenshots` in the payload.
+                  maxItems: 10
+                  items:
+                    type: string
+                    format: binary
       responses:
         '201':
-          description: Feedback recorded.
+          description: Feedback recorded. Images that the storage provider refused are reported as dropped; the feedback itself is still saved.
           headers:
             Cache-Control:
               $ref: '#/components/headers/CacheControl'
@@ -20823,6 +20912,12 @@ paths:
                             type: string
                           category:
                             type: string
+                          scope:
+                            type: string
+                            enum:
+                              - SCREEN
+                              - APP
+                              - SCREENS
                           submitter_type:
                             type: string
                             enum:
@@ -20831,6 +20926,12 @@ paths:
                           submitted_at:
                             type: string
                             format: date-time
+                          screenshot_count:
+                            type: integer
+                            description: Images stored with this feedback.
+                          screenshots_dropped:
+                            type: integer
+                            description: Images that were sent but could not be stored.
         '422':
           $ref: '#/components/responses/ValidationProblem'
         '429':
@@ -20939,6 +21040,8 @@ paths:
         - $ref: '#/components/parameters/FeedbackPlanTierFilter'
         - $ref: '#/components/parameters/FeedbackSubscriptionStatusFilter'
         - $ref: '#/components/parameters/FeedbackRouteNameFilter'
+        - $ref: '#/components/parameters/FeedbackAppliesToFilter'
+        - $ref: '#/components/parameters/FeedbackAppliesToRouteFilter'
         - $ref: '#/components/parameters/FeedbackAppEnvironmentFilter'
         - $ref: '#/components/parameters/FeedbackAppVersionFilter'
         - $ref: '#/components/parameters/FeedbackLocaleFilter'
@@ -21220,6 +21323,8 @@ paths:
         - $ref: '#/components/parameters/FeedbackPlanTierFilter'
         - $ref: '#/components/parameters/FeedbackSubscriptionStatusFilter'
         - $ref: '#/components/parameters/FeedbackRouteNameFilter'
+        - $ref: '#/components/parameters/FeedbackAppliesToFilter'
+        - $ref: '#/components/parameters/FeedbackAppliesToRouteFilter'
         - $ref: '#/components/parameters/FeedbackAppEnvironmentFilter'
         - $ref: '#/components/parameters/FeedbackAppVersionFilter'
         - $ref: '#/components/parameters/FeedbackLocaleFilter'
@@ -21329,6 +21434,8 @@ paths:
         - $ref: '#/components/parameters/FeedbackPlanTierFilter'
         - $ref: '#/components/parameters/FeedbackSubscriptionStatusFilter'
         - $ref: '#/components/parameters/FeedbackRouteNameFilter'
+        - $ref: '#/components/parameters/FeedbackAppliesToFilter'
+        - $ref: '#/components/parameters/FeedbackAppliesToRouteFilter'
         - $ref: '#/components/parameters/FeedbackAppEnvironmentFilter'
         - $ref: '#/components/parameters/FeedbackAppVersionFilter'
         - $ref: '#/components/parameters/FeedbackLocaleFilter'
@@ -21631,7 +21738,7 @@ paths:
         - Feedback
       summary: Download Feedback
       description: |-
-        Downloads stored feedback as `HOSSPI-FEEDBACK-DDMMYYYY-HHmmss.xlsx`. Times use the `X-Timezone` header when it names an IANA zone, else `utc_offset_minutes`, else UTC, in 24-hour format. Platform owners and platform admins only, checked against live roles.
+        Downloads stored feedback as `HOSSPI-FEEDBACK-DDMMYYYY-HHmmss.zip`, holding the workbook of the same name, `screenshots/FBK0000011.jpg` (then `-2`, `-3`, …) for every attached image, and `feedback-prompts-generator.md`. The workbook carries `Feedback`, `Screenshots` and `Export Details` sheets. Times use the `X-Timezone` header when it names an IANA zone, else `utc_offset_minutes`, else UTC, in 24-hour format. Platform owners and platform admins only, checked against live roles.
 
         Offline policy: `no-store`.
       operationId: get_api_v1_feedback_export
@@ -21689,6 +21796,8 @@ paths:
         - $ref: '#/components/parameters/FeedbackPlanTierFilter'
         - $ref: '#/components/parameters/FeedbackSubscriptionStatusFilter'
         - $ref: '#/components/parameters/FeedbackRouteNameFilter'
+        - $ref: '#/components/parameters/FeedbackAppliesToFilter'
+        - $ref: '#/components/parameters/FeedbackAppliesToRouteFilter'
         - $ref: '#/components/parameters/FeedbackAppEnvironmentFilter'
         - $ref: '#/components/parameters/FeedbackAppVersionFilter'
         - $ref: '#/components/parameters/FeedbackLocaleFilter'
@@ -21706,14 +21815,14 @@ paths:
             maximum: 840
       responses:
         '200':
-          description: Excel workbook of stored feedback.
+          description: 'Archive of stored feedback: workbook, screenshots and prompts generator.'
           headers:
             Content-Disposition:
-              description: attachment; filename="HOSSPI-FEEDBACK-DDMMYYYY-HHmmss.xlsx"
+              description: attachment; filename="HOSSPI-FEEDBACK-DDMMYYYY-HHmmss.zip"
               schema:
                 type: string
           content:
-            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+            application/zip:
               schema:
                 type: string
                 format: binary
@@ -21723,6 +21832,209 @@ paths:
           $ref: '#/components/responses/ForbiddenProblem'
         '422':
           $ref: '#/components/responses/ValidationProblem'
+        '500':
+          $ref: '#/components/responses/InternalProblem'
+      x-route-family: feedback
+      x-offline-policy: no-store
+      x-route-source: src/modules/feedback/routes/app-feedback.routes.js
+    post:
+      tags:
+        - Feedback
+      summary: Download Picked Feedback
+      description: |-
+        The same archive as the GET form, for a selection too large to carry in a URL. With `human_friendly_ids` exactly those records are exported; without them every record matching the filters. Platform owners and platform admins only, checked against live roles.
+
+        Offline policy: `no-store`.
+      operationId: post_api_v1_feedback_export
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              description: The records to export, plus any of the feedback filters and `utc_offset_minutes`.
+              properties:
+                human_friendly_ids:
+                  type: array
+                  maxItems: 1000
+                  items:
+                    type: string
+                    maxLength: 32
+                utc_offset_minutes:
+                  type: integer
+                  minimum: -840
+                  maximum: 840
+      responses:
+        '200':
+          description: Archive of the picked feedback.
+          headers:
+            Content-Disposition:
+              description: attachment; filename="HOSSPI-FEEDBACK-DDMMYYYY-HHmmss.zip"
+              schema:
+                type: string
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/UnauthorizedProblem'
+        '403':
+          $ref: '#/components/responses/ForbiddenProblem'
+        '422':
+          $ref: '#/components/responses/ValidationProblem'
+        '500':
+          $ref: '#/components/responses/InternalProblem'
+      x-route-family: feedback
+      x-offline-policy: no-store
+      x-route-source: src/modules/feedback/routes/app-feedback.routes.js
+  /api/v1/feedback/{human_friendly_id}/screenshots:
+    get:
+      tags:
+        - Feedback
+      summary: List Feedback Screenshots
+      description: |-
+        Lists the screenshots attached to one feedback record, oldest first, with the screen each was taken on. Metadata only; the images themselves are fetched one at a time. Platform owners and platform admins only, checked against live roles.
+
+        Offline policy: `no-store`.
+      operationId: get_api_v1_feedback_screenshots
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: human_friendly_id
+          in: path
+          required: true
+          description: Public feedback id, for example FBK0000011.
+          schema:
+            type: string
+            maxLength: 32
+      responses:
+        '200':
+          description: Screenshot metadata for this record.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResourceEnvelope'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          human_friendly_id:
+                            type: string
+                          items:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                id:
+                                  type: string
+                                  format: uuid
+                                sequence:
+                                  type: integer
+                                content_type:
+                                  type: string
+                                byte_size:
+                                  type: integer
+                                width:
+                                  type: integer
+                                  nullable: true
+                                height:
+                                  type: integer
+                                  nullable: true
+                                caption:
+                                  type: string
+                                  nullable: true
+                                route_path:
+                                  type: string
+                                  nullable: true
+                                route_name:
+                                  type: string
+                                  nullable: true
+                                screen_title:
+                                  type: string
+                                  nullable: true
+                                client_context:
+                                  type: object
+                                  nullable: true
+                                  description: The window the shot was taken in.
+                                captured_at:
+                                  type: string
+                                  format: date-time
+                                  nullable: true
+                                file_name:
+                                  type: string
+                                  description: The name this image takes in a download archive.
+        '401':
+          $ref: '#/components/responses/UnauthorizedProblem'
+        '403':
+          $ref: '#/components/responses/ForbiddenProblem'
+        '404':
+          $ref: '#/components/responses/NotFoundProblem'
+        '500':
+          $ref: '#/components/responses/InternalProblem'
+      x-route-family: feedback
+      x-offline-policy: no-store
+      x-route-source: src/modules/feedback/routes/app-feedback.routes.js
+  /api/v1/feedback/{human_friendly_id}/screenshots/{screenshot_id}:
+    get:
+      tags:
+        - Feedback
+      summary: Get Feedback Screenshot
+      description: |-
+        Returns one screenshot's bytes. Screenshots can show patient data, so the response is never cached and the images are never served from a public path; every read is audited. Platform owners and platform admins only, checked against live roles.
+
+        Offline policy: `no-store`.
+      operationId: get_api_v1_feedback_screenshot
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: human_friendly_id
+          in: path
+          required: true
+          description: Public feedback id, for example FBK0000011.
+          schema:
+            type: string
+            maxLength: 32
+        - name: screenshot_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The image.
+          headers:
+            Cache-Control:
+              description: no-store, private
+              schema:
+                type: string
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/UnauthorizedProblem'
+        '403':
+          $ref: '#/components/responses/ForbiddenProblem'
+        '404':
+          $ref: '#/components/responses/NotFoundProblem'
         '500':
           $ref: '#/components/responses/InternalProblem'
       x-route-family: feedback
@@ -62475,7 +62787,21 @@ components:
       name: route_name
       in: query
       required: false
-      description: 'Comma-separated app route names, matched as stored.'
+      description: 'Comma-separated app route names, matched as stored. The screen the feedback was raised from.'
+      schema:
+        type: string
+    FeedbackAppliesToFilter:
+      name: applies_to
+      in: query
+      required: false
+      description: 'Comma-separated SCREEN, APP, SCREENS: what the report says it applies to.'
+      schema:
+        type: string
+    FeedbackAppliesToRouteFilter:
+      name: applies_to_route
+      in: query
+      required: false
+      description: 'Comma-separated app route names. Matches reports that apply to any of these screens.'
       schema:
         type: string
     FeedbackAppEnvironmentFilter:

@@ -169,8 +169,11 @@ String _decodeQueryComponent(String value) {
   }
 }
 
-/// `HOSSPI-FEEDBACK-DDMMYYYY-HHmmss.xlsx` on the device's local clock, in
+/// `HOSSPI-FEEDBACK-DDMMYYYY-HHmmss.zip` on the device's local clock, in
 /// 24-hour time.
+///
+/// The download is an archive: the workbook of the same name, the screenshots
+/// it describes, and the prompts generator that turns them into work.
 String buildFeedbackExportFileName(DateTime moment) {
   final DateTime local = moment.toLocal();
   String twoDigits(int value) => value.toString().padLeft(2, '0');
@@ -179,7 +182,7 @@ String buildFeedbackExportFileName(DateTime moment) {
       '${twoDigits(local.day)}${twoDigits(local.month)}'
       '${local.year.toString().padLeft(4, '0')}-'
       '${twoDigits(local.hour)}${twoDigits(local.minute)}'
-      '${twoDigits(local.second)}.xlsx';
+      '${twoDigits(local.second)}.zip';
 }
 
 /// `web`, or the native platform name (`android`, `ios`, `windows`, ...).

@@ -9,6 +9,7 @@ import 'package:hosspi_hms/core/utils/app_formatters.dart';
 import 'package:hosspi_hms/features/feedback/data/repositories/feedback_repository_impl.dart';
 import 'package:hosspi_hms/features/feedback/domain/entities/feedback_entities.dart';
 import 'package:hosspi_hms/features/feedback/presentation/feedback_labels.dart';
+import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_screenshots_dialog.dart';
 import 'package:hosspi_hms/l10n/app_localizations.dart';
 import 'package:hosspi_hms/l10n/app_localizations_x.dart';
 import 'package:hosspi_hms/shared/components/components.dart';
@@ -84,6 +85,10 @@ class FeedbackRecordsDialog<T> extends ConsumerStatefulWidget {
 
   final Key pageCheckboxKey;
   final Key Function(String referenceId) rowCheckboxKeyBuilder;
+
+  /// Opens the screenshots of one record.
+  static Key screenshotsButtonKey(String referenceId) =>
+      ValueKey<String>('feedback-screenshots-$referenceId');
 
   @override
   ConsumerState<FeedbackRecordsDialog<T>> createState() =>
@@ -442,7 +447,54 @@ class _FeedbackRecordsDialogState<T>
         preferredWidth: 220,
         value: (FeedbackRecord record) => _orEmpty(record.routePath),
       ),
+      _textColumn(
+        id: 'applies_to',
+        label: l10n.feedbackAppliesToColumnLabel,
+        preferredWidth: 220,
+        maxLines: 2,
+        value: (FeedbackRecord record) => _appliesToText(l10n, record),
+      ),
+      AppListTableColumn<FeedbackRecord>(
+        id: 'screenshots',
+        label: l10n.feedbackScreenshotsColumnLabel,
+        sortable: false,
+        // The way into the pictures, so it is never hidden behind Settings.
+        alwaysVisible: true,
+        preferredWidth: 130,
+        cellBuilder: (BuildContext context, FeedbackRecord record) =>
+            record.screenshotCount == 0
+            ? const Text(_emptyCell)
+            : AppButton.tertiary(
+                key: FeedbackRecordsDialog.screenshotsButtonKey(
+                  record.referenceId,
+                ),
+                label: '${record.screenshotCount}',
+                leadingIcon: Icons.image_outlined,
+                semanticLabel: l10n.feedbackViewScreenshotsAction,
+                dense: true,
+                onPressed: () => unawaited(
+                  showFeedbackScreenshotsDialog(
+                    context: context,
+                    referenceId: record.referenceId,
+                  ),
+                ),
+              ),
+      ),
     ];
+  }
+
+  /// What a record applies to: the whole app, the screens it named, or the
+  /// screen it was raised from.
+  String _appliesToText(AppLocalizations l10n, FeedbackRecord record) {
+    final String scope = feedbackScopeLabel(l10n, record.scope);
+    if (record.scope != FeedbackScope.screens || record.scopeScreens.isEmpty) {
+      return scope;
+    }
+    final String screens = record.scopeScreens
+        .map((FeedbackScreenReference screen) => screen.label)
+        .where((String label) => label.isNotEmpty)
+        .join(', ');
+    return screens.isEmpty ? scope : '$scope: $screens';
   }
 
   AppListTableColumn<FeedbackRecord> _textColumn({
@@ -497,6 +549,15 @@ class _FeedbackRecordsDialogState<T>
           AppListTableMobileMeta(
             label: feedbackDeviceTypeLabel(l10n, deviceType),
             icon: Icons.devices_outlined,
+          ),
+        AppListTableMobileMeta(
+          label: _appliesToText(l10n, record),
+          icon: Icons.my_location_outlined,
+        ),
+        if (record.screenshotCount > 0)
+          AppListTableMobileMeta(
+            label: '${record.screenshotCount}',
+            icon: Icons.image_outlined,
           ),
       ],
     );
@@ -649,6 +710,19 @@ class _FeedbackRecordsDialogState<T>
         facets,
         FeedbackFilterDimension.routeName,
         label: l10n.feedbackRouteColumnLabel,
+        searchHintText: l10n.feedbackFilterRouteSearchHint,
+      ),
+      _dimensionGroup(
+        l10n,
+        facets,
+        FeedbackFilterDimension.appliesTo,
+        label: l10n.feedbackFilterAppliesToLabel,
+      ),
+      _dimensionGroup(
+        l10n,
+        facets,
+        FeedbackFilterDimension.appliesToRoute,
+        label: l10n.feedbackFilterAppliesToRouteLabel,
         searchHintText: l10n.feedbackFilterRouteSearchHint,
       ),
       _dimensionGroup(
@@ -825,6 +899,8 @@ class _FeedbackRecordsDialogState<T>
       FeedbackFilterDimension.subscriptionStatus =>
         l10n.feedbackFilterSectionWho,
       FeedbackFilterDimension.routeName ||
+      FeedbackFilterDimension.appliesTo ||
+      FeedbackFilterDimension.appliesToRoute ||
       FeedbackFilterDimension.appEnvironment ||
       FeedbackFilterDimension.appVersion => l10n.feedbackFilterSectionWhere,
       FeedbackFilterDimension.platform ||

@@ -58,11 +58,11 @@ void main() {
   test('buildFeedbackExportFileName uses DDMMYYYY-HHmmss in 24-hour time', () {
     expect(
       buildFeedbackExportFileName(DateTime(2026, 9, 14, 14, 35, 27)),
-      'HOSSPI-FEEDBACK-14092026-143527.xlsx',
+      'HOSSPI-FEEDBACK-14092026-143527.zip',
     );
     expect(
       buildFeedbackExportFileName(DateTime(2026, 1, 5, 9, 4, 3)),
-      'HOSSPI-FEEDBACK-05012026-090403.xlsx',
+      'HOSSPI-FEEDBACK-05012026-090403.zip',
     );
   });
 

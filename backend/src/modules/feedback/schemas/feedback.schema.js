@@ -3,7 +3,8 @@
  */
 
 const { z } = require('zod');
-const { paginationQuerySchema, searchQuerySchema } = require('@lib/validation/zod');
+const { paginationQuerySchema, searchQuerySchema, uuidSchema } = require('@lib/validation/zod');
+const { FEEDBACK_MAX_SCREENSHOTS } = require('@lib/feedback/feedback-screenshots');
 
 const FEEDBACK_CATEGORIES = Object.freeze([
   'GENERAL',
@@ -13,6 +14,10 @@ const FEEDBACK_CATEGORIES = Object.freeze([
   'IMPROVEMENT'
 ]);
 const FEEDBACK_SUBMITTER_TYPES = Object.freeze(['AUTHENTICATED', 'ANONYMOUS']);
+// What a report applies to: the screen it was raised from, the whole app, or
+// the screens the reporter picked.
+const FEEDBACK_SCOPES = Object.freeze(['SCREEN', 'APP', 'SCREENS']);
+const FEEDBACK_MAX_SCOPE_SCREENS = 40;
 const FEEDBACK_DEVICE_TYPES = Object.freeze(['MOBILE', 'TABLET', 'DESKTOP']);
 const FEEDBACK_SORT_FIELDS = Object.freeze([
   'submitted_at',
@@ -91,11 +96,75 @@ const feedbackClientContextSchema = z.object({
   client_submitted_at: z.string().datetime({ offset: true }).optional().nullable()
 });
 
-const submitFeedbackSchema = z.object({
-  category: z.enum(FEEDBACK_CATEGORIES).default('GENERAL'),
-  message: z.string().trim().min(FEEDBACK_MESSAGE_MIN_LENGTH).max(FEEDBACK_MESSAGE_MAX_LENGTH),
-  context: feedbackClientContextSchema.optional().nullable()
+/**
+ * A screen the reporter said their feedback applies to. Named as the app
+ * knows it; a screen with neither a route name nor a path says nothing and is
+ * rejected.
+ */
+const feedbackScopeScreenSchema = z
+  .object({
+    route_name: optionalContextText(120),
+    route_path: optionalContextText(512),
+    screen_title: optionalContextText(255)
+  })
+  .refine((screen) => Boolean(screen.route_name || screen.route_path), {
+    message: 'A screen needs a route name or a route path',
+    path: ['route_name']
+  });
+
+/**
+ * What the app knows about one attached screenshot. The image itself travels
+ * as a multipart file; these entries are matched to the files by position, so
+ * the order must be the order the files are sent in.
+ */
+const feedbackScreenshotMetaSchema = z.object({
+  width: z.number().int().positive().max(100000).optional().nullable(),
+  height: z.number().int().positive().max(100000).optional().nullable(),
+  caption: z.string().trim().max(255).optional().nullable(),
+  route_path: optionalContextText(512),
+  route_name: optionalContextText(120),
+  screen_title: optionalContextText(255),
+  // The window this shot was taken in, which can differ from the feedback's
+  // own: a reporter rotates, resizes or switches theme between pictures.
+  client_context: z
+    .object({
+      viewport_width: z.number().nonnegative().max(100000).optional().nullable(),
+      viewport_height: z.number().nonnegative().max(100000).optional().nullable(),
+      device_pixel_ratio: z.number().positive().max(16).optional().nullable(),
+      orientation: optionalContextText(16),
+      theme_mode: optionalContextText(16),
+      breakpoint: optionalContextText(16)
+    })
+    .strict()
+    .optional()
+    .nullable(),
+  captured_at: z.string().datetime({ offset: true }).optional().nullable()
 });
+
+/**
+ * Feedback as submitted, whether the body is JSON or the `payload` field of a
+ * multipart request carrying screenshots.
+ */
+const submitFeedbackSchema = z
+  .object({
+    category: z.enum(FEEDBACK_CATEGORIES).default('GENERAL'),
+    message: z.string().trim().min(FEEDBACK_MESSAGE_MIN_LENGTH).max(FEEDBACK_MESSAGE_MAX_LENGTH),
+    scope: z.enum(FEEDBACK_SCOPES).default('SCREEN'),
+    scope_screens: z.array(feedbackScopeScreenSchema).max(FEEDBACK_MAX_SCOPE_SCREENS).optional(),
+    screenshots: z.array(feedbackScreenshotMetaSchema).max(FEEDBACK_MAX_SCREENSHOTS).optional(),
+    context: feedbackClientContextSchema.optional().nullable()
+  })
+  .superRefine((body, ctx) => {
+    // "Selected screens" without screens would be indistinguishable from
+    // "this screen" once stored.
+    if (body.scope === 'SCREENS' && (body.scope_screens || []).length === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Pick at least one screen',
+        path: ['scope_screens']
+      });
+    }
+  });
 
 // Multi-value filters arrive as `A,B` in a query string or `['A', 'B']` in JSON.
 const toFilterList = (value, normalize) => {
@@ -154,6 +223,10 @@ const feedbackFiltersSchema = z
     subscription_status: codeFilterList(40),
     // Where
     route_name: exactFilterList(120),
+    // What the report says it applies to, and the screens a `SCREENS` report
+    // picked. `route_name` keeps its meaning: the screen it was raised from.
+    applies_to: enumFilterList(FEEDBACK_SCOPES),
+    applies_to_route: exactFilterList(120),
     app_environment: textFilterList(40),
     app_version: exactFilterList(64),
     // Device, from the client context
@@ -216,14 +289,33 @@ const deleteFeedbackSchema = z
     path: ['human_friendly_ids']
   });
 
+/**
+ * Path parameters of the screenshot routes. Feedback is addressed by its
+ * public `FBK…` id, screenshots by their uuid.
+ */
+const feedbackScreenshotParamsSchema = z
+  .object({
+    human_friendly_id: z.string().trim().min(1).max(32),
+    screenshot_id: uuidSchema
+  })
+  .strict();
+
+const feedbackRecordParamsSchema = z
+  .object({
+    human_friendly_id: z.string().trim().min(1).max(32)
+  })
+  .strict();
+
 module.exports = {
   FEEDBACK_CATEGORIES,
   FEEDBACK_DELETE_MAX_IDS,
   FEEDBACK_DEVICE_TYPES,
   FEEDBACK_EXPORT_MAX_IDS,
   FEEDBACK_FILTER_MAX_VALUES,
+  FEEDBACK_MAX_SCOPE_SCREENS,
   FEEDBACK_MESSAGE_MAX_LENGTH,
   FEEDBACK_MESSAGE_MIN_LENGTH,
+  FEEDBACK_SCOPES,
   FEEDBACK_SORT_FIELDS,
   FEEDBACK_SUBMITTER_TYPES,
   deleteFeedbackSchema,
@@ -231,6 +323,8 @@ module.exports = {
   exportFeedbackQuerySchema,
   feedbackFilterQuerySchema,
   feedbackFiltersSchema,
+  feedbackRecordParamsSchema,
+  feedbackScreenshotParamsSchema,
   listFeedbackQuerySchema,
   submitCsatSchema,
   submitFeedbackSchema,

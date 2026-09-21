@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -136,12 +137,39 @@ Map<String, Object?> _envelope(Map<String, Object?> data) {
   return <String, Object?>{'success': true, 'data': data};
 }
 
-FeedbackSubmission _submission({FeedbackContext? context}) {
+FeedbackSubmission _submission({
+  FeedbackContext? context,
+  FeedbackScope scope = FeedbackScope.screen,
+  List<FeedbackScreenReference> screens = const <FeedbackScreenReference>[],
+  List<FeedbackScreenshot> screenshots = const <FeedbackScreenshot>[],
+}) {
   return FeedbackSubmission(
     category: FeedbackCategory.problem,
     message: '  Save fails on vitals  ',
     context: context ?? const FeedbackContext(routePath: '/opd'),
     submittedAt: DateTime.utc(2026, 9, 14, 11, 35, 27, 123, 456),
+    scope: scope,
+    screens: screens,
+    screenshots: screenshots,
+  );
+}
+
+FeedbackScreenshot _screenshot({
+  required String routeName,
+  String? caption,
+}) {
+  return FeedbackScreenshot(
+    bytes: Uint8List.fromList(<int>[0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]),
+    contentType: 'image/jpeg',
+    screen: FeedbackScreenReference(
+      routeName: routeName,
+      routePath: '/$routeName',
+      screenTitle: routeName,
+    ),
+    capturedAt: DateTime.utc(2026, 9, 20, 9, 15),
+    width: 1280,
+    height: 800,
+    caption: caption,
   );
 }
 
@@ -551,5 +579,166 @@ void main() {
       (result as ResultSuccess<FeedbackDeleteResult>).value.deletedCount,
       12,
     );
+  });
+
+  test('feedback without pictures stays a plain JSON request', () async {
+    final _RecordingApiClient apiClient = _RecordingApiClient(
+      _envelope(<String, Object?>{'human_friendly_id': 'FBK0000011'}),
+    );
+
+    await _repository(apiClient).submitFeedback(
+      _submission(
+        scope: FeedbackScope.screens,
+        screens: <FeedbackScreenReference>[
+          const FeedbackScreenReference(
+            routeName: 'opd',
+            routePath: '/opd',
+            screenTitle: 'Outpatients',
+          ),
+          // A screen the API could not address is left out.
+          const FeedbackScreenReference(screenTitle: 'Nowhere'),
+        ],
+      ),
+      signedIn: true,
+    );
+
+    final Map<String, Object?> body =
+        apiClient.calls.single.data! as Map<String, Object?>;
+    expect(body['scope'], 'SCREENS');
+    expect(body['scope_screens'], <Map<String, Object?>>[
+      <String, Object?>{
+        'route_name': 'opd',
+        'route_path': '/opd',
+        'screen_title': 'Outpatients',
+      },
+    ]);
+    expect(body.containsKey('screenshots'), isFalse);
+  });
+
+  test('feedback with pictures is sent as multipart beside its payload', () async {
+    final _RecordingApiClient apiClient = _RecordingApiClient(
+      _envelope(<String, Object?>{
+        'human_friendly_id': 'FBK0000012',
+        'submitter_type': 'AUTHENTICATED',
+        'screenshot_count': 2,
+        'screenshots_dropped': 1,
+      }),
+    );
+
+    final Result<FeedbackReceipt> result = await _repository(apiClient)
+        .submitFeedback(
+          _submission(
+            screenshots: <FeedbackScreenshot>[
+              _screenshot(routeName: 'opd', caption: 'the queue'),
+              _screenshot(routeName: 'pharmacy'),
+            ],
+          ),
+          signedIn: true,
+        );
+
+    final FormData form = apiClient.calls.single.data! as FormData;
+    expect(form.files.map((MapEntry<String, MultipartFile> file) => file.key), <String>[
+      'screenshots',
+      'screenshots',
+    ]);
+    expect(form.files.first.value.contentType?.mimeType, 'image/jpeg');
+
+    // The whole JSON body rides in one field, so the API validates one shape.
+    final Map<String, Object?> payload =
+        jsonDecode(form.fields.single.value) as Map<String, Object?>;
+    expect(form.fields.single.key, 'payload');
+    expect(payload['message'], 'Save fails on vitals');
+    final List<Object?> screenshots = payload['screenshots']! as List<Object?>;
+    expect(screenshots, hasLength(2));
+    expect(screenshots.first, <String, Object?>{
+      'width': 1280,
+      'height': 800,
+      'caption': 'the queue',
+      'route_name': 'opd',
+      'route_path': '/opd',
+      'screen_title': 'opd',
+      'captured_at': '2026-09-20T09:15:00.000Z',
+    });
+
+    final FeedbackReceipt receipt =
+        (result as ResultSuccess<FeedbackReceipt>).value;
+    expect(receipt.screenshotCount, 2);
+    // What did not arrive is reported, not glossed over.
+    expect(receipt.screenshotsDropped, 1);
+  });
+
+  test('lists the screenshots of one record with their screens', () async {
+    final _RecordingApiClient apiClient = _RecordingApiClient(
+      _envelope(<String, Object?>{
+        'human_friendly_id': 'FBK0000011',
+        'items': <Map<String, Object?>>[
+          <String, Object?>{
+            'id': '11111111-1111-4111-8111-111111111111',
+            'sequence': 1,
+            'content_type': 'image/jpeg',
+            'byte_size': 2048,
+            'width': 1280,
+            'height': 800,
+            'caption': 'the queue',
+            'route_name': 'opd',
+            'route_path': '/opd',
+            'screen_title': 'Outpatients',
+            'captured_at': '2026-09-20T09:15:00.000Z',
+            'file_name': 'FBK0000011.jpg',
+          },
+        ],
+      }),
+    );
+
+    final Result<List<FeedbackStoredScreenshot>> result = await _repository(
+      apiClient,
+    ).fetchFeedbackScreenshots(referenceId: 'FBK0000011');
+
+    expect(
+      apiClient.calls.single.endpoint.path,
+      '/api/v1/feedback/FBK0000011/screenshots',
+    );
+    final FeedbackStoredScreenshot screenshot =
+        (result as ResultSuccess<List<FeedbackStoredScreenshot>>).value.single;
+    expect(screenshot.fileName, 'FBK0000011.jpg');
+    expect(screenshot.screen.label, 'Outpatients');
+    expect(screenshot.byteSize, 2048);
+  });
+
+  test('fetches one screenshot as bytes', () async {
+    final _RecordingApiClient apiClient = _RecordingApiClient(
+      Uint8List.fromList(<int>[1, 2, 3]),
+    );
+
+    final Result<Uint8List> result = await _repository(apiClient)
+        .fetchFeedbackScreenshotImage(
+          referenceId: 'FBK0000011',
+          screenshotId: '11111111-1111-4111-8111-111111111111',
+        );
+
+    expect(
+      apiClient.calls.single.endpoint.path,
+      '/api/v1/feedback/FBK0000011/screenshots/'
+          '11111111-1111-4111-8111-111111111111',
+    );
+    expect(apiClient.calls.single.options?.responseType, ResponseType.bytes);
+    expect((result as ResultSuccess<Uint8List>).value, <int>[1, 2, 3]);
+  });
+
+  test('reports the images deleted with the records', () async {
+    final _RecordingApiClient apiClient = _RecordingApiClient(
+      _envelope(<String, Object?>{
+        'deleted_count': 2,
+        'deleted_screenshot_count': 5,
+      }),
+    );
+
+    final Result<FeedbackDeleteResult> result = await _repository(apiClient)
+        .deleteFeedback(referenceIds: <String>{'FBK0000011'});
+
+    final FeedbackDeleteResult deleted =
+        (result as ResultSuccess<FeedbackDeleteResult>).value;
+    expect(deleted.deletedCount, 2);
+    expect(deleted.deletedScreenshotCount, 5);
   });
 }

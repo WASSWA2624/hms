@@ -28,3 +28,13 @@ void showAppSuccessSnackBar(BuildContext context, String message) {
   }
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
 }
+
+/// Shows a plain notice as a [SnackBar]: something the app is telling the
+/// user that is neither a success nor an [AppFailure] the API returned — a
+/// limit reached, a step the platform could not do.
+void showAppNoticeSnackBar(BuildContext context, String message) {
+  if (!context.mounted) {
+    return;
+  }
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+}

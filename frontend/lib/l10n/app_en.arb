@@ -39385,5 +39385,248 @@
   "pharmacyProcurementRestrictedBody": "Suppliers, purchase orders, goods receiving, batches, expiry and costs belong to the procurement pharmacy. Switch to it to manage them.",
   "@pharmacyProcurementRestrictedBody": {
     "description": "Explains why procurement surfaces are unavailable here."
+  },
+  "feedbackScopeLabel": "What does this apply to?",
+  "@feedbackScopeLabel": {
+    "description": "Label of the field where a reporter says what their feedback covers."
+  },
+  "feedbackScopeThisScreen": "This screen",
+  "@feedbackScopeThisScreen": {
+    "description": "Feedback scope: only the screen the form was opened from."
+  },
+  "feedbackScopeThisScreenDescription": "Only the screen you opened this form from.",
+  "@feedbackScopeThisScreenDescription": {
+    "description": "Supporting copy for the This screen feedback scope."
+  },
+  "feedbackScopeWholeApp": "The whole app",
+  "@feedbackScopeWholeApp": {
+    "description": "Feedback scope: not confined to one screen."
+  },
+  "feedbackScopeWholeAppDescription": "Something that is not limited to one screen.",
+  "@feedbackScopeWholeAppDescription": {
+    "description": "Supporting copy for the whole app feedback scope."
+  },
+  "feedbackScopeSelectedScreens": "Selected screens",
+  "@feedbackScopeSelectedScreens": {
+    "description": "Feedback scope: the screens the reporter picks."
+  },
+  "feedbackScopeSelectedScreensDescription": "Pick every screen this is about.",
+  "@feedbackScopeSelectedScreensDescription": {
+    "description": "Supporting copy for the selected screens feedback scope."
+  },
+  "feedbackScreensLabel": "Screens",
+  "@feedbackScreensLabel": {
+    "description": "Label above the screens picked for a selected-screens report."
+  },
+  "feedbackChooseScreensAction": "Choose screens",
+  "@feedbackChooseScreensAction": {
+    "description": "Action that opens the screen picker in the feedback form."
+  },
+  "feedbackScreensRequiredMessage": "Pick at least one screen.",
+  "@feedbackScreensRequiredMessage": {
+    "description": "Validation message when selected screens is chosen but no screen is picked."
+  },
+  "feedbackScreenRemoveLabel": "Remove {screen}",
+  "@feedbackScreenRemoveLabel": {
+    "description": "Screen reader label for removing a picked screen from a report.",
+    "placeholders": {
+      "screen": {
+        "type": "String"
+      }
+    }
+  },
+  "feedbackScreenPickerTitle": "Choose screens",
+  "@feedbackScreenPickerTitle": {
+    "description": "Title of the dialog that picks the screens feedback applies to."
+  },
+  "feedbackScreenPickerSearchLabel": "Search screens",
+  "@feedbackScreenPickerSearchLabel": {
+    "description": "Search field label in the feedback screen picker."
+  },
+  "feedbackScreenPickerEmptyMessage": "No screens match your search.",
+  "@feedbackScreenPickerEmptyMessage": {
+    "description": "Shown when a search in the feedback screen picker matches nothing."
+  },
+  "feedbackScreenPickerSelectedLabel": "{count, plural, =0{Nothing picked} =1{1 screen picked} other{{count} screens picked}}",
+  "@feedbackScreenPickerSelectedLabel": {
+    "description": "Running count of screens picked in the feedback screen picker.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "feedbackScreenSignInLabel": "Sign in",
+  "@feedbackScreenSignInLabel": {
+    "description": "Name of the sign-in screen in the feedback screen picker."
+  },
+  "feedbackScreenRegisterLabel": "Create account",
+  "@feedbackScreenRegisterLabel": {
+    "description": "Name of the registration screen in the feedback screen picker."
+  },
+  "feedbackScreenshotsLabel": "Screenshots",
+  "@feedbackScreenshotsLabel": {
+    "description": "Label above the screenshots attached to feedback."
+  },
+  "feedbackScreenshotsCountLabel": "{count} of {max}",
+  "@feedbackScreenshotsCountLabel": {
+    "description": "How many screenshots are attached out of how many are allowed.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "feedbackScreenshotsPatientDataNotice": "Screenshots can show patient data. Crop out anything that should not be sent.",
+  "@feedbackScreenshotsPatientDataNotice": {
+    "description": "Notice in the feedback form warning that screenshots may contain patient data."
+  },
+  "feedbackCaptureThisScreenAction": "Capture this screen",
+  "@feedbackCaptureThisScreenAction": {
+    "description": "Action that attaches a picture of the screen behind the feedback form."
+  },
+  "feedbackCaptureAnotherScreenAction": "Capture another screen",
+  "@feedbackCaptureAnotherScreenAction": {
+    "description": "Action that puts the feedback form aside so the reporter can capture other screens."
+  },
+  "feedbackCaptureIncludeFormLabel": "Include this form in the picture",
+  "@feedbackCaptureIncludeFormLabel": {
+    "description": "Toggle deciding whether a capture shows the feedback form itself."
+  },
+  "feedbackCaptureModeHint": "Go to a screen and tap Capture. Your feedback is kept.",
+  "@feedbackCaptureModeHint": {
+    "description": "Hint shown while the reporter walks the app capturing screens."
+  },
+  "feedbackCaptureAction": "Capture",
+  "@feedbackCaptureAction": {
+    "description": "Action that takes a picture of the current screen."
+  },
+  "feedbackCaptureBackAction": "Back to feedback",
+  "@feedbackCaptureBackAction": {
+    "description": "Action that reopens the feedback form with everything intact."
+  },
+  "feedbackCaptureDiscardAction": "Discard feedback",
+  "@feedbackCaptureDiscardAction": {
+    "description": "Action that throws away the feedback draft and its screenshots."
+  },
+  "feedbackCaptureModeLabel": "Capturing",
+  "@feedbackCaptureModeLabel": {
+    "description": "Label on the floating control while the reporter is capturing screens."
+  },
+  "feedbackCaptureSemanticLabel": "Capture this screen for your feedback",
+  "@feedbackCaptureSemanticLabel": {
+    "description": "Screen reader label for the capture control."
+  },
+  "feedbackCaptureCapturedMessage": "Captured {count} of {max}.",
+  "@feedbackCaptureCapturedMessage": {
+    "description": "Confirmation after a screenshot is captured, with the running count.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "feedbackCaptureLimitReachedMessage": "{max, plural, =1{You can attach 1 screenshot.} other{You can attach {max} screenshots.}}",
+  "@feedbackCaptureLimitReachedMessage": {
+    "description": "Shown when the reporter tries to capture past the limit.",
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "feedbackCaptureFailedMessage": "That screen could not be captured. You can still send your feedback.",
+  "@feedbackCaptureFailedMessage": {
+    "description": "Shown when a screenshot cannot be taken on this device or renderer."
+  },
+  "feedbackScreenshotPreviewTitle": "Screenshot {position}",
+  "@feedbackScreenshotPreviewTitle": {
+    "description": "Title of the full-size preview of one attached screenshot.",
+    "placeholders": {
+      "position": {
+        "type": "int"
+      }
+    }
+  },
+  "feedbackScreenshotRemoveLabel": "Remove screenshot {position}",
+  "@feedbackScreenshotRemoveLabel": {
+    "description": "Screen reader label for removing an attached screenshot.",
+    "placeholders": {
+      "position": {
+        "type": "int"
+      }
+    }
+  },
+  "feedbackScreenshotCropAction": "Crop",
+  "@feedbackScreenshotCropAction": {
+    "description": "Action that crops an attached screenshot before it is sent."
+  },
+  "feedbackScreenshotCaptionLabel": "Caption",
+  "@feedbackScreenshotCaptionLabel": {
+    "description": "Label of the optional note on an attached screenshot."
+  },
+  "feedbackScreenshotCaptionHint": "What should we look at?",
+  "@feedbackScreenshotCaptionHint": {
+    "description": "Hint for the caption on an attached screenshot."
+  },
+  "feedbackScreenshotsDroppedMessage": "{count, plural, =1{1 screenshot could not be attached.} other{{count} screenshots could not be attached.}}",
+  "@feedbackScreenshotsDroppedMessage": {
+    "description": "Shown after submitting when some screenshots could not be stored.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "feedbackDiscardDraftTitle": "Discard this feedback?",
+  "@feedbackDiscardDraftTitle": {
+    "description": "Title of the confirmation before throwing away a feedback draft."
+  },
+  "feedbackDiscardDraftBody": "Your message and every screenshot you captured will be lost.",
+  "@feedbackDiscardDraftBody": {
+    "description": "Body of the confirmation before throwing away a feedback draft."
+  },
+  "feedbackAppliesToColumnLabel": "Applies to",
+  "@feedbackAppliesToColumnLabel": {
+    "description": "Column showing what a stored feedback record applies to."
+  },
+  "feedbackScreenshotsColumnLabel": "Screenshots",
+  "@feedbackScreenshotsColumnLabel": {
+    "description": "Column showing how many screenshots a stored feedback record carries."
+  },
+  "feedbackViewScreenshotsAction": "View screenshots",
+  "@feedbackViewScreenshotsAction": {
+    "description": "Action that opens the screenshots of a stored feedback record."
+  },
+  "feedbackScreenshotsDialogTitle": "Screenshots for {reference}",
+  "@feedbackScreenshotsDialogTitle": {
+    "description": "Title of the dialog showing the screenshots of one feedback record.",
+    "placeholders": {
+      "reference": {
+        "type": "String"
+      }
+    }
+  },
+  "feedbackScreenshotsEmptyMessage": "This feedback has no screenshots.",
+  "@feedbackScreenshotsEmptyMessage": {
+    "description": "Shown when a feedback record carries no screenshots."
+  },
+  "feedbackScreenshotLoadErrorMessage": "That screenshot could not be loaded.",
+  "@feedbackScreenshotLoadErrorMessage": {
+    "description": "Shown when a stored screenshot cannot be fetched for review."
+  },
+  "feedbackFilterAppliesToLabel": "Applies to",
+  "@feedbackFilterAppliesToLabel": {
+    "description": "Filter grouping feedback by what it applies to."
+  },
+  "feedbackFilterAppliesToRouteLabel": "Applies to screen",
+  "@feedbackFilterAppliesToRouteLabel": {
+    "description": "Filter grouping feedback by the screens it applies to."
   }
 }

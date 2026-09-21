@@ -9,6 +9,7 @@
  */
 
 const ExcelJS = require('exceljs');
+const { buildFeedbackScreenshotFileName } = require('@lib/feedback/feedback-screenshots');
 
 const FEEDBACK_EXPORT_MIME_TYPE =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -34,6 +35,12 @@ const FEEDBACK_DEVICE_TYPE_LABELS = Object.freeze({
   MOBILE: 'Mobile',
   TABLET: 'Tablet',
   DESKTOP: 'Desktop'
+});
+
+const FEEDBACK_SCOPE_LABELS = Object.freeze({
+  SCREEN: 'This screen',
+  APP: 'Whole app',
+  SCREENS: 'Selected screens'
 });
 
 const pad = (value, length = 2) => String(value).padStart(length, '0');
@@ -172,6 +179,68 @@ const readClientContext = (row) =>
     ? row.client_context_json
     : {};
 
+/** A record's screenshots, ordered as they were captured. */
+const readScreenshots = (row) =>
+  Array.isArray(row?.screenshots)
+    ? [...row.screenshots].sort((left, right) => (left.sequence || 0) - (right.sequence || 0))
+    : [];
+
+/** The screens a reporter picked, ordered as they picked them. */
+const readScopeScreens = (row) =>
+  Array.isArray(row?.scope_screens)
+    ? [...row.scope_screens].sort((left, right) => (left.sequence || 0) - (right.sequence || 0))
+    : [];
+
+const describeScreen = (entry) =>
+  String(entry?.screen_title || entry?.route_name || entry?.route_path || '').trim();
+
+/**
+ * The screens a report applies to, as a reader needs them: the picked ones
+ * for a `SCREENS` report, nothing for the other two, whose "Applies To"
+ * already says it.
+ */
+const describeScopeScreens = (row) => {
+  if (row?.scope !== 'SCREENS') {
+    return null;
+  }
+  const names = readScopeScreens(row).map(describeScreen).filter(Boolean);
+  return names.length > 0 ? names.join(', ') : null;
+};
+
+/**
+ * Every screenshot of an export, in workbook order, named as the archive
+ * stores it. The workbook's `Screenshots` sheet and the archive's
+ * `screenshots/` folder are built from this one list, so a row always points
+ * at a file that is there.
+ *
+ * @param {Object[]} [rows] - Feedback rows with their `screenshots`
+ * @returns {Object[]} One entry per image
+ */
+const listFeedbackExportScreenshots = (rows = []) => {
+  const entries = [];
+  rows.forEach((row) => {
+    const reference = String(row?.human_friendly_id || row?.id || '').trim() || 'FEEDBACK';
+    readScreenshots(row).forEach((screenshot, index) => {
+      const position = index + 1;
+      entries.push({
+        reference_id: reference,
+        // `FBK0000011`, then `FBK0000011-2`: the workbook's key for the image.
+        label: position > 1 ? `${reference}-${position}` : reference,
+        position,
+        file_name: buildFeedbackScreenshotFileName({
+          referenceId: reference,
+          position,
+          contentType: screenshot.content_type
+        }),
+        storage_key: screenshot.storage_key,
+        screenshot,
+        feedback: row
+      });
+    });
+  });
+  return entries;
+};
+
 const formatPixelSize = (width, height, devicePixelRatio) => {
   if (!Number.isFinite(width) || !Number.isFinite(height)) {
     return null;
@@ -198,6 +267,25 @@ const FEEDBACK_EXPORT_COLUMNS = Object.freeze([
     value: (row) => FEEDBACK_CATEGORY_LABELS[row.category] || row.category
   },
   { key: 'message', header: 'Feedback', width: 60, wrap: true, value: (row) => row.message },
+  {
+    key: 'applies_to',
+    header: 'Applies To',
+    width: 18,
+    value: (row) => FEEDBACK_SCOPE_LABELS[row.scope] || FEEDBACK_SCOPE_LABELS.SCREEN
+  },
+  {
+    key: 'scope_screens',
+    header: 'Screens',
+    width: 36,
+    wrap: true,
+    value: (row) => describeScopeScreens(row)
+  },
+  {
+    key: 'screenshot_count',
+    header: 'Screenshots',
+    width: 12,
+    value: (row) => readScreenshots(row).length
+  },
   {
     key: 'submitter',
     header: 'Submitted By',
@@ -341,6 +429,44 @@ const renderFeedbackWorkbook = async ({
     to: { row: 1, column: FEEDBACK_EXPORT_COLUMNS.length }
   };
 
+  // One row per image, keyed the way the archive names its files, so a reader
+  // can go from a row to `screenshots/FBK0000011-2.jpg` without guessing.
+  const screenshots = listFeedbackExportScreenshots(rows);
+  const images = workbook.addWorksheet('Screenshots', {
+    views: [{ state: 'frozen', ySplit: 1 }]
+  });
+  images.columns = [
+    { header: 'Feedback ID', key: 'feedback_id', width: 18 },
+    { header: `Captured At (${clock.label})`, key: 'captured_at', width: 22 },
+    { header: 'Screen', key: 'screen', width: 24 },
+    { header: 'Route', key: 'route', width: 32 },
+    { header: 'Caption', key: 'caption', width: 36 },
+    { header: 'File Name', key: 'file_name', width: 26 },
+    { header: 'Size (KB)', key: 'size_kb', width: 12 },
+    { header: 'Dimensions (px)', key: 'dimensions', width: 18 },
+    { header: 'Orientation', key: 'orientation', width: 14 },
+    { header: 'Theme', key: 'theme', width: 10 }
+  ];
+  screenshots.forEach((entry) => {
+    const shot = entry.screenshot;
+    images.addRow({
+      feedback_id: entry.label,
+      captured_at: toWallClockCellDate(shot.captured_at || entry.feedback?.submitted_at, clock),
+      screen: toCellValue(shot.screen_title || shot.route_name),
+      route: toCellValue(shot.route_path),
+      caption: toCellValue(shot.caption),
+      file_name: entry.file_name,
+      size_kb: Number.isFinite(shot.byte_size) ? Math.round(shot.byte_size / 102.4) / 10 : null,
+      dimensions: formatPixelSize(shot.width, shot.height),
+      orientation: toCellValue(readClientContext(shot).orientation),
+      theme: toCellValue(readClientContext(shot).theme_mode)
+    });
+  });
+  images.getColumn(2).numFmt = FEEDBACK_EXPORT_DATE_FORMAT;
+  images.getColumn(4).alignment = { vertical: 'top', wrapText: true };
+  images.getColumn(5).alignment = { vertical: 'top', wrapText: true };
+  images.getRow(1).font = { bold: true };
+
   const details = workbook.addWorksheet('Export Details');
   details.columns = [
     { header: 'Detail', key: 'detail', width: 24 },
@@ -351,6 +477,9 @@ const renderFeedbackWorkbook = async ({
     { detail: 'Time Zone', value: clock.label },
     { detail: 'Generated By', value: generatedBy || '' },
     { detail: 'Records', value: rows.length },
+    { detail: 'Images', value: screenshots.length },
+    { detail: 'Applies To', value: describeChoices(filters.applies_to, FEEDBACK_SCOPE_LABELS) },
+    { detail: 'Applies To Screen', value: describeChoices(filters.applies_to_route, {}) },
     { detail: 'Category', value: describeChoices(filters.category, FEEDBACK_CATEGORY_LABELS) },
     { detail: 'Submitted By', value: describeChoices(filters.submitter_type, FEEDBACK_SUBMITTER_LABELS) },
     { detail: 'Device Type', value: describeChoices(filters.device_type, FEEDBACK_DEVICE_TYPE_LABELS) },
@@ -382,9 +511,11 @@ module.exports = {
   FEEDBACK_DEVICE_TYPE_LABELS,
   FEEDBACK_EXPORT_COLUMNS,
   FEEDBACK_EXPORT_MIME_TYPE,
+  FEEDBACK_SCOPE_LABELS,
   FEEDBACK_SUBMITTER_LABELS,
   buildFeedbackExportFileName,
   formatWallClock,
+  listFeedbackExportScreenshots,
   renderFeedbackWorkbook,
   resolveExportClock
 };

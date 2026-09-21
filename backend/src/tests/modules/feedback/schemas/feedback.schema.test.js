@@ -13,7 +13,9 @@ describe('feedback schemas', () => {
   it('defaults the category and trims the message', () => {
     expect(submitFeedbackSchema.parse({ message: '  Slow page  ' })).toEqual({
       category: 'GENERAL',
-      message: 'Slow page'
+      message: 'Slow page',
+      // Feedback is about the screen it was raised from unless it says so.
+      scope: 'SCREEN'
     });
   });
 

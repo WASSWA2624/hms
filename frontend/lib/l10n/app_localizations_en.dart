@@ -30687,4 +30687,197 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get pharmacyProcurementRestrictedBody =>
       'Suppliers, purchase orders, goods receiving, batches, expiry and costs belong to the procurement pharmacy. Switch to it to manage them.';
+
+  @override
+  String get feedbackScopeLabel => 'What does this apply to?';
+
+  @override
+  String get feedbackScopeThisScreen => 'This screen';
+
+  @override
+  String get feedbackScopeThisScreenDescription =>
+      'Only the screen you opened this form from.';
+
+  @override
+  String get feedbackScopeWholeApp => 'The whole app';
+
+  @override
+  String get feedbackScopeWholeAppDescription =>
+      'Something that is not limited to one screen.';
+
+  @override
+  String get feedbackScopeSelectedScreens => 'Selected screens';
+
+  @override
+  String get feedbackScopeSelectedScreensDescription =>
+      'Pick every screen this is about.';
+
+  @override
+  String get feedbackScreensLabel => 'Screens';
+
+  @override
+  String get feedbackChooseScreensAction => 'Choose screens';
+
+  @override
+  String get feedbackScreensRequiredMessage => 'Pick at least one screen.';
+
+  @override
+  String feedbackScreenRemoveLabel(String screen) {
+    return 'Remove $screen';
+  }
+
+  @override
+  String get feedbackScreenPickerTitle => 'Choose screens';
+
+  @override
+  String get feedbackScreenPickerSearchLabel => 'Search screens';
+
+  @override
+  String get feedbackScreenPickerEmptyMessage =>
+      'No screens match your search.';
+
+  @override
+  String feedbackScreenPickerSelectedLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count screens picked',
+      one: '1 screen picked',
+      zero: 'Nothing picked',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get feedbackScreenSignInLabel => 'Sign in';
+
+  @override
+  String get feedbackScreenRegisterLabel => 'Create account';
+
+  @override
+  String get feedbackScreenshotsLabel => 'Screenshots';
+
+  @override
+  String feedbackScreenshotsCountLabel(int count, int max) {
+    return '$count of $max';
+  }
+
+  @override
+  String get feedbackScreenshotsPatientDataNotice =>
+      'Screenshots can show patient data. Crop out anything that should not be sent.';
+
+  @override
+  String get feedbackCaptureThisScreenAction => 'Capture this screen';
+
+  @override
+  String get feedbackCaptureAnotherScreenAction => 'Capture another screen';
+
+  @override
+  String get feedbackCaptureIncludeFormLabel =>
+      'Include this form in the picture';
+
+  @override
+  String get feedbackCaptureModeHint =>
+      'Go to a screen and tap Capture. Your feedback is kept.';
+
+  @override
+  String get feedbackCaptureAction => 'Capture';
+
+  @override
+  String get feedbackCaptureBackAction => 'Back to feedback';
+
+  @override
+  String get feedbackCaptureDiscardAction => 'Discard feedback';
+
+  @override
+  String get feedbackCaptureModeLabel => 'Capturing';
+
+  @override
+  String get feedbackCaptureSemanticLabel =>
+      'Capture this screen for your feedback';
+
+  @override
+  String feedbackCaptureCapturedMessage(int count, int max) {
+    return 'Captured $count of $max.';
+  }
+
+  @override
+  String feedbackCaptureLimitReachedMessage(int max) {
+    String _temp0 = intl.Intl.pluralLogic(
+      max,
+      locale: localeName,
+      other: 'You can attach $max screenshots.',
+      one: 'You can attach 1 screenshot.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get feedbackCaptureFailedMessage =>
+      'That screen could not be captured. You can still send your feedback.';
+
+  @override
+  String feedbackScreenshotPreviewTitle(int position) {
+    return 'Screenshot $position';
+  }
+
+  @override
+  String feedbackScreenshotRemoveLabel(int position) {
+    return 'Remove screenshot $position';
+  }
+
+  @override
+  String get feedbackScreenshotCropAction => 'Crop';
+
+  @override
+  String get feedbackScreenshotCaptionLabel => 'Caption';
+
+  @override
+  String get feedbackScreenshotCaptionHint => 'What should we look at?';
+
+  @override
+  String feedbackScreenshotsDroppedMessage(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count screenshots could not be attached.',
+      one: '1 screenshot could not be attached.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get feedbackDiscardDraftTitle => 'Discard this feedback?';
+
+  @override
+  String get feedbackDiscardDraftBody =>
+      'Your message and every screenshot you captured will be lost.';
+
+  @override
+  String get feedbackAppliesToColumnLabel => 'Applies to';
+
+  @override
+  String get feedbackScreenshotsColumnLabel => 'Screenshots';
+
+  @override
+  String get feedbackViewScreenshotsAction => 'View screenshots';
+
+  @override
+  String feedbackScreenshotsDialogTitle(String reference) {
+    return 'Screenshots for $reference';
+  }
+
+  @override
+  String get feedbackScreenshotsEmptyMessage =>
+      'This feedback has no screenshots.';
+
+  @override
+  String get feedbackScreenshotLoadErrorMessage =>
+      'That screenshot could not be loaded.';
+
+  @override
+  String get feedbackFilterAppliesToLabel => 'Applies to';
+
+  @override
+  String get feedbackFilterAppliesToRouteLabel => 'Applies to screen';
 }

@@ -42,6 +42,15 @@ String feedbackPlatformName(AppLocalizations l10n, String platform) {
   };
 }
 
+/// What a report says it applies to, in words.
+String feedbackScopeLabel(AppLocalizations l10n, FeedbackScope scope) {
+  return switch (scope) {
+    FeedbackScope.screen => l10n.feedbackScopeThisScreen,
+    FeedbackScope.app => l10n.feedbackScopeWholeApp,
+    FeedbackScope.screens => l10n.feedbackScopeSelectedScreens,
+  };
+}
+
 /// Readable name for a stored filter value, e.g. `Extra large` for the `xl`
 /// breakpoint or the tenant's name for its public id. Values the app has no
 /// name for show as stored; role and screen codes are spelled out.
@@ -56,7 +65,12 @@ String feedbackFacetValueLabel(
     FeedbackFilterDimension.facility => facet.label ?? value,
     FeedbackFilterDimension.platform => feedbackPlatformName(l10n, value),
     FeedbackFilterDimension.role ||
-    FeedbackFilterDimension.routeName => feedbackHumanizeCode(value),
+    FeedbackFilterDimension.routeName ||
+    FeedbackFilterDimension.appliesToRoute => feedbackHumanizeCode(value),
+    FeedbackFilterDimension.appliesTo => feedbackScopeLabel(
+      l10n,
+      FeedbackScope.fromApiValue(value.toUpperCase()),
+    ),
     FeedbackFilterDimension.planTier => switch (value.toUpperCase()) {
       'FREE' => l10n.feedbackPlanTierFree,
       'BASIC' => l10n.feedbackPlanTierBasic,

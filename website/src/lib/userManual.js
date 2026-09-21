@@ -46,8 +46,8 @@ export function userManualFileName(date = new Date()) {
 export const USER_MANUAL = {
   title: 'HOSSPI HMS User Manual',
   subtitle: 'Step-by-step guide for hospital staff and administrators',
-  version: '1.1',
-  updated: '2026-09-20',
+  version: '1.2',
+  updated: '2026-09-21',
   intro:
     'Everything you need to run your facility on HOSSPI HMS, in the order you will need it: registering and signing in, setting up your facility, giving staff their accounts, looking after patients from arrival to discharge, and billing, accounts and reporting. Every task is explained step by step, with numbered screenshots.',
   chapters: [
@@ -435,8 +435,17 @@ export const USER_MANUAL = {
               caption: 'Give us feedback.',
               items: [
                 'Choose the **Feedback type**: **General feedback**, **Problem**, **Complaint**, **Suggestion** or **Improvement**.',
+                'Say what it applies to: **This screen**, **The whole app**, or **Selected screens**, which lets you pick every screen the feedback is about.',
                 'Enter the **Details**. Describe what you expected, what happened, and anything that would help HOSSPI staff reproduce it. The microphone beside the field is **Dictate with microphone**; while it is listening, **Listening — tap to stop**.',
               ],
+            },
+            {
+              type: 'p',
+              text: 'A picture of the screen you were on is attached for you. Add more with **Capture this screen**, or with **Capture another screen**, which puts the form aside so you can move around HOSSPI HMS and capture each screen as you reach it — your feedback and every picture are kept while you do. Select **Back to feedback** to return to the form.',
+            },
+            {
+              type: 'p',
+              text: 'Screenshots can show patient data. Select a picture to see it full size, crop out anything that should not be sent, add a caption, or remove it. If your device cannot take a picture, the feedback still sends without one.',
             },
             {
               type: 'p',
@@ -2950,7 +2959,7 @@ export const USER_MANUAL = {
               type: 'note',
               tone: 'tip',
               title: 'Report a problem clearly',
-              text: 'Tell us your facility’s name, the screen you were using, what you expected to happen, what happened instead and roughly when. **Send feedback** includes the screen automatically. A screenshot still helps for anything the form cannot see.',
+              text: 'Tell us your facility’s name, the screen you were using, what you expected to happen, what happened instead and roughly when. **Send feedback** includes the screen and a picture of it automatically, and you can capture more screens before you send.',
             },
           ],
         },

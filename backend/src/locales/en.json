@@ -1149,6 +1149,7 @@
   "messages.feedback.submit.success": "Thank you. Your feedback has been recorded",
   "messages.feedback.summary.success": "Feedback summary retrieved successfully",
   "messages.feedback.facets.success": "Feedback filter values retrieved successfully",
+  "messages.feedback.screenshots.success": "Feedback screenshots retrieved successfully",
   "messages.follow_up.create.success": "Follow-up created successfully",
   "messages.follow_up.get.success": "Follow-up retrieved successfully",
   "messages.follow_up.list.success": "Follow-ups retrieved successfully",

@@ -70,6 +70,14 @@ enum FeedbackDeviceType {
   DESKTOP
 }
 
+// What a report applies to: only the screen it was raised from, the app as a
+// whole, or the screens the reporter picked (see `feedback_scope_screen`).
+enum FeedbackScope {
+  SCREEN
+  APP
+  SCREENS
+}
+
 enum Gender {
   MALE
   FEMALE
@@ -8242,6 +8250,9 @@ model feedback {
   human_friendly_id          String?               @db.VarChar(32)
   category                   FeedbackCategory      @default(GENERAL)
   message                    String                @db.Text
+  // What the report applies to. `SCREENS` lists its screens in
+  // `feedback_scope_screen`; the other two carry none.
+  scope                      FeedbackScope         @default(SCREEN)
   submitter_type             FeedbackSubmitterType @default(ANONYMOUS)
   user_id                    String?               @db.VarChar(36)
   tenant_id                  String?               @db.VarChar(36)
@@ -8289,14 +8300,19 @@ model feedback {
   deleted_at                 DateTime?
   version                    Int                   @default(1)
 
-  user     user?     @relation(fields: [user_id], references: [id])
-  tenant   tenant?   @relation(fields: [tenant_id], references: [id])
-  facility facility? @relation(fields: [facility_id], references: [id])
+  user         user?                   @relation(fields: [user_id], references: [id])
+  tenant       tenant?                 @relation(fields: [tenant_id], references: [id])
+  facility     facility?               @relation(fields: [facility_id], references: [id])
+  // Both children are deleted with the feedback; the screenshots' stored
+  // images are removed by the service in the same operation.
+  scope_screens feedback_scope_screen[]
+  screenshots   feedback_screenshot[]
 
   @@index([tenant_id])
   @@index([facility_id])
   @@index([user_id])
   @@index([category])
+  @@index([scope])
   @@index([submitter_type])
   @@index([device_type])
   @@index([submitted_at])
@@ -8312,6 +8328,55 @@ model feedback {
   @@index([app_environment])
   @@index([app_version])
   @@index([locale])
+}
+
+// A screen a reporter said their feedback applies to, when they picked
+// screens rather than "this screen" or "the whole app". Route names are
+// stored as the app knows them, so admins can find every report touching a
+// screen even after the feedback's own route context has been superseded.
+model feedback_scope_screen {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  feedback_id  String   @db.VarChar(36)
+  sequence     Int      @default(1)
+  route_name   String?  @db.VarChar(120)
+  route_path   String?  @db.VarChar(512)
+  screen_title String?  @db.VarChar(255)
+  created_at   DateTime @default(now())
+
+  feedback feedback @relation(fields: [feedback_id], references: [id], onDelete: Cascade)
+
+  @@index([feedback_id])
+  @@index([route_name])
+}
+
+// A screenshot attached to feedback. The image itself lives in the storage
+// provider (encrypted at rest) under `storage_key`; only the metadata is
+// stored here. Images can hold patient data, so they are served to platform
+// owners and admins through an authenticated route, never from a public path,
+// and are deleted with their feedback.
+model feedback_screenshot {
+  id                  String    @id @default(uuid()) @db.VarChar(36)
+  feedback_id         String    @db.VarChar(36)
+  sequence            Int       @default(1)
+  storage_key         String    @db.VarChar(255)
+  content_type        String    @db.VarChar(80)
+  byte_size           Int
+  width               Int?
+  height              Int?
+  caption             String?   @db.VarChar(255)
+  // Where this shot was taken, which can differ from the feedback's own
+  // screen: reporters walk through the app capturing several screens.
+  route_path          String?   @db.VarChar(512)
+  route_name          String?   @db.VarChar(120)
+  screen_title        String?   @db.VarChar(255)
+  client_context_json Json?
+  captured_at         DateTime?
+  created_at          DateTime  @default(now())
+
+  feedback feedback @relation(fields: [feedback_id], references: [id], onDelete: Cascade)
+
+  @@index([feedback_id])
+  @@index([route_name])
 }
 
 model patient_report_job {

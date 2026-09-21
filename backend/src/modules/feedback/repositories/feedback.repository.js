@@ -29,15 +29,40 @@ const FEEDBACK_RECEIPT_SELECT = Object.freeze({
   id: true,
   human_friendly_id: true,
   category: true,
+  scope: true,
   submitter_type: true,
   tenant_id: true,
   submitted_at: true
+});
+
+const FEEDBACK_SCOPE_SCREEN_SELECT = Object.freeze({
+  sequence: true,
+  route_name: true,
+  route_path: true,
+  screen_title: true
+});
+
+const FEEDBACK_SCREENSHOT_SELECT = Object.freeze({
+  id: true,
+  sequence: true,
+  storage_key: true,
+  content_type: true,
+  byte_size: true,
+  width: true,
+  height: true,
+  caption: true,
+  route_path: true,
+  route_name: true,
+  screen_title: true,
+  client_context_json: true,
+  captured_at: true
 });
 
 const FEEDBACK_LIST_SELECT = Object.freeze({
   human_friendly_id: true,
   category: true,
   message: true,
+  scope: true,
   submitter_type: true,
   user_email: true,
   user_name: true,
@@ -46,7 +71,12 @@ const FEEDBACK_LIST_SELECT = Object.freeze({
   route_path: true,
   device_type: true,
   client_platform: true,
-  submitted_at: true
+  submitted_at: true,
+  scope_screens: {
+    select: FEEDBACK_SCOPE_SCREEN_SELECT,
+    orderBy: { sequence: 'asc' }
+  },
+  _count: { select: { screenshots: true } }
 });
 
 const FEEDBACK_EXPORT_SELECT = Object.freeze({
@@ -54,6 +84,15 @@ const FEEDBACK_EXPORT_SELECT = Object.freeze({
   human_friendly_id: true,
   category: true,
   message: true,
+  scope: true,
+  scope_screens: {
+    select: FEEDBACK_SCOPE_SCREEN_SELECT,
+    orderBy: { sequence: 'asc' }
+  },
+  screenshots: {
+    select: FEEDBACK_SCREENSHOT_SELECT,
+    orderBy: { sequence: 'asc' }
+  },
   submitter_type: true,
   user_human_friendly_id: true,
   user_email: true,
@@ -126,6 +165,7 @@ const toFilterValues = (value) =>
  *   facets (tenant and facility names beside their public ids).
  * - `rolesJson`: any role in the `user_roles_json` array.
  * - `contextKey`: a key of `client_context_json`.
+ * - `scopeScreenColumn`: a column of the screens a report says it applies to.
  *
  * JSON filters go through Prisma's JSON filters, so values stay parameterized.
  */
@@ -140,6 +180,8 @@ const FEEDBACK_FILTER_DIMENSIONS = Object.freeze({
   plan_tier: { column: 'subscription_tier_code' },
   subscription_status: { column: 'subscription_status' },
   route_name: { column: 'route_name' },
+  applies_to: { column: 'scope' },
+  applies_to_route: { scopeScreenColumn: 'route_name' },
   app_environment: { column: 'app_environment' },
   app_version: { column: 'app_version' },
   locale: { column: 'locale' },
@@ -151,9 +193,19 @@ const FEEDBACK_FILTER_DIMENSIONS = Object.freeze({
 
 const FEEDBACK_FILTER_KEYS = Object.freeze(Object.keys(FEEDBACK_FILTER_DIMENSIONS));
 
+// Dimensions read from the screens a report applies to, counted on the child
+// table rather than on `feedback`.
+const FEEDBACK_SCOPE_SCREEN_FILTER_KEYS = Object.freeze(
+  FEEDBACK_FILTER_KEYS.filter((key) => Boolean(FEEDBACK_FILTER_DIMENSIONS[key].scopeScreenColumn))
+);
+
 // Dimensions read from JSON, which Prisma cannot group by.
 const FEEDBACK_JSON_FILTER_KEYS = Object.freeze(
-  FEEDBACK_FILTER_KEYS.filter((key) => !FEEDBACK_FILTER_DIMENSIONS[key].column)
+  FEEDBACK_FILTER_KEYS.filter(
+    (key) =>
+      !FEEDBACK_FILTER_DIMENSIONS[key].column &&
+      !FEEDBACK_FILTER_DIMENSIONS[key].scopeScreenColumn
+  )
 );
 
 // Most distinct values a facet lists; the most frequent are kept.
@@ -163,6 +215,10 @@ const buildDimensionCondition = (key, values) => {
   const dimension = FEEDBACK_FILTER_DIMENSIONS[key];
   if (dimension.column) {
     return { [dimension.column]: { in: values } };
+  }
+  if (dimension.scopeScreenColumn) {
+    // A report matches when any screen it applies to is one of these.
+    return { scope_screens: { some: { [dimension.scopeScreenColumn]: { in: values } } } };
   }
   if (dimension.rolesJson) {
     return {
@@ -218,23 +274,135 @@ const buildActiveFeedbackWhere = (filters = {}, { omit = [] } = {}) => {
 };
 
 /**
- * Append one feedback record.
+ * Append one feedback record, with the screens it says it applies to.
  *
- * @param {Object} data - Feedback columns
+ * `scope_screens` arrives as a plain list and is written with the row.
+ * Screenshots are written afterwards by `createFeedbackScreenshots`: their
+ * storage keys are built from the id this row gets.
+ *
+ * @param {Object} data - Feedback columns, plus an optional `scope_screens` list
  * @returns {Promise<Object>} Receipt fields
  */
 const createFeedback = async (data) => {
-  const record = { ...data };
+  const { scope_screens: scopeScreens, ...columns } = data || {};
+  const record = { ...columns };
   FEEDBACK_JSON_FIELDS.forEach((field) => {
     if (record[field] === null || record[field] === undefined) {
       delete record[field];
     }
   });
+  if (Array.isArray(scopeScreens) && scopeScreens.length > 0) {
+    record.scope_screens = {
+      create: scopeScreens.map((screen, index) => ({
+        sequence: index + 1,
+        route_name: screen.route_name || null,
+        route_path: screen.route_path || null,
+        screen_title: screen.screen_title || null
+      }))
+    };
+  }
 
   try {
     return await prisma.feedback.create({
       data: record,
       select: FEEDBACK_RECEIPT_SELECT
+    });
+  } catch (error) {
+    throw toRepositoryError(error);
+  }
+};
+
+/**
+ * Record the screenshots that reached storage, in capture order.
+ *
+ * @param {string} feedbackId
+ * @param {Object[]} screenshots - Rows from `storeFeedbackScreenshots`
+ * @returns {Promise<number>} Rows written
+ */
+const createFeedbackScreenshots = async (feedbackId, screenshots = []) => {
+  if (!feedbackId || screenshots.length === 0) {
+    return 0;
+  }
+
+  try {
+    const result = await prisma.feedback_screenshot.createMany({
+      data: screenshots.map((screenshot, index) => ({
+        feedback_id: feedbackId,
+        sequence: screenshot.sequence || index + 1,
+        storage_key: screenshot.storage_key,
+        content_type: screenshot.content_type,
+        byte_size: screenshot.byte_size,
+        width: screenshot.width ?? null,
+        height: screenshot.height ?? null,
+        caption: screenshot.caption ?? null,
+        route_path: screenshot.route_path ?? null,
+        route_name: screenshot.route_name ?? null,
+        screen_title: screenshot.screen_title ?? null,
+        // Prisma rejects a plain null for a Json column.
+        ...(screenshot.client_context_json
+          ? { client_context_json: screenshot.client_context_json }
+          : {}),
+        captured_at: screenshot.captured_at ?? null
+      }))
+    });
+    return result?.count || 0;
+  } catch (error) {
+    throw toRepositoryError(error);
+  }
+};
+
+/**
+ * The screenshots of one record, oldest first, for review in the app.
+ *
+ * @param {string} humanFriendlyId - Public feedback id
+ * @returns {Promise<Object|null>} The record with its screenshots, else null
+ */
+const findFeedbackWithScreenshots = async (humanFriendlyId) => {
+  const reference = String(humanFriendlyId || '').trim();
+  if (!reference) {
+    return null;
+  }
+
+  try {
+    return await prisma.feedback.findFirst({
+      where: { AND: [buildActiveFeedbackWhere(), { human_friendly_id: reference }] },
+      select: {
+        id: true,
+        human_friendly_id: true,
+        submitted_at: true,
+        screenshots: {
+          select: FEEDBACK_SCREENSHOT_SELECT,
+          orderBy: { sequence: 'asc' }
+        }
+      }
+    });
+  } catch (error) {
+    throw toRepositoryError(error);
+  }
+};
+
+/**
+ * One screenshot, scoped to the record that owns it so an id from another
+ * record cannot be read through it.
+ *
+ * @param {string} humanFriendlyId - Public feedback id
+ * @param {string} screenshotId
+ * @returns {Promise<Object|null>}
+ */
+const findFeedbackScreenshot = async (humanFriendlyId, screenshotId) => {
+  const reference = String(humanFriendlyId || '').trim();
+  const id = String(screenshotId || '').trim();
+  if (!reference || !id) {
+    return null;
+  }
+
+  try {
+    return await prisma.feedback_screenshot.findFirst({
+      where: {
+        id,
+        feedback: { AND: [buildActiveFeedbackWhere(), { human_friendly_id: reference }] }
+      },
+      select: FEEDBACK_SCREENSHOT_SELECT
     });
   } catch (error) {
     throw toRepositoryError(error);
@@ -381,6 +549,30 @@ const countColumnFacet = async (key, filters) => {
   return toFacetValues(counts, labels);
 };
 
+/**
+ * Distinct values of a screens-applied-to column, counted on the child table
+ * under every other active filter. A report never lists the same screen
+ * twice, so a screen's row count is its record count.
+ */
+const countScopeScreenFacet = async (key, filters) => {
+  const { scopeScreenColumn } = FEEDBACK_FILTER_DIMENSIONS[key];
+  const groups = await prisma.feedback_scope_screen.groupBy({
+    by: [scopeScreenColumn],
+    where: { feedback: buildActiveFeedbackWhere(filters, { omit: [key] }) },
+    _count: { _all: true }
+  });
+
+  const counts = new Map();
+  groups.forEach((group) => {
+    const value = group[scopeScreenColumn];
+    if (value === null || value === undefined || value === '') {
+      return;
+    }
+    counts.set(value, (counts.get(value) || 0) + (group._count?._all || 0));
+  });
+  return toFacetValues(counts);
+};
+
 // A row's values for each JSON dimension, as filters compare them.
 const readJsonDimensionValues = (row) => {
   const context =
@@ -464,15 +656,25 @@ const summarizeFeedbackFacets = async (filters = {}) => {
   );
 
   try {
-    const [total, columnFacets, jsonFacets] = await Promise.all([
+    const [total, columnFacets, scopeScreenFacets, jsonFacets] = await Promise.all([
       prisma.feedback.count({ where: buildActiveFeedbackWhere(filters) }),
       Promise.all(columnKeys.map((key) => countColumnFacet(key, filters))),
+      Promise.all(
+        FEEDBACK_SCOPE_SCREEN_FILTER_KEYS.map((key) => countScopeScreenFacet(key, filters))
+      ),
       countJsonFacets(filters)
     ]);
     const facets = {};
     FEEDBACK_FILTER_KEYS.forEach((key) => {
       const columnIndex = columnKeys.indexOf(key);
-      facets[key] = columnIndex >= 0 ? columnFacets[columnIndex] : jsonFacets[key];
+      const scopeScreenIndex = FEEDBACK_SCOPE_SCREEN_FILTER_KEYS.indexOf(key);
+      if (columnIndex >= 0) {
+        facets[key] = columnFacets[columnIndex];
+      } else if (scopeScreenIndex >= 0) {
+        facets[key] = scopeScreenFacets[scopeScreenIndex];
+      } else {
+        facets[key] = jsonFacets[key];
+      }
     });
     return { total, facets };
   } catch (error) {
@@ -482,12 +684,17 @@ const summarizeFeedbackFacets = async (filters = {}) => {
 
 /**
  * Permanently delete feedback: exactly the listed records, or every match for
- * the filters. Rows are removed, not soft-deleted.
+ * the filters. Rows are removed, not soft-deleted, and their screenshots and
+ * scope screens go with them through the cascade.
+ *
+ * The storage keys of those screenshots are read first and handed back: once
+ * the rows are gone nothing points at the stored images any more, so the
+ * caller deletes them from the provider in the same operation.
  *
  * @param {Object} options
  * @param {string[]} [options.humanFriendlyIds] - Delete exactly these records
  * @param {Object} [options.filters] - Otherwise delete every matching record
- * @returns {Promise<number>} Rows deleted
+ * @returns {Promise<{ count: number, storage_keys: string[] }>}
  */
 const deleteFeedbackPermanently = async ({ humanFriendlyIds, filters } = {}) => {
   const where = Array.isArray(humanFriendlyIds)
@@ -495,8 +702,17 @@ const deleteFeedbackPermanently = async ({ humanFriendlyIds, filters } = {}) => 
     : buildActiveFeedbackWhere(filters);
 
   try {
+    const images = await prisma.feedback_screenshot.findMany({
+      where: { feedback: where },
+      select: { storage_key: true }
+    });
     const result = await prisma.feedback.deleteMany({ where });
-    return result?.count || 0;
+    return {
+      count: result?.count || 0,
+      storage_keys: images
+        .map((image) => image.storage_key)
+        .filter((key) => typeof key === 'string' && key.trim() !== '')
+    };
   } catch (error) {
     throw toRepositoryError(error);
   }
@@ -565,9 +781,12 @@ module.exports = {
   buildActiveFeedbackWhere,
   createFeedback,
   createFeedbackEvent,
+  createFeedbackScreenshots,
   deleteFeedbackPermanently,
   findCurrentSubscriptionSnapshot,
   findFacilitySnapshot,
+  findFeedbackScreenshot,
+  findFeedbackWithScreenshots,
   listActiveFeedbackForExport,
   listActiveFeedbackPage,
   summarizeActiveFeedback,

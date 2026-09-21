@@ -18,14 +18,18 @@ import 'package:hosspi_hms/core/utils/client_timezone.dart';
 import 'package:hosspi_hms/features/feedback/data/repositories/feedback_repository_impl.dart';
 import 'package:hosspi_hms/features/feedback/domain/entities/feedback_entities.dart';
 import 'package:hosspi_hms/features/feedback/domain/repositories/feedback_repository.dart';
+import 'package:hosspi_hms/features/feedback/presentation/controllers/feedback_capture_controller.dart';
+import 'package:hosspi_hms/features/feedback/presentation/controllers/feedback_draft_controller.dart';
 import 'package:hosspi_hms/features/feedback/presentation/controllers/feedback_launcher_position_controller.dart';
 import 'package:hosspi_hms/features/feedback/presentation/feedback_access.dart';
+import 'package:hosspi_hms/features/feedback/presentation/feedback_capture_session.dart';
 import 'package:hosspi_hms/features/feedback/presentation/feedback_context_capture.dart';
 import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_delete_dialog.dart';
 import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_download_dialog.dart';
 import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_submit_dialog.dart';
 import 'package:hosspi_hms/l10n/app_localizations.dart';
 import 'package:hosspi_hms/l10n/app_localizations_x.dart';
+import 'package:hosspi_hms/shared/actions/app_action_dialogs.dart';
 import 'package:hosspi_hms/shared/components/app_list_table_export_save.dart';
 import 'package:hosspi_hms/shared/components/components.dart';
 import 'package:hosspi_hms/shared/layout/app_workspace_feedback.dart';
@@ -124,6 +128,9 @@ class AppFeedbackHost extends ConsumerStatefulWidget {
   /// The floating control.
   static const Key launcherKey = Key('app-feedback-launcher');
 
+  /// What the control becomes while screens are being captured.
+  static const Key captureBarKey = Key('app-feedback-capture-bar');
+
   final GoRouter router;
   final Widget child;
   final FeedbackExportSaver saveExportFile;
@@ -141,6 +148,12 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
   );
 
   final GlobalKey _anchorKey = GlobalKey(debugLabel: 'feedback-launcher');
+
+  /// Wraps the app, and nothing this control paints, so a screenshot shows
+  /// the screen the reporter is looking at without the control on top of it.
+  final GlobalKey _appBoundaryKey = GlobalKey(
+    debugLabel: 'feedback-app-boundary',
+  );
 
   // The control stays tappable above its own menu. A tap closes an open menu;
   // while a dialog or download is under way, taps are ignored instead of
@@ -169,7 +182,32 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
       widget.router.routerDelegate.navigatorKey.currentContext;
 
   @override
+  void initState() {
+    super.initState();
+    // Published once the boundary exists, so the form and this control take
+    // their pictures from the same place.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref
+            .read(feedbackCaptureBoundaryProvider.notifier)
+            .register(_appBoundaryKey);
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // A draft belongs to the person who started it. When the session ends,
+    // their words and their screenshots go with it.
+    ref.listen<SessionState>(sessionStateProvider, (
+      SessionState? previous,
+      SessionState next,
+    ) {
+      if (previous?.session != null && next.session == null) {
+        ref.read(feedbackDraftProvider.notifier).reset();
+      }
+    });
+
     final bool canManage = canManageFeedback(
       ref.watch(appAccessPolicyProvider),
     );
@@ -202,34 +240,51 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
         ? textDirection == TextDirection.ltr
         : position.dx + _iconOnlySize.width / 2 > _viewSize.width / 2;
 
-    final Widget launcher = GestureDetector(
-      // Report movement from the touch-down point so the control tracks the
-      // pointer exactly instead of lagging by the drag slop.
-      dragStartBehavior: DragStartBehavior.down,
-      onPanStart: _handleDragStart,
-      onPanUpdate: _handleDragUpdate,
-      onPanEnd: (_) => _endDrag(),
-      onPanCancel: _endDrag,
-      child: KeyedSubtree(
-        key: _anchorKey,
-        child: _FeedbackLauncher(
-          isBusy: _isBusy,
-          isDragging: _isDragging,
-          canManage: canManage,
-          labelOpensLeftward: _labelOpensLeftward,
-          isMenuOpen: _openMenuKey != null,
-          onPressed: _openMenuKey != null
-              ? _closeMenu
-              : _isFlowActive
-              ? null
-              : () => unawaited(
-                  _runExclusive(
-                    canManage ? _openAdminMenu : _openFeedbackDialog,
-                  ),
-                ),
-        ),
-      ),
-    );
+    // While the reporter is walking the app for more screens, the control is
+    // their capture bar: the draft waits, and every tap of Capture adds
+    // another picture to it.
+    final FeedbackDraft? draft = ref.watch(feedbackDraftProvider);
+    final bool isCapturing = draft?.isCapturing ?? false;
+
+    final Widget launcher = isCapturing
+        ? KeyedSubtree(
+            key: _anchorKey,
+            child: _FeedbackCaptureBar(
+              draft: draft!,
+              isBusy: _isBusy,
+              onCapture: () => unawaited(_runExclusive(_captureScreen)),
+              onBack: () => unawaited(_runExclusive(_openFeedbackDialog)),
+              onDiscard: () => unawaited(_runExclusive(_discardDraft)),
+            ),
+          )
+        : GestureDetector(
+            // Report movement from the touch-down point so the control tracks
+            // the pointer exactly instead of lagging by the drag slop.
+            dragStartBehavior: DragStartBehavior.down,
+            onPanStart: _handleDragStart,
+            onPanUpdate: _handleDragUpdate,
+            onPanEnd: (_) => _endDrag(),
+            onPanCancel: _endDrag,
+            child: KeyedSubtree(
+              key: _anchorKey,
+              child: _FeedbackLauncher(
+                isBusy: _isBusy,
+                isDragging: _isDragging,
+                canManage: canManage,
+                labelOpensLeftward: _labelOpensLeftward,
+                isMenuOpen: _openMenuKey != null,
+                onPressed: _openMenuKey != null
+                    ? _closeMenu
+                    : _isFlowActive
+                    ? null
+                    : () => unawaited(
+                        _runExclusive(
+                          canManage ? _openAdminMenu : _openFeedbackDialog,
+                        ),
+                      ),
+              ),
+            ),
+          );
 
     final double endInset = textDirection == TextDirection.rtl
         ? _safePadding.left
@@ -238,9 +293,12 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     // Every branch builds the same keyed `Positioned`, so dragging moves the
     // control without remounting it and cancelling the gesture. While one of
     // its own dialogs is open the control leaves the screen entirely.
+    // The capture bar is far wider than the control it replaces, so it takes
+    // the default corner rather than wherever the control was dragged, where
+    // it could hang off the edge of the screen.
     final Widget? launcherSlot = _isDialogOpen
         ? null
-        : position == null
+        : position == null || isCapturing
         ? Positioned.directional(
             key: _launcherSlotKey,
             textDirection: textDirection,
@@ -266,7 +324,9 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     return Stack(
       fit: StackFit.expand,
       children: <Widget>[
-        widget.child,
+        // Everything the app paints, and only that, so a screenshot taken
+        // from this boundary never carries the feedback control with it.
+        RepaintBoundary(key: _appBoundaryKey, child: widget.child),
         // Over an HTML platform view, such as the print preview iframe, the
         // browser hands pointer input to the view and Flutter never sees it.
         // While a feedback menu or dialog is open, or the control is being
@@ -483,6 +543,11 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     }
   }
 
+  /// Opens the form, starting a draft or coming back to the one in hand.
+  ///
+  /// The first shot is taken here, before the form is on screen: the picture
+  /// a reporter needs is of the screen they were looking at when they reached
+  /// for the control, not of the form they opened over it.
   Future<void> _openFeedbackDialog() async {
     final BuildContext? navigatorContext = _navigatorContext;
     if (navigatorContext == null) {
@@ -491,9 +556,14 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
 
     // The device may have changed zone since launch.
     await loadClientTimeZoneId();
-    if (!mounted) {
+    if (!mounted || !navigatorContext.mounted) {
       return;
     }
+    final AppLocalizations l10n = navigatorContext.l10n;
+    final FeedbackDraftController drafts = ref.read(
+      feedbackDraftProvider.notifier,
+    );
+    final bool isNewDraft = ref.read(feedbackDraftProvider) == null;
     final SessionState session = ref.read(sessionStateProvider);
     final FeedbackContext feedbackContext = captureFeedbackContext(
       context: context,
@@ -503,22 +573,45 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
       connectivity: ref.read(appConnectivityStatusProvider).value,
     );
 
-    final FeedbackReceipt? receipt = await _withDialogHidden<FeedbackReceipt>(
-      () => showAppDialog<FeedbackReceipt>(
-        context: navigatorContext,
-        // See-through, so the screen the feedback is about stays in view.
-        barrierColor: Colors.transparent,
-        builder: (_) => FeedbackSubmitDialog(
-          feedbackContext: feedbackContext,
-          signedIn: session.session != null,
-        ),
-      ),
+    final FeedbackScreenshot? firstScreenshot = isNewDraft
+        ? await ref.read(feedbackScreenCapturerProvider)(
+            ref: ref,
+            router: widget.router,
+            l10n: l10n,
+          )
+        : null;
+    if (!mounted || !navigatorContext.mounted) {
+      return;
+    }
+    drafts.start(
+      context: feedbackContext,
+      signedIn: session.session != null,
+      firstScreenshot: firstScreenshot,
     );
-    if (receipt == null || !navigatorContext.mounted) {
+
+    final FeedbackSubmitOutcome? outcome =
+        await _withDialogHidden<FeedbackSubmitOutcome>(
+          () => showAppDialog<FeedbackSubmitOutcome>(
+            context: navigatorContext,
+            // See-through, so the screen the feedback is about stays in view.
+            barrierColor: Colors.transparent,
+            builder: (_) => const FeedbackSubmitDialog(),
+          ),
+        );
+    if (!navigatorContext.mounted) {
+      return;
+    }
+    // Closed without a decision: the draft waits, untouched, for the next
+    // time the control is tapped.
+    if (outcome == null) {
+      return;
+    }
+    if (outcome.capturesMoreScreens) {
+      showAppNoticeSnackBar(navigatorContext, l10n.feedbackCaptureModeHint);
       return;
     }
 
-    final AppLocalizations l10n = navigatorContext.l10n;
+    final FeedbackReceipt receipt = outcome.receipt!;
     final String? reference = receipt.referenceId;
     showAppSuccessSnackBar(
       navigatorContext,
@@ -526,6 +619,94 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
           ? l10n.feedbackSubmittedPlainMessage
           : l10n.feedbackSubmittedMessage(reference),
     );
+    if (receipt.screenshotsDropped > 0) {
+      showAppNoticeSnackBar(
+        navigatorContext,
+        l10n.feedbackScreenshotsDroppedMessage(receipt.screenshotsDropped),
+      );
+    }
+  }
+
+  /// Takes a picture of the screen the reporter walked to.
+  ///
+  /// Capture mode stays on afterwards, so they can carry on to the next
+  /// screen; only the cap, Back or Discard end the run.
+  Future<void> _captureScreen() async {
+    final BuildContext? navigatorContext = _navigatorContext;
+    final FeedbackDraft? draft = ref.read(feedbackDraftProvider);
+    if (navigatorContext == null || draft == null) {
+      return;
+    }
+    final AppLocalizations l10n = navigatorContext.l10n;
+    final int limit = feedbackScreenshotLimit(signedIn: draft.signedIn);
+    if (!draft.canCaptureMore) {
+      showAppNoticeSnackBar(
+        navigatorContext,
+        l10n.feedbackCaptureLimitReachedMessage(limit),
+      );
+      return;
+    }
+
+    setState(() => _isBusy = true);
+    try {
+      final FeedbackScreenshot? screenshot = await ref.read(
+        feedbackScreenCapturerProvider,
+      )(ref: ref, router: widget.router, l10n: l10n);
+      if (!navigatorContext.mounted) {
+        return;
+      }
+      if (screenshot == null) {
+        showAppNoticeSnackBar(
+          navigatorContext,
+          l10n.feedbackCaptureFailedMessage,
+        );
+        return;
+      }
+      if (!ref.read(feedbackDraftProvider.notifier).addScreenshot(screenshot)) {
+        showAppNoticeSnackBar(
+          navigatorContext,
+          l10n.feedbackCaptureLimitReachedMessage(limit),
+        );
+        return;
+      }
+      showAppSuccessSnackBar(
+        navigatorContext,
+        l10n.feedbackCaptureCapturedMessage(
+          ref.read(feedbackDraftProvider)?.screenshots.length ?? 0,
+          limit,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isBusy = false);
+      }
+    }
+  }
+
+  /// Throws the draft away, with everything captured for it, once the
+  /// reporter confirms: this is the only action here that loses their words.
+  Future<void> _discardDraft() async {
+    final BuildContext? navigatorContext = _navigatorContext;
+    if (navigatorContext == null) {
+      return;
+    }
+    final AppLocalizations l10n = navigatorContext.l10n;
+    final bool? confirmed = await _withDialogHidden<bool>(
+      () => showAppDialog<bool>(
+        context: navigatorContext,
+        builder: (_) => AppConfirmActionDialog(
+          title: l10n.feedbackDiscardDraftTitle,
+          body: l10n.feedbackDiscardDraftBody,
+          submitLabel: l10n.feedbackCaptureDiscardAction,
+          icon: const Icon(AppActionIcons.delete),
+          submitLeadingIcon: AppActionIcons.delete,
+          destructive: true,
+        ),
+      ),
+    );
+    if (confirmed ?? false) {
+      ref.read(feedbackDraftProvider.notifier).reset();
+    }
   }
 
   /// Lets the user pick stored feedback and save it as a workbook.
@@ -611,6 +792,103 @@ class _AppFeedbackHostState extends ConsumerState<AppFeedbackHost> {
     showAppSuccessSnackBar(
       navigatorContext,
       navigatorContext.l10n.feedbackDeletedMessage(deletedCount),
+    );
+  }
+}
+
+/// What the floating control becomes while the reporter is capturing
+/// screens: capture again, go back to the form, or throw the draft away.
+///
+/// It stays outside the boundary the pictures are taken from, so it is never
+/// in one of them, and it reports the running count after every shot so the
+/// reporter knows how many more they can take.
+class _FeedbackCaptureBar extends StatelessWidget {
+  const _FeedbackCaptureBar({
+    required this.draft,
+    required this.isBusy,
+    required this.onCapture,
+    required this.onBack,
+    required this.onDiscard,
+  });
+
+  static const Key captureKey = ValueKey<String>('app-feedback-capture');
+  static const Key backKey = ValueKey<String>('app-feedback-capture-back');
+  static const Key discardKey = ValueKey<String>(
+    'app-feedback-capture-discard',
+  );
+
+  final FeedbackDraft draft;
+  final bool isBusy;
+  final VoidCallback onCapture;
+  final VoidCallback onBack;
+  final VoidCallback onDiscard;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    final AppLocalizations l10n = context.l10n;
+    final int limit = feedbackScreenshotLimit(signedIn: draft.signedIn);
+
+    return AppPointerInterceptor(
+      child: Material(
+        key: AppFeedbackHost.captureBarKey,
+        color: colors.primaryContainer,
+        elevation: 3,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(theme.radius.xs),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: EdgeInsets.all(theme.spacing.xs),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                '${l10n.feedbackCaptureModeLabel} · '
+                '${l10n.feedbackScreenshotsCountLabel(draft.screenshots.length, limit)}',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colors.onPrimaryContainer,
+                ),
+              ),
+              SizedBox(height: theme.spacing.xs),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  AppButton.primary(
+                    key: captureKey,
+                    label: l10n.feedbackCaptureAction,
+                    leadingIcon: Icons.photo_camera_outlined,
+                    isLoading: isBusy,
+                    onPressed: draft.canCaptureMore && !isBusy
+                        ? onCapture
+                        : null,
+                    semanticLabel: l10n.feedbackCaptureSemanticLabel,
+                  ),
+                  SizedBox(width: theme.spacing.xs),
+                  AppButton.secondary(
+                    key: backKey,
+                    label: l10n.feedbackCaptureBackAction,
+                    leadingIcon: Icons.arrow_back,
+                    onPressed: isBusy ? null : onBack,
+                  ),
+                  SizedBox(width: theme.spacing.xs),
+                  // No tooltips here: the control lives above the router's
+                  // navigator, where there is no overlay to put one in.
+                  AppButton.secondary(
+                    key: discardKey,
+                    label: l10n.feedbackCaptureDiscardAction,
+                    leadingIcon: AppActionIcons.delete,
+                    color: colors.error,
+                    onPressed: isBusy ? null : onDiscard,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

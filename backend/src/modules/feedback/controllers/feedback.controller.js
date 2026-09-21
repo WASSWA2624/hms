@@ -14,7 +14,9 @@ const buildFeedbackContext = (req) => ({
   user_agent: req.get('user-agent') || null,
   locale: req.get('x-locale') || null,
   timezone: req.get('x-timezone') || null,
-  platform: req.get('x-platform') || null
+  platform: req.get('x-platform') || null,
+  // Screenshots of a multipart submission, in the order they were sent.
+  files: Array.isArray(req.files) ? req.files : []
 });
 
 const submitNpsFeedback = asyncHandler(async (req, res) => {
@@ -64,6 +66,33 @@ const exportFeedback = asyncHandler(async (req, res) => {
   res.setHeader('Content-Type', result.mime_type);
   res.setHeader('Content-Disposition', `attachment; filename="${result.file_name}"`);
   res.setHeader('Cache-Control', 'no-store');
+  res.status(200);
+  // The archive streams: its images are read from storage as they are added,
+  // so a download of every record never has to fit in memory.
+  result.stream.on('error', (error) => {
+    res.destroy(error);
+  });
+  result.stream.pipe(res);
+});
+
+const listFeedbackScreenshots = asyncHandler(async (req, res) => {
+  const result = await feedbackService.listFeedbackScreenshots(
+    req.params.human_friendly_id,
+    buildFeedbackContext(req)
+  );
+  sendSuccess(res, 200, 'messages.feedback.screenshots.success', result);
+});
+
+const getFeedbackScreenshot = asyncHandler(async (req, res) => {
+  const result = await feedbackService.getFeedbackScreenshotImage(
+    req.params.human_friendly_id,
+    req.params.screenshot_id,
+    buildFeedbackContext(req)
+  );
+  res.setHeader('Content-Type', result.mime_type);
+  res.setHeader('Content-Disposition', `inline; filename="${result.file_name}"`);
+  // These images can show patient data: no caching anywhere on the way back.
+  res.setHeader('Cache-Control', 'no-store, private');
   res.status(200).send(result.buffer);
 });
 
@@ -76,8 +105,10 @@ module.exports = {
   deleteFeedback,
   exportFeedback,
   getFeedbackFacets,
+  getFeedbackScreenshot,
   getFeedbackSummary,
   listFeedback,
+  listFeedbackScreenshots,
   submitCsatFeedback,
   submitFeedback,
   submitNpsFeedback
