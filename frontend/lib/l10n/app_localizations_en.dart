@@ -30880,4 +30880,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get feedbackFilterAppliesToRouteLabel => 'Applies to screen';
+
+  @override
+  String get feedbackDockBesideAppAction => 'Dock beside the app';
+
+  @override
+  String get feedbackOpenAsWindowAction => 'Open as a window';
+
+  @override
+  String feedbackRaisedFromLabel(String screen) {
+    return 'From $screen';
+  }
+
+  @override
+  String get feedbackScreenshotsEmptyHint =>
+      'No screenshots yet. Capture this screen, or walk the app and capture as you go.';
 }

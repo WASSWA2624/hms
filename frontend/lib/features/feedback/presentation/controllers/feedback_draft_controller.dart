@@ -24,6 +24,7 @@ final class FeedbackDraft {
     this.screenshots = const <FeedbackScreenshot>[],
     this.isCapturing = false,
     this.includeDialogInShot = false,
+    this.isFormOpen = true,
   });
 
   /// Where the feedback was raised: the screen, device and session as they
@@ -48,6 +49,10 @@ final class FeedbackDraft {
   /// Whether the next shot shows the feedback form itself.
   final bool includeDialogInShot;
 
+  /// Whether the form is on screen. A draft outlives it: closing the form
+  /// puts the report aside, it does not throw it away.
+  final bool isFormOpen;
+
   /// Shots this reporter may still take.
   int get remainingScreenshots =>
       feedbackScreenshotLimit(signedIn: signedIn) - screenshots.length;
@@ -67,6 +72,7 @@ final class FeedbackDraft {
     List<FeedbackScreenshot>? screenshots,
     bool? isCapturing,
     bool? includeDialogInShot,
+    bool? isFormOpen,
   }) {
     return FeedbackDraft(
       context: context,
@@ -78,6 +84,7 @@ final class FeedbackDraft {
       screenshots: screenshots ?? this.screenshots,
       isCapturing: isCapturing ?? this.isCapturing,
       includeDialogInShot: includeDialogInShot ?? this.includeDialogInShot,
+      isFormOpen: isFormOpen ?? this.isFormOpen,
     );
   }
 }
@@ -97,7 +104,10 @@ final class FeedbackDraftController extends Notifier<FeedbackDraft?> {
   }) {
     final FeedbackDraft? existing = state;
     if (existing != null) {
-      final FeedbackDraft resumed = existing.copyWith(isCapturing: false);
+      final FeedbackDraft resumed = existing.copyWith(
+        isCapturing: false,
+        isFormOpen: true,
+      );
       state = firstScreenshot == null
           ? resumed
           : _withScreenshot(resumed, firstScreenshot);
@@ -173,7 +183,17 @@ final class FeedbackDraftController extends Notifier<FeedbackDraft?> {
     if (draft == null) {
       return;
     }
-    state = draft.copyWith(isCapturing: true);
+    state = draft.copyWith(isCapturing: true, isFormOpen: false);
+  }
+
+  /// Closes the form and keeps the report: the next tap of the control opens
+  /// it again with every word and picture still there.
+  void closeForm() {
+    final FeedbackDraft? draft = state;
+    if (draft == null) {
+      return;
+    }
+    state = draft.copyWith(isFormOpen: false, isCapturing: false);
   }
 
   void endCapturing() {

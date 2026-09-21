@@ -18,10 +18,12 @@ import 'package:hosspi_hms/core/security/session_tokens.dart';
 import 'package:hosspi_hms/features/feedback/data/repositories/feedback_repository_impl.dart';
 import 'package:hosspi_hms/features/feedback/domain/entities/feedback_entities.dart';
 import 'package:hosspi_hms/features/feedback/domain/repositories/feedback_repository.dart';
-import 'package:hosspi_hms/features/feedback/presentation/controllers/feedback_draft_controller.dart';
 import 'package:hosspi_hms/features/feedback/presentation/feedback_capture_session.dart';
 import 'package:hosspi_hms/features/feedback/presentation/widgets/app_feedback_host.dart';
+import 'package:hosspi_hms/features/feedback/presentation/controllers/feedback_presentation_controller.dart';
 import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_delete_dialog.dart';
+import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_dock_panel.dart';
+import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_form_view.dart';
 import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_download_dialog.dart';
 import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_submit_dialog.dart';
 import 'package:hosspi_hms/l10n/app_localizations.dart';
@@ -276,13 +278,19 @@ Future<GoRouter> _pumpHost(
 
 Finder get _launcher => find.byKey(AppFeedbackHost.launcherKey);
 
-Finder get _messageField => find.descendant(
-  of: find.byType(FeedbackSubmitDialog),
-  matching: find.byType(TextFormField),
-);
+Finder get _form => find.byType(FeedbackFormView);
 
-Finder _typeOption(String label) =>
-    find.widgetWithText(AppCheckboxField, label);
+Finder get _dockPanel => find.byKey(FeedbackDockPanel.panelKey);
+
+Finder get _messageField =>
+    find.descendant(of: _form, matching: find.byType(TextFormField));
+
+/// Picks a value in one of the form's selects. Driving the dropdown's own
+/// overlay adds nothing here; the field's callback is the contract.
+Future<void> _choose<T>(WidgetTester tester, Key key, T value) async {
+  tester.widget<AppSelectField<T>>(find.byKey(key)).onChanged?.call(value);
+  await tester.pumpAndSettle();
+}
 
 /// Scrolls a control of the form into view before tapping it: the form is
 /// taller than a phone screen once it carries screenshots.
@@ -336,8 +344,9 @@ void main() {
 
       await _openLauncher(tester);
 
-      expect(find.byType(FeedbackSubmitDialog), findsOneWidget);
-      expect(find.text('GIVE US FEEDBACK'), findsOneWidget);
+      // Beside the app, not over it, and not see-through.
+      expect(_dockPanel, findsOneWidget);
+      expect(find.byType(FeedbackSubmitDialog), findsNothing);
       expect(find.text('Download feedback'), findsNothing);
       // The control steps aside while its own form is open.
       expect(_launcher, findsNothing);
@@ -346,7 +355,7 @@ void main() {
       await tester.tap(find.widgetWithText(AppButton, 'Send feedback'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(FeedbackSubmitDialog), findsNothing);
+      expect(_dockPanel, findsNothing);
       final ({FeedbackSubmission submission, bool signedIn}) sent =
           repository.submissions.single;
       expect(sent.signedIn, isFalse);
@@ -444,20 +453,17 @@ void main() {
 
     await _openLauncher(tester);
 
-    expect(find.byType(FeedbackSubmitDialog), findsOneWidget);
+    expect(_dockPanel, findsOneWidget);
     expect(find.text('Register new patient'), findsOneWidget);
     // The control hides behind its own form, and comes back when it closes.
     expect(_launcher, findsNothing);
 
     await tester.tap(
-      find.descendant(
-        of: find.byType(FeedbackSubmitDialog),
-        matching: find.widgetWithText(AppButton, 'Close'),
-      ),
+      find.descendant(of: _dockPanel, matching: find.widgetWithText(AppButton, 'Close')),
     );
     await tester.pumpAndSettle();
 
-    expect(find.byType(FeedbackSubmitDialog), findsNothing);
+    expect(_dockPanel, findsNothing);
     expect(_launcher.hitTestable(), findsOneWidget);
   });
 
@@ -640,7 +646,7 @@ void main() {
 
     await _openLauncher(tester);
 
-    expect(find.byType(FeedbackSubmitDialog), findsOneWidget);
+    expect(_dockPanel, findsOneWidget);
     expect(find.text('Download feedback'), findsNothing);
     expect(find.text('Clear feedback'), findsNothing);
 
@@ -674,7 +680,7 @@ void main() {
       offsetMoreOrLessEquals(start + const Offset(-400, -300), epsilon: 1),
     );
     // A drag is not a tap.
-    expect(find.byType(FeedbackSubmitDialog), findsNothing);
+    expect(_form, findsNothing);
 
     router.go('/billing');
     await tester.pumpAndSettle();
@@ -683,7 +689,7 @@ void main() {
     expect(tester.getTopLeft(_launcher), offsetMoreOrLessEquals(moved));
 
     await _openLauncher(tester);
-    expect(find.byType(FeedbackSubmitDialog), findsOneWidget);
+    expect(_dockPanel, findsOneWidget);
   });
 
   testWidgets('the button stays on screen however far it is dragged', (
@@ -968,15 +974,18 @@ void main() {
 
       await _openLauncher(tester);
       await tester.enterText(_messageField, 'Both screens are wrong');
-      await tester.tap(_typeOption('Problem'));
-      await tester.pump();
+      await _choose<FeedbackCategory>(
+        tester,
+        FeedbackFormView.categoryFieldKey,
+        FeedbackCategory.problem,
+      );
       await _tapVisible(
         tester,
-        find.byKey(FeedbackSubmitDialog.captureAnotherScreenKey),
+        find.byKey(FeedbackFormView.captureAnotherScreenKey),
       );
 
       // The control has become the capture bar; the form is put aside.
-      expect(find.byType(FeedbackSubmitDialog), findsNothing);
+      expect(_form, findsNothing);
       expect(find.byKey(AppFeedbackHost.captureBarKey), findsOneWidget);
       expect(find.text('Capturing · 1 of 3'), findsOneWidget);
 
@@ -1000,7 +1009,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Everything typed and captured came back with the form.
-      expect(find.byType(FeedbackSubmitDialog), findsOneWidget);
+      expect(_dockPanel, findsOneWidget);
       expect(find.text('Both screens are wrong'), findsOneWidget);
       expect(find.text('3 of 3'), findsOneWidget);
 
@@ -1038,7 +1047,7 @@ void main() {
     await tester.enterText(_messageField, 'Never mind');
     await _tapVisible(
       tester,
-      find.byKey(FeedbackSubmitDialog.captureAnotherScreenKey),
+      find.byKey(FeedbackFormView.captureAnotherScreenKey),
     );
     await tester.tap(find.widgetWithText(AppButton, 'Discard feedback'));
     await tester.pumpAndSettle();
@@ -1051,5 +1060,121 @@ void main() {
     expect(_launcher, findsOneWidget);
     await _openLauncher(tester);
     expect(find.text('Never mind'), findsNothing);
+  });
+
+  testWidgets('the app keeps its own layout while the panel is beside it', (
+    WidgetTester tester,
+  ) async {
+    await _pumpHost(
+      tester,
+      session: const SessionState.unauthenticated(),
+      repository: _FakeFeedbackRepository(),
+    );
+    final Size appBefore = tester.getSize(find.text('Patients page'));
+    final Rect pageBefore = tester.getRect(find.byType(MaterialApp));
+
+    await _openLauncher(tester);
+
+    expect(_dockPanel, findsOneWidget);
+    // The panel is laid over the app, never squeezing it: the screen being
+    // reported on still looks exactly as it did.
+    expect(tester.getSize(find.text('Patients page')), appBefore);
+    expect(tester.getRect(find.byType(MaterialApp)), pageBefore);
+
+    // And it sits on the trailing edge, beside the app rather than over its
+    // middle.
+    final Rect panel = tester.getRect(_dockPanel);
+    expect(panel.right, moreOrLessEquals(pageBefore.right, epsilon: 1));
+    expect(panel.height, moreOrLessEquals(pageBefore.height, epsilon: 1));
+    expect(panel.width, lessThan(pageBefore.width / 2));
+  });
+
+  testWidgets('the app stays usable while the form is beside it', (
+    WidgetTester tester,
+  ) async {
+    final GoRouter router = await _pumpHost(
+      tester,
+      session: const SessionState.unauthenticated(),
+      repository: _FakeFeedbackRepository(),
+    );
+
+    await _openLauncher(tester);
+    await tester.enterText(_messageField, 'Watch this screen');
+
+    // Nothing modal about the panel: the app behind carries on.
+    router.goNamed('billing');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Billing page'), findsOneWidget);
+    expect(_dockPanel, findsOneWidget);
+    expect(find.text('Watch this screen'), findsOneWidget);
+  });
+
+  testWidgets('the reporter can move the form between beside and over the app', (
+    WidgetTester tester,
+  ) async {
+    await _pumpHost(
+      tester,
+      session: const SessionState.unauthenticated(),
+      repository: _FakeFeedbackRepository(),
+    );
+
+    await _openLauncher(tester);
+    await tester.enterText(_messageField, 'Either way works');
+
+    await tester.tap(find.byKey(FeedbackDockPanel.undockKey));
+    await tester.pumpAndSettle();
+
+    // The window takes over, with the draft untouched.
+    expect(_dockPanel, findsNothing);
+    expect(find.byType(FeedbackSubmitDialog), findsOneWidget);
+    expect(find.text('Either way works'), findsOneWidget);
+
+    await _tapVisible(tester, find.byKey(FeedbackSubmitDialog.dockKey));
+
+    expect(find.byType(FeedbackSubmitDialog), findsNothing);
+    expect(_dockPanel, findsOneWidget);
+    expect(find.text('Either way works'), findsOneWidget);
+  });
+
+  testWidgets('a narrow window gets the form as a window, not a panel', (
+    WidgetTester tester,
+  ) async {
+    await _pumpHost(
+      tester,
+      session: const SessionState.unauthenticated(),
+      repository: _FakeFeedbackRepository(),
+      size: const Size(600, 900),
+    );
+
+    await _openLauncher(tester);
+
+    // Nothing to sit beside at this width.
+    expect(feedbackCanDock(600), isFalse);
+    expect(_dockPanel, findsNothing);
+    expect(find.byType(FeedbackSubmitDialog), findsOneWidget);
+  });
+
+  testWidgets('closing the panel keeps the report for the next tap', (
+    WidgetTester tester,
+  ) async {
+    await _pumpHost(
+      tester,
+      session: const SessionState.unauthenticated(),
+      repository: _FakeFeedbackRepository(),
+    );
+
+    await _openLauncher(tester);
+    await tester.enterText(_messageField, 'Half written');
+    await tester.tap(find.byKey(FeedbackDockPanel.closeKey));
+    await tester.pumpAndSettle();
+
+    expect(_dockPanel, findsNothing);
+    expect(_launcher.hitTestable(), findsOneWidget);
+
+    await _openLauncher(tester);
+
+    expect(_dockPanel, findsOneWidget);
+    expect(find.text('Half written'), findsOneWidget);
   });
 }

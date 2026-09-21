@@ -55998,6 +55998,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Applies to screen'**
   String get feedbackFilterAppliesToRouteLabel;
+
+  /// Action that moves the feedback form from a window to a panel beside the app.
+  ///
+  /// In en, this message translates to:
+  /// **'Dock beside the app'**
+  String get feedbackDockBesideAppAction;
+
+  /// Action that moves the feedback form from the docked panel into a window over the app.
+  ///
+  /// In en, this message translates to:
+  /// **'Open as a window'**
+  String get feedbackOpenAsWindowAction;
+
+  /// Subtitle of the docked feedback panel naming the screen the report was raised from.
+  ///
+  /// In en, this message translates to:
+  /// **'From {screen}'**
+  String feedbackRaisedFromLabel(String screen);
+
+  /// Shown in the feedback form when no screenshots are attached.
+  ///
+  /// In en, this message translates to:
+  /// **'No screenshots yet. Capture this screen, or walk the app and capture as you go.'**
+  String get feedbackScreenshotsEmptyHint;
 }
 
 class _AppLocalizationsDelegate

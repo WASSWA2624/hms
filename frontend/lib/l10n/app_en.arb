@@ -39628,5 +39628,26 @@
   "feedbackFilterAppliesToRouteLabel": "Applies to screen",
   "@feedbackFilterAppliesToRouteLabel": {
     "description": "Filter grouping feedback by the screens it applies to."
+  },
+  "feedbackDockBesideAppAction": "Dock beside the app",
+  "@feedbackDockBesideAppAction": {
+    "description": "Action that moves the feedback form from a window to a panel beside the app."
+  },
+  "feedbackOpenAsWindowAction": "Open as a window",
+  "@feedbackOpenAsWindowAction": {
+    "description": "Action that moves the feedback form from the docked panel into a window over the app."
+  },
+  "feedbackRaisedFromLabel": "From {screen}",
+  "@feedbackRaisedFromLabel": {
+    "description": "Subtitle of the docked feedback panel naming the screen the report was raised from.",
+    "placeholders": {
+      "screen": {
+        "type": "String"
+      }
+    }
+  },
+  "feedbackScreenshotsEmptyHint": "No screenshots yet. Capture this screen, or walk the app and capture as you go.",
+  "@feedbackScreenshotsEmptyHint": {
+    "description": "Shown in the feedback form when no screenshots are attached."
   }
 }

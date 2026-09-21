@@ -10,10 +10,12 @@ import 'package:hosspi_hms/features/feedback/data/repositories/feedback_reposito
 import 'package:hosspi_hms/features/feedback/domain/entities/feedback_entities.dart';
 import 'package:hosspi_hms/features/feedback/domain/repositories/feedback_repository.dart';
 import 'package:hosspi_hms/features/feedback/presentation/controllers/feedback_draft_controller.dart';
+import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_form_view.dart';
 import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_screenshot_strip.dart';
 import 'package:hosspi_hms/features/feedback/presentation/widgets/feedback_submit_dialog.dart';
 import 'package:hosspi_hms/l10n/app_localizations.dart';
 import 'package:hosspi_hms/shared/components/components.dart';
+import 'package:hosspi_hms/shared/forms/forms.dart';
 import 'package:hosspi_hms/shared/data/app_pagination.dart';
 
 final class _ScriptedFeedbackRepository implements FeedbackRepository {
@@ -201,51 +203,63 @@ Finder get _messageField => find.descendant(
   matching: find.byType(TextFormField),
 );
 
-Finder _typeOption(String label) =>
-    find.widgetWithText(AppCheckboxField, label);
+/// The select behind one of the form's two choices.
+AppSelectField<T> _select<T>(WidgetTester tester, Key key) =>
+    tester.widget<AppSelectField<T>>(find.byKey(key));
 
-/// Labels of the checkboxes that render as checked.
-List<String> _checkedTypes(WidgetTester tester) {
-  return tester
-      .widgetList<CheckboxListTile>(
-        find.descendant(
-          of: find.byType(FeedbackSubmitDialog),
-          matching: find.byType(CheckboxListTile),
-        ),
-      )
-      .where((CheckboxListTile tile) => tile.value ?? false)
-      .map((CheckboxListTile tile) => (tile.title! as Text).data!)
-      .toList(growable: false);
+/// Picks a value in one of the form's selects. Driving the dropdown's own
+/// overlay adds nothing here; the field's callback is the contract.
+Future<void> _choose<T>(WidgetTester tester, Key key, T value) async {
+  _select<T>(tester, key).onChanged?.call(value);
+  await tester.pumpAndSettle();
 }
 
 void main() {
-  testWidgets(
-    'shows every feedback type as a checkbox with one checked at a time',
-    (WidgetTester tester) async {
-      await _openDialog(tester, repository: _ScriptedFeedbackRepository());
+  testWidgets('asks the two short questions as selects, side by side', (
+    WidgetTester tester,
+  ) async {
+    await _openDialog(tester, repository: _ScriptedFeedbackRepository());
 
-      expect(find.byType(AppSelectField<FeedbackCategory>), findsNothing);
-      for (final String label in <String>[
+    final AppSelectField<FeedbackCategory> category =
+        _select<FeedbackCategory>(tester, FeedbackFormView.categoryFieldKey);
+    final AppSelectField<FeedbackScope> scope = _select<FeedbackScope>(
+      tester,
+      FeedbackFormView.scopeFieldKey,
+    );
+
+    expect(
+      category.options.map((AppSelectOption<FeedbackCategory> option) => option.label),
+      <String>[
         'General feedback',
         'Problem',
         'Complaint',
         'Suggestion',
         'Improvement',
-      ]) {
-        expect(_typeOption(label), findsOneWidget);
-      }
-      expect(_checkedTypes(tester), <String>['General feedback']);
+      ],
+    );
+    expect(category.value, FeedbackCategory.general);
+    expect(
+      scope.options.map((AppSelectOption<FeedbackScope> option) => option.label),
+      <String>['This screen', 'The whole app', 'Selected screens'],
+    );
+    expect(scope.value, FeedbackScope.screen);
+    // The chosen scope still explains itself, now under the select.
+    expect(scope.helperText, 'Only the screen you opened this form from.');
 
-      await tester.tap(_typeOption('Problem'));
-      await tester.pump();
-      expect(_checkedTypes(tester), <String>['Problem']);
+    // Both sit on one row at desktop width.
+    expect(find.byType(AppResponsiveFieldRow), findsOneWidget);
+    final Rect categoryRect = tester.getRect(
+      find.byKey(FeedbackFormView.categoryFieldKey),
+    );
+    final Rect scopeRect = tester.getRect(
+      find.byKey(FeedbackFormView.scopeFieldKey),
+    );
+    expect(scopeRect.left, greaterThan(categoryRect.right - 1));
+    expect(scopeRect.top, moreOrLessEquals(categoryRect.top, epsilon: 1));
 
-      // Tapping the checked type keeps it checked.
-      await tester.tap(_typeOption('Problem'));
-      await tester.pump();
-      expect(_checkedTypes(tester), <String>['Problem']);
-    },
-  );
+    // Neither is a checkbox any more.
+    expect(find.widgetWithText(AppCheckboxField, 'Problem'), findsNothing);
+  });
 
   testWidgets('requires feedback details before sending', (
     WidgetTester tester,
@@ -280,8 +294,11 @@ void main() {
       onResult: (FeedbackSubmitOutcome? value) => outcome = value,
     );
 
-    await tester.tap(_typeOption('Complaint'));
-    await tester.pump();
+    await _choose<FeedbackCategory>(
+      tester,
+      FeedbackFormView.categoryFieldKey,
+      FeedbackCategory.complaint,
+    );
 
     await tester.enterText(_messageField, '  Invoices print twice  ');
     await tester.tap(find.widgetWithText(AppButton, 'Send feedback'));
@@ -333,14 +350,16 @@ void main() {
       repository: repository,
     );
 
-    expect(find.text('What does this apply to?'), findsOneWidget);
     expect(
       container.read(feedbackDraftProvider)?.scope,
       FeedbackScope.screen,
     );
 
-    await tester.tap(find.text('The whole app'));
-    await tester.pumpAndSettle();
+    await _choose<FeedbackScope>(
+      tester,
+      FeedbackFormView.scopeFieldKey,
+      FeedbackScope.app,
+    );
     expect(container.read(feedbackDraftProvider)?.scope, FeedbackScope.app);
 
     await tester.enterText(_messageField, 'Slow everywhere');
@@ -362,8 +381,11 @@ void main() {
 
     await tester.enterText(_messageField, 'Both queues are slow');
     // Picking the scope opens the picker; closing it leaves nothing picked.
-    await tester.tap(find.text('Selected screens'));
-    await tester.pumpAndSettle();
+    await _choose<FeedbackScope>(
+      tester,
+      FeedbackFormView.scopeFieldKey,
+      FeedbackScope.screens,
+    );
     await tester.tap(find.widgetWithText(AppButton, 'Close').last);
     await tester.pumpAndSettle();
 
@@ -394,6 +416,8 @@ void main() {
 
     expect(find.byType(FeedbackScreenshotStrip), findsOneWidget);
     expect(find.text('3 of 10'), findsOneWidget);
+    expect(find.text('No screenshots yet. Capture this screen, or walk the '
+        'app and capture as you go.'), findsNothing);
     expect(find.text('1. Billing'), findsOneWidget);
     expect(find.text('2. Pharmacy'), findsOneWidget);
     expect(find.text('3. Pharmacy'), findsOneWidget);
@@ -456,8 +480,11 @@ void main() {
       onResult: (FeedbackSubmitOutcome? value) => outcome = value,
     );
 
-    await tester.tap(_typeOption('Problem'));
-    await tester.pump();
+    await _choose<FeedbackCategory>(
+      tester,
+      FeedbackFormView.categoryFieldKey,
+      FeedbackCategory.problem,
+    );
     await tester.enterText(_messageField, 'Look at the next screen too');
     await _tapVisible(
       tester,
@@ -482,5 +509,21 @@ void main() {
     );
 
     expect(find.text('1 of 3'), findsOneWidget);
+  });
+
+  testWidgets('says so when nothing has been captured yet', (
+    WidgetTester tester,
+  ) async {
+    await _openDialog(tester, repository: _ScriptedFeedbackRepository());
+
+    expect(find.byType(FeedbackScreenshotStrip), findsNothing);
+    expect(
+      find.text(
+        'No screenshots yet. Capture this screen, or walk the app and '
+        'capture as you go.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('0 of 3'), findsOneWidget);
   });
 }
